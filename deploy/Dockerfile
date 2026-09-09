@@ -2,7 +2,7 @@
 #
 # Собирается на архитектуре сборщика, а не образа: кросс-компиляция Go
 # бесплатна, а сборка под чужую архитектуру через эмуляцию идёт минутами.
-FROM --platform=$BUILDPLATFORM golang:1.24-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS build
 
 WORKDIR /src
 

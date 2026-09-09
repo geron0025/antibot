@@ -28,7 +28,7 @@ go build -trimpath -ldflags "-s -w -X main.Version=$(git describe --tags --alway
   -o antibot ./cmd/antibot
 ```
 
-Go 1.24 or newer. The build has three external dependencies:
+Go 1.25 or newer. The build has three external dependencies:
 `golang.org/x/net` (HTTP/2 and punycode), `gopkg.in/yaml.v3`
 (configuration) and `golang.org/x/text` (transitively). None at runtime.
 

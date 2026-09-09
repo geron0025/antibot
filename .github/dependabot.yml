@@ -4,9 +4,13 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
-    # go get quietly raises the go directive in go.mod: x/term once moved
-    # the requirement from 1.24.1 to 1.26 for the sake of one line of
-    # input. Every bump here gets read, not merged on green.
+    # go get quietly raises the go directive in go.mod, and for this
+    # module that is a decision, not a detail: it is the lowest Go a
+    # stranger needs to build the node. Every bump here gets read, not
+    # merged on green — but read and taken, not read and ignored:
+    # x/net/http2 terminates traffic from the open internet, and pinning
+    # it below the line where its own go directive moved would mean
+    # meeting the next HTTP/2 advisory with no upgrade path.
     open-pull-requests-limit: 5
 
   - package-ecosystem: github-actions

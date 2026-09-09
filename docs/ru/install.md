@@ -28,7 +28,7 @@ go build -trimpath -ldflags "-s -w -X main.Version=$(git describe --tags --alway
   -o antibot ./cmd/antibot
 ```
 
-Нужен Go 1.24 или новее. Внешних зависимостей у сборки три:
+Нужен Go 1.25 или новее. Внешних зависимостей у сборки три:
 `golang.org/x/net` (HTTP/2 и punycode), `gopkg.in/yaml.v3` (конфигурация)
 и `golang.org/x/text` (транзитивно). Ни одной для работы.
 
