@@ -13,3 +13,8 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
+    # Above the default of five. At five, dependabot opened requests for
+    # the actions it fitted and silently dropped actions/checkout — which
+    # was three majors behind. A cap that hides staleness is worse than
+    # a noisy inbox.
+    open-pull-requests-limit: 10
