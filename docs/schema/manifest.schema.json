@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antibot.dev/schema/manifest/1",
+  "title": "Манифест набора фактов с подписью",
+  "type": "object",
+  "required": ["version", "created_at", "size", "sha256", "key_id", "signature"],
+  "additionalProperties": false,
+  "properties": {
+    "version": {"type": "integer", "minimum": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "size": {"type": "integer", "minimum": 1},
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "key_id": {"type": "string", "maxLength": 32},
+    "signature": {"type": "string"}
+  }
+}

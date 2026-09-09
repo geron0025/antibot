@@ -1,0 +1,110 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antibot.dev/schema/proposals/1",
+  "title": "Список предложений правил для одной ноды",
+  "type": "object",
+  "required": ["format", "node", "created_at", "proposals"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {"const": 1},
+    "node": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+    "created_at": {"type": "string", "format": "date-time"},
+    "proposals": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {"$ref": "#/$defs/proposal"}
+    }
+  },
+  "$defs": {
+    "proposal": {
+      "type": "object",
+      "required": ["id", "created_at", "expires_at", "rule", "why", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"$ref": "#/$defs/cloud_id"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "requires_facts_version": {"type": "integer", "minimum": 1},
+        "rule": {"$ref": "#/$defs/rule"},
+        "why": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "evidence": {"$ref": "#/$defs/evidence"}
+      }
+    },
+
+    "cloud_id": {
+      "type": "string",
+      "pattern": "^cloud-[a-z0-9][a-z0-9-]{0,47}$"
+    },
+
+    "rule": {
+      "type": "object",
+      "required": ["id", "scope", "priority", "condition", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"$ref": "#/$defs/cloud_id"},
+        "name": {"type": "string", "maxLength": 200},
+        "scope": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {"type": "string", "minLength": 1, "maxLength": 253}
+        },
+        "priority": {"type": "integer", "minimum": -1000, "maximum": 1000},
+        "condition": {"$ref": "#/$defs/condition"},
+        "action": {"$ref": "#/$defs/action"}
+      }
+    },
+
+    "condition": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "all": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/condition"}},
+        "any": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/condition"}},
+        "not": {"$ref": "#/$defs/condition"},
+        "field": {"type": "string", "maxLength": 64},
+        "op": {
+          "enum": ["eq", "ne", "gt", "gte", "lt", "lte",
+                   "in", "not_in", "cidr", "not_cidr",
+                   "contains", "prefix", "suffix"]
+        },
+        "value": {}
+      },
+      "oneOf": [
+        {"required": ["all"]},
+        {"required": ["any"]},
+        {"required": ["not"]},
+        {"required": ["field", "op", "value"]}
+      ]
+    },
+
+    "action": {
+      "type": "object",
+      "required": ["type"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"enum": ["block", "allow", "ratelimit"]},
+        "status": {"type": "integer", "minimum": 100, "maximum": 599},
+        "body": {"type": "string", "maxLength": 1000},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 1048576},
+        "window": {"type": "string", "pattern": "^[0-9]+(ms|s|m|h)$"},
+        "key": {"type": "string", "maxLength": 64}
+      }
+    },
+
+    "evidence": {
+      "type": "object",
+      "required": ["window", "requests", "share", "would_block", "would_block_protected"],
+      "additionalProperties": false,
+      "properties": {
+        "window": {"type": "string", "maxLength": 64},
+        "requests": {"type": "integer", "minimum": 0},
+        "share": {"type": "number", "minimum": 0, "maximum": 1},
+        "networks": {"type": "integer", "minimum": 0},
+        "addresses": {"type": "integer", "minimum": 0},
+        "would_block": {"type": "integer", "minimum": 0},
+        "would_block_protected": {"type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

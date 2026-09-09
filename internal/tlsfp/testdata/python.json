@@ -1,0 +1,92 @@
+{
+  "client": "python",
+  "raw": "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",
+  "ja3": "771,4866-4867-4865-49196-49200-49195-49199-52393-52392-49188-49192-49187-49191-159-158-107-103,65281-0-11-10-16-22-23-49-13-43-45-51,4588-29-23-30-24-25-256-257,0",
+  "ja3_hash": "84442eae56523a0a09a58c8ad56661b2",
+  "ja4": "t13d1712h1_ab0a1bf427ad_882d495ac381",
+  "hello": {
+    "legacy_version": 771,
+    "supported_versions": [
+      772,
+      771
+    ],
+    "cipher_suites": [
+      4866,
+      4867,
+      4865,
+      49196,
+      49200,
+      49195,
+      49199,
+      52393,
+      52392,
+      49188,
+      49192,
+      49187,
+      49191,
+      159,
+      158,
+      107,
+      103
+    ],
+    "extensions": [
+      65281,
+      0,
+      11,
+      10,
+      16,
+      22,
+      23,
+      49,
+      13,
+      43,
+      45,
+      51
+    ],
+    "curves": [
+      4588,
+      29,
+      23,
+      30,
+      24,
+      25,
+      256,
+      257
+    ],
+    "point_formats": "AA==",
+    "sig_algs": [
+      2309,
+      2310,
+      2308,
+      1027,
+      1283,
+      1539,
+      2055,
+      2056,
+      2074,
+      2075,
+      2076,
+      2057,
+      2058,
+      2059,
+      2052,
+      2053,
+      2054,
+      1025,
+      1281,
+      1537,
+      771,
+      769,
+      770,
+      1026,
+      1282,
+      1538
+    ],
+    "alpn": [
+      "http/1.1"
+    ],
+    "sni": "localhost",
+    "has_sni_ext": true,
+    "has_grease": false
+  }
+}

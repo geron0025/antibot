@@ -1,0 +1,51 @@
+{{template "header" .}}
+
+{{template "period-picker" .}}
+
+<p class="dim">In the order of application: the first rule that fires in
+<code>active</code> mode wins. Observations (<code>shadow</code>) do not stop the
+walk. A rule can be enabled and disabled here; conditions are composed and
+edited with <code>antibot rules</code>.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th class="num">priority</th><th>id</th><th>mode</th><th>action</th>
+      <th>scope</th><th class="num">fired</th><th class="num">addresses</th><th class="num">share</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {{$total := .Events}}
+  {{range .Rules}}
+    <tr {{if not .Enabled}}class="disabled"{{end}}>
+      <td class="num">{{.Rule.Priority}}</td>
+      <td>
+        <a href="/events?rule={{.Rule.ID}}">{{.Rule.ID}}</a>
+        {{if .Rule.Name}}<div class="dim">{{.Rule.Name}}</div>{{end}}
+      </td>
+      <td>{{.Rule.Mode}}</td>
+      <td>{{.Rule.Action.Type}}</td>
+      <td class="value">{{range .Rule.Scope}}{{.}} {{end}}</td>
+      <td class="num">{{if .Enabled}}{{.Matched}}{{else}}<span class="dim">disabled</span>{{end}}</td>
+      <td class="num">{{if .Enabled}}{{.IPs}}{{end}}</td>
+      <td class="num dim">{{if .Enabled}}{{share .Matched $total}}{{end}}</td>
+      <td class="num">
+        <form method="post" action="/rules/toggle">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <input type="hidden" name="id" value="{{.Rule.ID}}">
+          <input type="hidden" name="enable" value="{{if .Enabled}}no{{else}}yes{{end}}">
+          <button type="submit">{{if .Enabled}}disable{{else}}enable{{end}}</button>
+        </form>
+      </td>
+    </tr>
+  {{else}}
+    <tr><td colspan="9" class="dim">no rules</td></tr>
+  {{end}}
+  </tbody>
+</table>
+
+<p class="dim">A rule touching a noticeable share of the requests almost
+certainly touches people too: that much traffic is never all bots. To check whom
+exactly it will touch before turning it on — <code>antibot replay</code>.</p>
+
+{{template "footer" .}}

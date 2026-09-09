@@ -1,0 +1,15 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+    # go get quietly raises the go directive in go.mod: x/term once moved
+    # the requirement from 1.24.1 to 1.26 for the sake of one line of
+    # input. Every bump here gets read, not merged on green.
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly

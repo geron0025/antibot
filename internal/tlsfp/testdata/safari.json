@@ -1,0 +1,84 @@
+{
+  "client": "safari",
+  "raw": "FgMBAgABAAH8AwPe0T2LpusxkOyUFi1iNUnD0wTOo1ynERnd25ZhoSbYNCArJQAOHca4IDL+2PG25mChtdvxenbIEpZreOD3nan4twAqSkoTARMCEwPALMArzKnAMMAvzKjACsAJwBTAEwCdAJwANQAvwAjAEgAKAQABiWpqAAAAFwAA/wEAAQAACgAMAAr6+gAdABcAGAAZAAsAAgEAABAADgAMAmgyCGh0dHAvMS4xAAUABQEAAAAAAA0AFgAUBAMIBAQBBQMIBQgFBQEIBgYBAgEAEgAAADMAKwAp+voAAQAAHQAgD8WQ/4Ld55JNwA6cGB8ywdO1ihuNZjKAiFstmNGPXwQALQACAQEAKwALChoaAwQDAwMCAwEAGwADAgABGhoAAQAAFQDZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==",
+  "ja3": "771,4865-4866-4867-49196-49195-52393-49200-49199-52392-49162-49161-49172-49171-157-156-53-47-49160-49170-10,23-65281-10-11-16-5-13-18-51-45-43-27-21,29-23-24-25,0",
+  "ja3_hash": "5a527c775ff4ae29b4f0c77b113f9625",
+  "ja4": "t13i2013h2_a09f3c656075_e42f34c56612",
+  "hello": {
+    "legacy_version": 771,
+    "supported_versions": [
+      6682,
+      772,
+      771,
+      770,
+      769
+    ],
+    "cipher_suites": [
+      19018,
+      4865,
+      4866,
+      4867,
+      49196,
+      49195,
+      52393,
+      49200,
+      49199,
+      52392,
+      49162,
+      49161,
+      49172,
+      49171,
+      157,
+      156,
+      53,
+      47,
+      49160,
+      49170,
+      10
+    ],
+    "extensions": [
+      27242,
+      23,
+      65281,
+      10,
+      11,
+      16,
+      5,
+      13,
+      18,
+      51,
+      45,
+      43,
+      27,
+      6682,
+      21
+    ],
+    "curves": [
+      64250,
+      29,
+      23,
+      24,
+      25
+    ],
+    "point_formats": "AA==",
+    "sig_algs": [
+      1027,
+      2052,
+      1025,
+      1283,
+      2053,
+      2053,
+      1281,
+      2054,
+      1537,
+      513
+    ],
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "sni": "",
+    "has_sni_ext": false,
+    "has_grease": true
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antibot.dev/schema/fact-set/1",
+  "title": "Набор фактов",
+  "type": "object",
+  "required": ["format", "version", "created_at", "networks", "fingerprints"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {"const": 1},
+    "version": {"type": "integer", "minimum": 1},
+    "created_at": {"type": "string", "format": "date-time"},
+    "counts": {"type": "object", "additionalProperties": {"type": "integer"}},
+    "networks": {"type": "array", "items": {"$ref": "#/$defs/network"}},
+    "fingerprints": {"type": "array", "items": {"$ref": "#/$defs/fingerprint"}}
+  },
+  "$defs": {
+    "confidence": {"enum": ["verified", "derived", "reported"]},
+    "network": {
+      "type": "object",
+      "required": ["prefix", "class", "confidence", "source", "verified_at", "since"],
+      "additionalProperties": false,
+      "properties": {
+        "prefix": {"type": "string"},
+        "asn": {"type": "integer", "minimum": 0},
+        "owner": {"type": "string"},
+        "country": {"type": "string", "pattern": "^[A-Z]{2}$"},
+        "class": {
+          "enum": ["cloud", "hosting", "isp", "mobile", "crawler",
+                   "proxy_pool", "education", "enterprise", "unknown"]
+        },
+        "protected": {"type": "boolean"},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "source": {"type": "string"},
+        "verified_at": {"type": "string", "format": "date"},
+        "first_seen": {"type": "string", "format": "date"},
+        "since": {"type": "integer", "minimum": 1}
+      }
+    },
+    "fingerprint": {
+      "type": "object",
+      "required": ["kind", "value", "family", "confidence", "source", "verified_at", "since"],
+      "additionalProperties": false,
+      "properties": {
+        "kind": {"enum": ["ja4", "h2", "headers"]},
+        "value": {"type": "string", "maxLength": 256},
+        "family": {"type": "string"},
+        "versions": {"type": "string"},
+        "platform": {"type": "string"},
+        "automated": {"type": "boolean"},
+        "headless": {"type": "boolean"},
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "source": {"type": "string"},
+        "verified_at": {"type": "string", "format": "date"},
+        "since": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}

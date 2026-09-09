@@ -1,0 +1,32 @@
+# Стенд: нода перед демонстрационным сайтом.
+#
+# Запуск: docker compose -f deploy/docker-compose.yml up --build
+# Проверка: curl -k https://localhost:8443/
+
+services:
+  antibot:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8080:8080"
+      - "8443:8443"
+    volumes:
+      - ./config.example.yaml:/etc/antibot/config.yaml:ro
+      - antibot-state:/var/lib/antibot
+    depends_on:
+      - backend
+    healthcheck:
+      # Проверка изнутри контейнера: служебный порт наружу не публикуется.
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8091/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  backend:
+    image: nginx:alpine
+    volumes:
+      - ./demo:/usr/share/nginx/html:ro
+
+volumes:
+  antibot-state:

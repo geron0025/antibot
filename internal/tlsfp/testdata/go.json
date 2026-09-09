@@ -1,0 +1,67 @@
+{
+  "client": "go",
+  "raw": "FgMBBboBAAW2AwN/cnU7jE6Wm5vsq5kyN6mNas5WaqqgaQ4YrAtuhaelqCAGS9nlm1x73rKS+aNVR7jtQznJbOcAEYprMd5aKaL5ugAawCvAL8AswDDMqcyowAnAE8AKwBQTARMCEwMBAAVTAAAADgAMAAAJbG9jYWxob3N0AAsAAgEA/wEAAQAAFwAAABIAAAAFAAUBAAAAAAAKAAwAChHsAB0AFwAYABkADQAaABgIBAQDCAcIBQgGBAEFAQYBBQMGAwIBAgMAKwAFBAMEAwMAMwTqBOgR7ATAwLqOW6GgSYkFafxU88mIZZrN0olwK5hiqySxqaG4i5fAfHY9qZFhaWRoMmAo9jq1X2aBBFlVBACBb/uWBTaKU0MU9qJz27urBIDGPAmZ2iow2qUhwHeYVOB0LYgjaAVczbOm3/h1r5tt2jlcNnqB0PKiVuV02bWbyrddinUlGOQBmwKWjPjEQivGnmYIxEoomtaeofUEtly2cwMDHFeB/9BDDhyx52cd/Ip6yZM0W8FcisIdt3co6iVDM/V75rEmoldztwJiIRIGd/zFrWIxjpo4AB1kSquVCxpbecZpyQY26+ceX5mssTMFKqU3OfNoUAgEkLEPrZehz+NAc0dIbGnJnYqgjWi4D9RqOmEq8FRrW7SsIfWPmGsX3/ZdpVegc0oe5BLCmhvCJGM4lDM8/nejqnJHdixahCmhBfSiiHgwo8mWqMwvFHtFPrwSZUGAaeNMlHBVtbNHqvIZdbxyIWRK4PVwHzuLEBYVLXSATIgn+qwmAtPJPAg2bYsrIheqypl+rXQ/1xiowCg+6Ce7jQtvCIebDTWY8CRdfFU/RCKJ2pUKORhQLMmO1eebguA+CFDJF4Mfu1spPTIj/NDNa1INaHQGCHIwfwKjjlUAm9aH8lW7tOGh+ABg4OYtKucgvrenAayg2bI0VISnN6Uj/GkHpeBMYEp3JWQTJgHMRwrANCUHVLxpN6lBO5mLjmuCWygW1+NPwIeJOAmcpcrC2ie3U3ixAWy1y+xY8StVO7VrW3q4+MXPnKo6FamEebumyLQF5RuVmAMkPpKZaygoaxMgbJG8FtlW0Uw0hyLHKiqHm/fJeYExGnNPm7OT0OdR+QKopFd915XDFfZkIaO1I0c1e3GbJ6sEi3fI58W6rxa/2KNuaQCzNgh3PguiceVBcfO5zaA2tUQUxqijd5hW/nLBNmqjyKWBuswcrURG9SODYSqCaWzF2velgyghVhpOw5h4vyVOLMJ6dLnEMGG3nSIisYWiP0YJvUVIetRIsCwV2iI/NUk5dAI+AMS+wyeTIxKXfxUKonnPBWN2GqozoLoO5uxjpxsAq1PFAIJNU0weCjyeySEYi2tVuxoUEKRYwIKUAKIwQIUR0hmwxBzMpvKiGYEGkEV/dKMgtNVE4CeHwxIvKug5Yrk222F+fHQjlRyrTrHIJjFHsMyF8Wiwt5BUoZKMfiAsYJV9XAiquThmqHBGmMOsUISz8Zs7peVpaoNPr5IFHuK9s5WDBYt0jnIgabYlvcqPGrSnf4pvlMtljkB3VepqwVY1uVAyZnGxjGQeyLm88AaV57QCPjiHw+dCYIaQsMlKq8WBD7yV2RZaifd9quxdCkk7VrMKlkJmnzQl2Qk5W0ajLBw29UJJf2NQchmGoAS/oXUyDctg3WdaKyBPfZQzb0uZb6GttVh6W2OprwOSKAGdrWLOUiWyo8yO0DFRGMgfm0xizDiRxSaldRqFTWdN2/Cin4toWyG04aMcTjU+8skWZYuOvwwwYAU8YyElryoMBYmtc1nO/LWg3XTO7hu25rtSLkFpNpIctU/K6lrVsV3cmIOnxYp0r92DjRbz9f8CTFbSSrWqPqtJhuPHm26KvjkB4kPJkWGMNKbqUVJ9JoCGQ8ILdjpbZwAdACBJhuPHm26KvjkB4kPJkWGMNKbqUVJ9JoCGQ8ILdjpbZw==",
+  "ja3": "771,49195-49199-49196-49200-52393-52392-49161-49171-49162-49172-4865-4866-4867,0-11-65281-23-18-5-10-13-43-51,4588-29-23-24-25,0",
+  "ja3_hash": "8bee49baa010986785a9e74d688ed7e9",
+  "ja4": "t13d131000_f57a46bbacb6_e7c285222651",
+  "hello": {
+    "legacy_version": 771,
+    "supported_versions": [
+      772,
+      771
+    ],
+    "cipher_suites": [
+      49195,
+      49199,
+      49196,
+      49200,
+      52393,
+      52392,
+      49161,
+      49171,
+      49162,
+      49172,
+      4865,
+      4866,
+      4867
+    ],
+    "extensions": [
+      0,
+      11,
+      65281,
+      23,
+      18,
+      5,
+      10,
+      13,
+      43,
+      51
+    ],
+    "curves": [
+      4588,
+      29,
+      23,
+      24,
+      25
+    ],
+    "point_formats": "AA==",
+    "sig_algs": [
+      2052,
+      1027,
+      2055,
+      2053,
+      2054,
+      1025,
+      1281,
+      1537,
+      1283,
+      1539,
+      513,
+      515
+    ],
+    "alpn": null,
+    "sni": "localhost",
+    "has_sni_ext": true,
+    "has_grease": false
+  }
+}

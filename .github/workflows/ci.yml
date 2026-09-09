@@ -1,0 +1,72 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "not gofmt'ed:"; echo "$unformatted"; exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: build
+        run: go build ./...
+
+      # -race because the hot path is goroutines around one connection:
+      # the sniffer reads it, the handler decides on it, the log writes
+      # from a third. A data race here is a crashed node, not a wrong
+      # number.
+      - name: test
+        run: go test ./... -race -count=1
+
+  # The fuzzers found two real bugs in this code: a panic in the HTTP/2
+  # sniffer and a divergence from crypto/tls on GREASE in
+  # supported_versions. Thirty seconds each is not a fuzzing campaign, but
+  # it does keep the corpus honest on every change.
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: ClientHello against crypto/tls
+        run: go test ./internal/tlsfp -run FuzzParseAgainstStdlib -fuzz FuzzParseAgainstStdlib -fuzztime 30s
+      - name: HTTP/2 sniffer
+        run: go test ./internal/h2fp -run FuzzSnifferDoesNotCrash -fuzz FuzzSnifferDoesNotCrash -fuzztime 30s
+      - name: rules file
+        run: go test ./internal/rules -run FuzzParse -fuzz FuzzParse -fuzztime 30s
+
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      # Built but not pushed: a broken Dockerfile has to surface on the
+      # pull request, not at the tag.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          push: false

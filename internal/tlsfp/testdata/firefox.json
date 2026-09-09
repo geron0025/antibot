@@ -1,0 +1,81 @@
+{
+  "client": "firefox",
+  "raw": "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",
+  "ja3": "771,4865-4867-4866-49195-49199-52393-52392-49196-49200-49162-49161-49171-49172-156-157-47-53,23-65281-10-11-35-16-5-34-18-51-43-13-45-28-27-65037,4588-29-23-24-25-256-257,0",
+  "ja3_hash": "3ec5d3c9a10d43b0576e31e639c83cd0",
+  "ja4": "t13i1716h2_5b57614c22b0_3cbfd9057e0d",
+  "hello": {
+    "legacy_version": 771,
+    "supported_versions": [
+      772,
+      771
+    ],
+    "cipher_suites": [
+      4865,
+      4867,
+      4866,
+      49195,
+      49199,
+      52393,
+      52392,
+      49196,
+      49200,
+      49162,
+      49161,
+      49171,
+      49172,
+      156,
+      157,
+      47,
+      53
+    ],
+    "extensions": [
+      23,
+      65281,
+      10,
+      11,
+      35,
+      16,
+      5,
+      34,
+      18,
+      51,
+      43,
+      13,
+      45,
+      28,
+      27,
+      65037
+    ],
+    "curves": [
+      4588,
+      29,
+      23,
+      24,
+      25,
+      256,
+      257
+    ],
+    "point_formats": "AA==",
+    "sig_algs": [
+      1027,
+      1283,
+      1539,
+      2052,
+      2053,
+      2054,
+      1025,
+      1281,
+      1537,
+      515,
+      513
+    ],
+    "alpn": [
+      "h2",
+      "http/1.1"
+    ],
+    "sni": "",
+    "has_sni_ext": false,
+    "has_grease": false
+  }
+}

@@ -1,0 +1,50 @@
+{{template "header" .}}
+
+<form method="get" action="/events" class="filter">
+  <input type="text" name="host" value="{{.Filter.Host}}" placeholder="host">
+  <input type="text" name="ip" value="{{.Filter.IP}}" placeholder="address">
+  <input type="text" name="rule" value="{{.Filter.Rule}}" placeholder="rule">
+  <input type="text" name="ja4" value="{{.Filter.JA4}}" placeholder="ja4">
+  <input type="text" name="q" value="{{.Filter.Search}}" placeholder="in the UA or the path">
+  <select name="decision">
+    <option value="">any decision</option>
+    <option value="pass" {{if eq .Filter.Decision "pass"}}selected{{end}}>passed</option>
+    <option value="allow" {{if eq .Filter.Decision "allow"}}selected{{end}}>allowed</option>
+    <option value="block" {{if eq .Filter.Decision "block"}}selected{{end}}>blocked</option>
+    <option value="ratelimit" {{if eq .Filter.Decision "ratelimit"}}selected{{end}}>rate limited</option>
+  </select>
+  <button type="submit">Show</button>
+  <a href="/events">reset</a>
+</form>
+
+<p class="dim">The last {{.Limit}} events, newest first.</p>
+
+<table class="events">
+  <thead>
+    <tr>
+      <th>time</th><th>address</th><th>host</th><th>path</th>
+      <th>decision</th><th>rule</th><th>fingerprint</th><th>User-Agent</th>
+    </tr>
+  </thead>
+  <tbody>
+  {{range .Events}}
+    <tr class="d-{{.Decision}}">
+      <td class="num">{{time .Time}}</td>
+      <td><a href="/events?ip={{.IP}}">{{.IP}}</a></td>
+      <td>{{.Host}}</td>
+      <td class="value" title="{{.Path}}">{{truncate .Path 40}}</td>
+      <td>{{if .Decision}}{{.Decision}}{{else}}pass{{end}}{{if .Status}} <span class="dim">{{.Status}}</span>{{end}}</td>
+      <td>
+        {{if .Rule}}<a href="/events?rule={{.Rule}}">{{.Rule}}</a>{{end}}
+        {{range .Shadow}}<a class="shadow" href="/events?rule={{.}}" title="observation">{{.}}</a>{{end}}
+      </td>
+      <td class="value" title="{{.JA4}}">{{if .JA4}}<a href="/events?ja4={{.JA4}}">{{truncate .JA4 24}}</a>{{else}}<span class="dim">—</span>{{end}}</td>
+      <td class="value" title="{{.UA}}">{{truncate .UA 50}}</td>
+    </tr>
+  {{else}}
+    <tr><td colspan="8" class="dim">no events</td></tr>
+  {{end}}
+  </tbody>
+</table>
+
+{{template "footer" .}}

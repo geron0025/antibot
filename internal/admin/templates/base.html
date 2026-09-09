@@ -1,0 +1,61 @@
+{{define "header"}}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title .Section}} — antibot</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header>
+  <nav>
+    <a href="/" {{if eq .Section "overview"}}class="current"{{end}}>Overview</a>
+    <a href="/events" {{if eq .Section "events"}}class="current"{{end}}>Events</a>
+    <a href="/rules" {{if eq .Section "rules"}}class="current"{{end}}>Rules</a>
+  </nav>
+  <div class="right">
+    <span class="dim">{{.User}}</span>
+    <form method="post" action="/logout">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <button type="submit">Log out</button>
+    </form>
+  </div>
+</header>
+<main>
+{{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+{{end}}
+
+{{define "footer"}}
+</main>
+<footer>
+  <span class="dim">antibot {{.Version}} · the admin UI only shows;
+  rules are changed with <code>antibot rules</code></span>
+</footer>
+</body>
+</html>{{end}}
+
+{{define "period-picker"}}
+<div class="periods">
+  for the last
+  <a href="?period=1h" {{if eq .Period "1h"}}class="current"{{end}}>hour</a>
+  <a href="?period=24h" {{if eq .Period "1d"}}class="current"{{end}}>day</a>
+  <a href="?period=168h" {{if eq .Period "7d"}}class="current"{{end}}>week</a>
+</div>
+{{end}}
+
+{{define "breakdown"}}
+<table>
+  <thead><tr><th>{{.Name}}</th><th class="num">requests</th><th class="num">addresses</th></tr></thead>
+  <tbody>
+  {{range .Rows}}
+    <tr>
+      <td class="value" title="{{.Value}}">{{truncate .Value 60}}</td>
+      <td class="num">{{.Count}}</td>
+      <td class="num">{{.IPs}}</td>
+    </tr>
+  {{else}}
+    <tr><td colspan="3" class="dim">empty</td></tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}

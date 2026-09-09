@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log in — antibot</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body class="login">
+<main>
+  <h1>antibot</h1>
+  {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
+  <form method="post" action="/login">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>Name<input type="text" name="name" autocomplete="username" autofocus required></label>
+    <label>Password<input type="password" name="password" autocomplete="current-password" required></label>
+    <button type="submit">Log in</button>
+  </form>
+  <p class="dim">Accounts are created with <code>antibot admin passwd</code>.</p>
+</main>
+</body>
+</html>

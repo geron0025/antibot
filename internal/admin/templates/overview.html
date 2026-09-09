@@ -1,0 +1,100 @@
+{{template "header" .}}
+
+{{template "period-picker" .}}
+
+<section class="tiles">
+  <div class="tile"><span class="big-number">{{.Summary.Events}}</span><span class="caption">requests</span></div>
+  <div class="tile"><span class="big-number">{{.Summary.IPCount}}</span><span class="caption">addresses</span></div>
+  <div class="tile"><span class="big-number">{{.Summary.Blocked}}</span><span class="caption">not let through</span></div>
+  <div class="tile"><span class="big-number">{{.Effective}}</span><span class="caption">rules in force{{if ne .Rules .Effective}} out of {{.Rules}}{{end}}</span></div>
+</section>
+
+{{if .Summary.Series}}
+<section>
+  <h2>Requests over time</h2>
+  <div class="series">
+    {{$max := .Largest}}
+    {{range .Summary.Series}}
+      <div class="bar" title="{{time .Time}}: {{.Events}} requests, {{.Blocked}} not let through">
+        <div class="total" style="height: {{barHeight .Events $max}}%"></div>
+        <div class="blocked" style="height: {{barHeight .Blocked $max}}%"></div>
+      </div>
+    {{end}}
+  </div>
+</section>
+{{end}}
+
+<section>
+  <h2>Decisions</h2>
+  <table>
+    <tbody>
+      {{$total := .Summary.Events}}
+      {{range $decision, $count := .Summary.Decisions}}
+      <tr>
+        <td><a href="/events?decision={{$decision}}">{{$decision}}</a></td>
+        <td class="num">{{$count}}</td>
+        <td class="num dim">{{share $count $total}}</td>
+      </tr>
+      {{end}}
+    </tbody>
+  </table>
+</section>
+
+<section class="unknown">
+  <h2>What the node does not know</h2>
+  <p class="dim">While the network has no class and the fingerprint has no name,
+  a rule has to be written blind: by the address and the <code>User-Agent</code>
+  string, that is, by what the client says about itself.</p>
+  <table>
+    <tbody>
+      <tr>
+        <td>requests without a network class</td>
+        <td class="num">{{.Summary.Unknown.NoNetClass}}</td>
+        <td class="num dim">{{share .Summary.Unknown.NoNetClass .Summary.Events}}</td>
+      </tr>
+      <tr>
+        <td>requests with a nameless fingerprint</td>
+        <td class="num">{{.Summary.Unknown.NoFamily}}</td>
+        <td class="num dim">{{share .Summary.Unknown.NoFamily .Summary.Events}}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  {{with .Summary.Unknown.SelfDeclaredCrawlers}}
+  <h3>Called themselves crawlers</h3>
+  <p class="dim">A self-declaration is a string anyone at all can put on themselves.
+  The node cannot tell a real crawler from an impostor on its own: that takes
+  verified search-engine networks.</p>
+  <table>
+    <thead><tr><th>called itself</th><th class="num">requests</th><th class="num">addresses</th></tr></thead>
+    <tbody>
+    {{range .}}
+      <tr>
+        <td><a href="/events?q={{.Value}}">{{.Value}}</a></td>
+        <td class="num">{{.Count}}</td>
+        <td class="num">{{.IPs}}</td>
+      </tr>
+    {{end}}
+    </tbody>
+  </table>
+  {{end}}
+
+  <p class="dim">The network class, its owner and the fingerprint family arrive
+  with the fact sets — they change only what the client is called, and never
+  what happens to it.</p>
+</section>
+
+<section class="two-columns">
+  <div>{{template "breakdown" (breakdown "Rule" .Summary.Rules)}}</div>
+  <div>{{template "breakdown" (breakdown "Observation" .Summary.Shadows)}}</div>
+  <div>{{template "breakdown" (breakdown "Address" .Summary.IPs)}}</div>
+  <div>{{template "breakdown" (breakdown "JA4 fingerprint" .Summary.JA4)}}</div>
+  <div>{{template "breakdown" (breakdown "User-Agent" .Summary.UA)}}</div>
+  <div>{{template "breakdown" (breakdown "Host" .Summary.Hosts)}}</div>
+</section>
+
+{{if .Summary.Truncated}}
+<p class="dim">The variety of values hit the limit — the numbers in the breakdowns are incomplete.</p>
+{{end}}
+
+{{template "footer" .}}

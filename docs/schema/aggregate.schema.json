@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antibot.dev/schema/aggregate/1",
+  "title": "Пачка агрегатов от ноды",
+  "type": "object",
+  "required": ["format", "batch", "node", "sent_at", "rows"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {"const": 1},
+    "batch": {"type": "string", "minLength": 8, "maxLength": 64},
+    "node": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+    "node_version": {"type": "string"},
+    "facts_version": {"type": "integer", "minimum": 0},
+    "sent_at": {"type": "string", "format": "date-time"},
+    "rows": {
+      "type": "array",
+      "maxItems": 5000,
+      "items": {"$ref": "#/$defs/row"}
+    }
+  },
+  "$defs": {
+    "counter": {"type": "integer", "minimum": 0},
+    "classes": {
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "row": {
+      "type": "object",
+      "required": ["window", "domain", "ja4", "headers", "ua_family",
+                   "ua_matches_ja4", "net", "requests"],
+      "additionalProperties": false,
+      "properties": {
+        "window": {"type": "string", "format": "date-time"},
+        "domain": {"type": "string", "maxLength": 253},
+        "ja4": {"type": "string", "maxLength": 128},
+        "h2": {"type": "string", "maxLength": 256},
+        "headers": {"type": "string", "maxLength": 64},
+        "ua_family": {
+          "enum": ["chrome", "firefox", "safari", "edge", "opera", "curl",
+                   "python", "go", "java", "bot", "unknown", "~rest"]
+        },
+        "ua_matches_ja4": {"type": "boolean"},
+        "net": {"type": "string", "maxLength": 64},
+        "requests": {"$ref": "#/$defs/counter"},
+        "blocked": {"$ref": "#/$defs/counter"},
+        "shadowed": {"$ref": "#/$defs/counter"},
+        "limited": {"$ref": "#/$defs/counter"},
+        "status": {"$ref": "#/$defs/classes"},
+        "methods": {"$ref": "#/$defs/classes"},
+        "uniq_paths": {"$ref": "#/$defs/counter"},
+        "uniq_addrs": {"$ref": "#/$defs/counter"},
+        "bytes_out": {"$ref": "#/$defs/counter"}
+      }
+    }
+  }
+}
