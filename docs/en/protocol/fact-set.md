@@ -179,6 +179,7 @@ client's word.
 | `304` | the same version | nothing, the next attempt on schedule |
 | `401` | the token is unknown or revoked | **works on the last set**, retries in an hour |
 | `403` | the subscription does not cover the bases: ended, suspended, or the wrong scope | **the base freezes**, retries once a day |
+| `404` | no set has been published yet | changes nothing, retries with a growing delay, as for `5xx` |
 | `429`, `5xx` | the cloud is out of shape | retry with a growing delay: 1, 2, 4… up to 6 hours |
 
 The rows about `401` and `403` are the main ones in this document after
