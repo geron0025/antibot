@@ -291,17 +291,6 @@ func share(part, whole int) string {
 	return fmt.Sprintf("%.1f%%", 100*float64(part)/float64(whole))
 }
 
-func barHeight(count, largest int) string {
-	if largest <= 0 {
-		return "0"
-	}
-	h := 100 * float64(count) / float64(largest)
-	if h > 0 && h < 2 {
-		h = 2
-	}
-	return fmt.Sprintf("%.1f", h)
-}
-
 func formatTime(t time.Time) string {
 	if t.IsZero() {
 		return "—"

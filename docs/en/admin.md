@@ -42,8 +42,36 @@ the documentation says.
 
 ### Overview
 
-Tiles, a series of requests over time, breakdowns by rules, shadows,
-addresses, fingerprints, `User-Agent`s and hosts.
+Tiles: requests, addresses, who was not let through, the site's 5xx, the
+median and p95 of the site's answer time, the volume sent, the rules in
+force.
+
+A ring of **answers** and a **chart of requests over time**, in the same
+colours. Every answer falls into one class: the site's 2xx, 3xx, 4xx and
+5xx, "not let through by the node", and "no status" — events written
+before the field existed. What a rule cut off is a class of its own
+rather than a 403 among the 4xx: otherwise the node doing its job would
+look like the site breaking, and a human would go looking for a page that
+never broke. The node's own 404 for an unknown host and its 502 for a
+silent upstream count as the site's answers: to the visitor there is no
+difference.
+
+The answer time is counted only over the requests that reached the site.
+The node answers a block in microseconds, and blocks would pull every
+percentile to zero exactly when the node is busiest. A percentile is read
+off a histogram and is accurate to a quarter — enough to tell 40 ms from
+400.
+
+Breakdowns: the site's answer codes, paths, paths with 5xx and with 4xx,
+rules, shadows, addresses, fingerprints, `User-Agent`s and hosts. A click
+on a breakdown row or on an answer class opens the events with that
+filter.
+
+The charts are drawn on the server as SVG. The admin UI's CSP forbids
+inline styles, and the browser silently drops a bar sized with
+`style="height: …"`, while SVG geometry lives in attributes the CSP does
+not touch. Under the chart are the same numbers as a table: a hover
+tooltip adds to them, it does not replace them.
 
 A separate block is **what the node does not know**: the share of
 requests without a network class, the share of nameless fingerprints, and
@@ -59,9 +87,14 @@ needs verified networks — [facts.md](facts.md).
 
 ### Events
 
-The filters combine with "and": host, address, rule, `ja4`, decision and
-a substring search in the `User-Agent` or the path. The last 200 events,
-newest first.
+The filters combine with "and": host, address, rule, `ja4`, decision,
+answer code and a substring search in the `User-Agent` or the path. The
+last 200 events, newest first.
+
+The answer code is either exact (`404`) or a class (`5xx`, `blocked`). A
+class means the same as on the overview: `4xx` is the site's 4xx without
+the rules' 403s, otherwise a click on the ring would show something other
+than what was counted.
 
 A click on an address, a rule or a fingerprint is a filter by it: going
 through them one by one starts here.

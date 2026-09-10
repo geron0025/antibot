@@ -6,7 +6,9 @@
 package summary
 
 import (
+	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +21,60 @@ import (
 // Beyond that only the total counter grows: a summary over a day must not
 // eat the memory of a node that is serving traffic at the same time.
 const MaxKeys = 200_000
+
+// Answer is the class of the answer a client got.
+//
+// What the node cut off is a class of its own rather than a 403 among the
+// site's 4xx: otherwise the node doing its job would look like the site
+// failing, and a human would go looking for a broken page that is not
+// there.
+type Answer int
+
+const (
+	AnswerOK          Answer = iota // 2xx from the site
+	AnswerRedirect                  // 3xx from the site
+	AnswerClientError               // 4xx from the site
+	AnswerServerError               // 5xx from the site, the node's 502 included
+	AnswerBlocked                   // not let through by a rule
+	AnswerNone                      // no status recorded: events older than the field
+
+	// AnswerCount is how many classes there are.
+	AnswerCount
+)
+
+var answerNames = [AnswerCount]string{"2xx", "3xx", "4xx", "5xx", "blocked", "none"}
+
+// String is the name of the class, the same one the event filter takes.
+func (a Answer) String() string {
+	if a < 0 || a >= AnswerCount {
+		return ""
+	}
+	return answerNames[a]
+}
+
+// AnswerOf classifies a request by its outcome.
+//
+// The node's own 404 for an unknown host and its 502 for a silent
+// upstream count as the site's: to the visitor there is no difference,
+// and both mean something is wrong with the site rather than with the
+// client.
+func AnswerOf(r *facts.Request) Answer {
+	if r.Decision == proxy.ActionBlock || r.Decision == proxy.ActionRatelimit {
+		return AnswerBlocked
+	}
+	switch {
+	case r.Status >= 500:
+		return AnswerServerError
+	case r.Status >= 400:
+		return AnswerClientError
+	case r.Status >= 300:
+		return AnswerRedirect
+	case r.Status >= 100:
+		return AnswerOK
+	default:
+		return AnswerNone
+	}
+}
 
 // Options of a summary.
 type Options struct {
@@ -56,9 +112,22 @@ type Row struct {
 
 // Point of a time series.
 type Point struct {
-	Time    time.Time `json:"t"`
-	Events  int       `json:"events"`
-	Blocked int       `json:"blocked"`
+	Time    time.Time        `json:"t"`
+	Events  int              `json:"events"`
+	Blocked int              `json:"blocked"`
+	Answers [AnswerCount]int `json:"answers"`
+}
+
+// Latency is how long the site took to answer, by percentiles.
+//
+// Only the requests that reached the site are counted: a block is answered
+// by the node in microseconds and would drag every percentile down to
+// zero exactly when the node is busiest.
+type Latency struct {
+	Count int           `json:"count"`
+	P50   time.Duration `json:"p50"`
+	P95   time.Duration `json:"p95"`
+	P99   time.Duration `json:"p99"`
 }
 
 // Unknown is what the node does not know about its own visitors.
@@ -81,18 +150,21 @@ type Unknown struct {
 type Summary struct {
 	From, To time.Time `json:"-"`
 
-	Events    int `json:"events"`
-	Read      int `json:"read"`
-	Broken    int `json:"broken"`
-	IPCount   int `json:"ip_count"`
-	HostCount int `json:"host_count"`
+	Events    int   `json:"events"`
+	Read      int   `json:"read"`
+	Broken    int   `json:"broken"`
+	IPCount   int   `json:"ip_count"`
+	HostCount int   `json:"host_count"`
+	Bytes     int64 `json:"bytes"`
 
 	// Truncated says whether any breakdown hit the key limit. Keeping
 	// quiet about that is not allowed: the numbers in such a breakdown
 	// are incomplete.
 	Truncated bool `json:"truncated"`
 
-	Decisions map[string]int `json:"decisions"`
+	Decisions map[string]int   `json:"decisions"`
+	Answers   [AnswerCount]int `json:"answers"`
+	Latency   Latency          `json:"latency"`
 
 	Rules   []Row `json:"rules"`
 	Shadows []Row `json:"shadows"`
@@ -101,6 +173,16 @@ type Summary struct {
 	JA4     []Row `json:"ja4"`
 	UA      []Row `json:"ua"`
 	Paths   []Row `json:"paths"`
+
+	// Statuses are the codes the site answered with; what the node cut off
+	// is not among them, it is in Rules.
+	Statuses []Row `json:"statuses"`
+
+	// ServerErrorPaths and ClientErrorPaths are where the site failed:
+	// the first is a broken page, the second is most often somebody
+	// probing for one.
+	ServerErrorPaths []Row `json:"server_error_paths"`
+	ClientErrorPaths []Row `json:"client_error_paths"`
 
 	Unknown Unknown `json:"unknown"`
 	Series  []Point `json:"series"`
@@ -139,21 +221,37 @@ func Build(o Options) (*Summary, error) {
 		"rules": newBreakdown(), "shadows": newBreakdown(),
 		"hosts": newBreakdown(), "ips": newBreakdown(),
 		"ja4": newBreakdown(), "ua": newBreakdown(), "paths": newBreakdown(),
-		"crawlers": newBreakdown(),
+		"crawlers": newBreakdown(), "statuses": newBreakdown(),
+		"server_errors": newBreakdown(), "client_errors": newBreakdown(),
 	}
 	ips := map[string]struct{}{}
+	var latency histogram
 
 	// A histogram by minutes rather than a list of times: over a day that
 	// is fifteen hundred entries instead of one mark per request. The
 	// summary must not noticeably occupy a node that is serving traffic
 	// at the same time.
-	minutes := map[int64]*[2]int{}
+	minutes := map[int64]*[AnswerCount]int{}
 	var first, last time.Time
 
 	result, err := events.Read(events.Filter{Dir: o.Dir, From: o.From, To: o.To},
 		func(r facts.Request) error {
 			s.Events++
 			s.Decisions[decisionOr(r.Decision)]++
+			s.Bytes += r.Bytes
+
+			answer := AnswerOf(&r)
+			s.Answers[answer]++
+			switch answer {
+			case AnswerServerError:
+				breakdowns["server_errors"].add(r.Path, r.IP)
+			case AnswerClientError:
+				breakdowns["client_errors"].add(r.Path, r.IP)
+			}
+			if answer != AnswerBlocked && answer != AnswerNone {
+				breakdowns["statuses"].add(strconv.Itoa(r.Status), r.IP)
+				latency.add(r.Duration)
+			}
 
 			if r.IP != "" && len(ips) < MaxKeys {
 				ips[r.IP] = struct{}{}
@@ -189,13 +287,10 @@ func Build(o Options) (*Summary, error) {
 				minute := r.Time.Unix() / 60
 				bucket, ok := minutes[minute]
 				if !ok {
-					bucket = &[2]int{}
+					bucket = &[AnswerCount]int{}
 					minutes[minute] = bucket
 				}
-				bucket[0]++
-				if r.Decision == proxy.ActionBlock || r.Decision == proxy.ActionRatelimit {
-					bucket[1]++
-				}
+				bucket[answer]++
 			}
 			return nil
 		})
@@ -206,6 +301,12 @@ func Build(o Options) (*Summary, error) {
 	s.Read, s.Broken = result.Read, result.Broken
 	s.IPCount = len(ips)
 	s.HostCount = breakdowns["hosts"].distinct()
+	s.Latency = Latency{
+		Count: latency.count,
+		P50:   latency.percentile(0.50),
+		P95:   latency.percentile(0.95),
+		P99:   latency.percentile(0.99),
+	}
 
 	s.Rules = breakdowns["rules"].top(o.Top)
 	s.Shadows = breakdowns["shadows"].top(o.Top)
@@ -214,6 +315,9 @@ func Build(o Options) (*Summary, error) {
 	s.JA4 = breakdowns["ja4"].top(o.Top)
 	s.UA = breakdowns["ua"].top(o.Top)
 	s.Paths = breakdowns["paths"].top(o.Top)
+	s.Statuses = breakdowns["statuses"].top(o.Top)
+	s.ServerErrorPaths = breakdowns["server_errors"].top(o.Top)
+	s.ClientErrorPaths = breakdowns["client_errors"].top(o.Top)
 	s.Unknown.SelfDeclaredCrawlers = breakdowns["crawlers"].top(o.Top)
 
 	for _, b := range breakdowns {
@@ -293,6 +397,54 @@ func (b *breakdown) top(n int) []Row {
 	return rows
 }
 
+// latencyBounds are the upper edges of the latency histogram: from half a
+// millisecond to two minutes, each a quarter wider than the one before.
+// A percentile read off them is off by at most a quarter — enough to
+// tell 40 ms from 400 — in a fixed sixty counters, however long the
+// period is.
+var latencyBounds = func() []time.Duration {
+	var bounds []time.Duration
+	for b := 500 * time.Microsecond; b < 2*time.Minute; b = time.Duration(float64(b) * 1.25) {
+		bounds = append(bounds, b)
+	}
+	return bounds
+}()
+
+type histogram struct {
+	counts [64]int
+	count  int
+	max    time.Duration
+}
+
+func (h *histogram) add(d time.Duration) {
+	i := sort.Search(len(latencyBounds), func(i int) bool { return latencyBounds[i] >= d })
+	h.counts[i]++
+	h.count++
+	if d > h.max {
+		h.max = d
+	}
+}
+
+// percentile returns the upper edge of the bucket the percentile falls
+// into, but never more than the longest answer actually seen.
+func (h *histogram) percentile(p float64) time.Duration {
+	if h.count == 0 {
+		return 0
+	}
+	rank := int(math.Ceil(p * float64(h.count)))
+	seen := 0
+	for i, c := range h.counts {
+		seen += c
+		if seen >= rank {
+			if i < len(latencyBounds) && latencyBounds[i] < h.max {
+				return latencyBounds[i]
+			}
+			return h.max
+		}
+	}
+	return h.max
+}
+
 // crawlers are the names clients call themselves by. The list is not
 // there for blocking but for exactly the opposite: to show a human that
 // without the bases the node cannot tell a real crawler from an
@@ -315,7 +467,7 @@ func declaredCrawler(ua string) string {
 }
 
 // series lays the per-minute histogram out into time buckets.
-func series(minutes map[int64]*[2]int, first, last time.Time, o Options) []Point {
+func series(minutes map[int64]*[AnswerCount]int, first, last time.Time, o Options) []Point {
 	if len(minutes) == 0 {
 		return nil
 	}
@@ -345,8 +497,11 @@ func series(minutes map[int64]*[2]int, first, last time.Time, o Options) []Point
 		if n >= o.Buckets {
 			n = o.Buckets - 1
 		}
-		points[n].Events += bucket[0]
-		points[n].Blocked += bucket[1]
+		for a, count := range bucket {
+			points[n].Answers[a] += count
+			points[n].Events += count
+		}
+		points[n].Blocked += bucket[AnswerBlocked]
 	}
 	return points
 }
@@ -362,6 +517,11 @@ type Filter struct {
 	IP       string
 	JA4      string
 	Search   string // a substring of the User-Agent or the path
+
+	// Status is either an exact code, "502", or an answer class, "5xx"
+	// or "blocked". A class is matched the way the overview counts it, so
+	// that a click on "4xx" shows the site's 4xx and not the node's 403s.
+	Status string
 }
 
 func (f *Filter) matches(r *facts.Request) bool {
@@ -380,6 +540,9 @@ func (f *Filter) matches(r *facts.Request) bool {
 	if f.JA4 != "" && r.JA4 != f.JA4 {
 		return false
 	}
+	if f.Status != "" && !statusMatches(f.Status, r) {
+		return false
+	}
 	if f.Search != "" {
 		needle := strings.ToLower(f.Search)
 		if !strings.Contains(strings.ToLower(r.UA), needle) &&
@@ -388,6 +551,14 @@ func (f *Filter) matches(r *facts.Request) bool {
 		}
 	}
 	return true
+}
+
+func statusMatches(want string, r *facts.Request) bool {
+	want = strings.ToLower(strings.TrimSpace(want))
+	if code, err := strconv.Atoi(want); err == nil {
+		return r.Status == code
+	}
+	return AnswerOf(r).String() == want
 }
 
 func contains(list []string, what string) bool {

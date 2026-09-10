@@ -23,11 +23,13 @@ const (
 
 func parseTemplates() (*template.Template, error) {
 	funcs := template.FuncMap{
-		"share":     share,
-		"barHeight": barHeight,
-		"time":      formatTime,
-		"truncate":  truncate,
-		"lower":     lower,
+		"share":    share,
+		"time":     formatTime,
+		"truncate": truncate,
+		"lower":    lower,
+		"count":    thousands,
+		"bytes":    formatBytes,
+		"latency":  formatLatency,
 		"title": func(section string) string {
 			switch section {
 			case "events":
@@ -39,9 +41,15 @@ func parseTemplates() (*template.Template, error) {
 			}
 		},
 		// breakdown assembles the data for one breakdown table: Go
-		// templates have no other way to pass two values.
-		"breakdown": func(name string, rows []summary.Row) map[string]any {
-			return map[string]any{"Name": name, "Rows": rows}
+		// templates have no other way to pass several values. key is the
+		// events filter a row links to; extra is one more filter as a
+		// name and a value, so that a path with 5xx opens exactly its 5xx.
+		"breakdown": func(name, key string, rows []summary.Row, extra ...string) map[string]any {
+			data := map[string]any{"Name": name, "Key": key, "Rows": rows}
+			if len(extra) == 2 {
+				data["ExtraKey"], data["ExtraValue"] = extra[0], extra[1]
+			}
+			return data
 		},
 	}
 	return template.New("").Funcs(funcs).ParseFS(templatesFS, "templates/*.html")
@@ -174,9 +182,12 @@ type overviewData struct {
 	pageCommon
 	CSRF      string
 	Summary   *summary.Summary
-	Largest   int
 	Rules     int
 	Effective int
+
+	ServerErrors int
+	Answers      donutChart
+	Series       *columnsChart
 }
 
 func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request, user string) {
@@ -184,9 +195,10 @@ func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request, user strin
 	now := time.Now()
 
 	result, err := summary.Build(summary.Options{
-		Dir:  s.o.EventsDir,
-		From: now.Add(-period),
-		To:   now,
+		Dir:     s.o.EventsDir,
+		From:    now.Add(-period),
+		To:      now,
+		Buckets: bucketsFor(period),
 	})
 	if err != nil {
 		// The log directory may not exist before the first event — that
@@ -199,18 +211,13 @@ func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request, user strin
 		return
 	}
 
-	largest := 0
-	for _, point := range result.Series {
-		if point.Events > largest {
-			largest = point.Events
-		}
-	}
-
 	data := overviewData{
-		pageCommon: s.common(user, "overview", period, ""),
-		CSRF:       s.csrfToken(r),
-		Summary:    result,
-		Largest:    largest,
+		pageCommon:   s.common(user, "overview", period, ""),
+		CSRF:         s.csrfToken(r),
+		Summary:      result,
+		ServerErrors: result.Answers[summary.AnswerServerError],
+		Answers:      newDonut(result.Answers),
+		Series:       newColumns(result.Series, period),
 	}
 	if s.o.Rules != nil {
 		set := s.o.Rules.Set()
@@ -238,6 +245,7 @@ func (s *Server) eventsPage(w http.ResponseWriter, r *http.Request, user string)
 		IP:       r.URL.Query().Get("ip"),
 		JA4:      r.URL.Query().Get("ja4"),
 		Search:   r.URL.Query().Get("q"),
+		Status:   r.URL.Query().Get("status"),
 	}
 	limit := 200
 

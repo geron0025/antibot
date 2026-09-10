@@ -6,6 +6,7 @@
   <input type="text" name="rule" value="{{.Filter.Rule}}" placeholder="rule">
   <input type="text" name="ja4" value="{{.Filter.JA4}}" placeholder="ja4">
   <input type="text" name="q" value="{{.Filter.Search}}" placeholder="in the UA or the path">
+  <input type="text" name="status" value="{{.Filter.Status}}" placeholder="status: 404 or 5xx">
   <select name="decision">
     <option value="">any decision</option>
     <option value="pass" {{if eq .Filter.Decision "pass"}}selected{{end}}>passed</option>

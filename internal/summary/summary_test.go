@@ -148,6 +148,122 @@ func TestTimeSeries(t *testing.T) {
 	}
 }
 
+// What the node cut off is not the site's error: a 403 from a rule
+// counted among the site's 4xx would send a human looking for a broken
+// page that is not there.
+func TestAnswersKeepTheNodeApartFromTheSite(t *testing.T) {
+	t0 := start()
+	list := []facts.Request{
+		{Time: t0, IP: "203.0.113.1", Host: "a.ru", Path: "/", Decision: "pass", Status: 200, Bytes: 1000},
+		{Time: t0, IP: "203.0.113.1", Host: "a.ru", Path: "/old", Decision: "pass", Status: 301},
+		{Time: t0, IP: "203.0.113.2", Host: "a.ru", Path: "/wp-login.php", Decision: "pass", Status: 404},
+		{Time: t0, IP: "203.0.113.3", Host: "a.ru", Path: "/api", Decision: "allow", Status: 502},
+		{Time: t0, IP: "203.0.113.4", Host: "a.ru", Path: "/", Decision: "block", Rule: "r", Status: 403},
+		{Time: t0, IP: "203.0.113.4", Host: "a.ru", Path: "/", Decision: "ratelimit", Rule: "rl", Status: 429},
+		// Written before the status field existed.
+		{Time: t0, IP: "203.0.113.5", Host: "a.ru", Path: "/"},
+	}
+	s, err := Build(Options{Dir: logDir(t, list)})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := [AnswerCount]int{1, 1, 1, 1, 2, 1}
+	if s.Answers != want {
+		t.Errorf("answers %v, want %v", s.Answers, want)
+	}
+	for _, row := range s.Statuses {
+		if row.Value == "403" || row.Value == "429" {
+			t.Errorf("the node's own %s is among the site's answer codes: %+v", row.Value, s.Statuses)
+		}
+	}
+	if len(s.ServerErrorPaths) != 1 || s.ServerErrorPaths[0].Value != "/api" {
+		t.Errorf("paths with 5xx: %+v", s.ServerErrorPaths)
+	}
+	if len(s.ClientErrorPaths) != 1 || s.ClientErrorPaths[0].Value != "/wp-login.php" {
+		t.Errorf("paths with 4xx: %+v", s.ClientErrorPaths)
+	}
+	if s.Bytes != 1000 {
+		t.Errorf("bytes %d, want 1000", s.Bytes)
+	}
+
+	var inSeries [AnswerCount]int
+	for _, p := range s.Series {
+		for a, n := range p.Answers {
+			inSeries[a] += n
+		}
+	}
+	if inSeries != want {
+		t.Errorf("the series holds %v, the totals %v: the chart and the ring would disagree", inSeries, want)
+	}
+}
+
+// The site's answer time is counted over what reached the site: blocks
+// are answered in microseconds and would pull every percentile to zero
+// exactly when the node is busiest.
+func TestLatencyLeavesBlocksOut(t *testing.T) {
+	t0 := start()
+	var list []facts.Request
+	for i := 1; i <= 100; i++ {
+		list = append(list, facts.Request{
+			Time: t0, IP: "203.0.113.1", Host: "a.ru", Decision: "pass",
+			Status: 200, Duration: time.Duration(i) * time.Millisecond,
+		})
+	}
+	for i := 0; i < 300; i++ {
+		list = append(list, facts.Request{
+			Time: t0, IP: "203.0.113.2", Host: "a.ru", Decision: "block",
+			Status: 403, Duration: 10 * time.Microsecond,
+		})
+	}
+	s, err := Build(Options{Dir: logDir(t, list)})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	l := s.Latency
+	if l.Count != 100 {
+		t.Errorf("%d answers timed, want 100", l.Count)
+	}
+	// The histogram is off by at most a quarter, and never above the
+	// longest answer seen.
+	if l.P50 < 50*time.Millisecond || l.P50 > 63*time.Millisecond {
+		t.Errorf("p50 %v, want 50–63ms", l.P50)
+	}
+	if l.P99 < 99*time.Millisecond || l.P99 > 100*time.Millisecond {
+		t.Errorf("p99 %v, want 99–100ms", l.P99)
+	}
+}
+
+func TestStatusFilter(t *testing.T) {
+	t0 := start()
+	dir := logDir(t, []facts.Request{
+		{Time: t0, IP: "203.0.113.1", Host: "a.ru", Path: "/missing", Decision: "pass", Status: 404},
+		{Time: t0.Add(time.Second), IP: "203.0.113.2", Host: "a.ru", Path: "/", Decision: "block", Status: 403},
+		{Time: t0.Add(2 * time.Second), IP: "203.0.113.3", Host: "a.ru", Path: "/", Decision: "ratelimit", Status: 429},
+	})
+
+	cases := map[string][]string{
+		"4xx":     {"203.0.113.1"},
+		"403":     {"203.0.113.2"},
+		"blocked": {"203.0.113.3", "203.0.113.2"},
+		"5xx":     nil,
+	}
+	for status, want := range cases {
+		list, err := Latest(dir, Filter{Status: status}, 10)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var got []string
+		for _, r := range list {
+			got = append(got, r.IP)
+		}
+		if fmt.Sprint(got) != fmt.Sprint(want) {
+			t.Errorf("status=%s selected %v, want %v", status, got, want)
+		}
+	}
+}
+
 func TestLatestNewestFirst(t *testing.T) {
 	t0 := start()
 	var list []facts.Request

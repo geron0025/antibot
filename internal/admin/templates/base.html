@@ -8,17 +8,19 @@
 </head>
 <body>
 <header>
-  <nav>
-    <a href="/" {{if eq .Section "overview"}}class="current"{{end}}>Overview</a>
-    <a href="/events" {{if eq .Section "events"}}class="current"{{end}}>Events</a>
-    <a href="/rules" {{if eq .Section "rules"}}class="current"{{end}}>Rules</a>
-  </nav>
-  <div class="right">
-    <span class="dim">{{.User}}</span>
-    <form method="post" action="/logout">
-      <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <button type="submit">Log out</button>
-    </form>
+  <div class="inner">
+    <nav>
+      <a href="/" {{if eq .Section "overview"}}class="current"{{end}}>Overview</a>
+      <a href="/events" {{if eq .Section "events"}}class="current"{{end}}>Events</a>
+      <a href="/rules" {{if eq .Section "rules"}}class="current"{{end}}>Rules</a>
+    </nav>
+    <div class="right">
+      <span class="dim">{{.User}}</span>
+      <form method="post" action="/logout">
+        <input type="hidden" name="csrf" value="{{.CSRF}}">
+        <button type="submit">Log out</button>
+      </form>
+    </div>
   </div>
 </header>
 <main>
@@ -44,14 +46,14 @@
 {{end}}
 
 {{define "breakdown"}}
-<table>
+<table class="breakdown">
   <thead><tr><th>{{.Name}}</th><th class="num">requests</th><th class="num">addresses</th></tr></thead>
   <tbody>
   {{range .Rows}}
     <tr>
-      <td class="value" title="{{.Value}}">{{truncate .Value 60}}</td>
-      <td class="num">{{.Count}}</td>
-      <td class="num">{{.IPs}}</td>
+      <td class="value" title="{{.Value}}">{{if $.Key}}<a href="/events?{{$.Key}}={{.Value}}{{if $.ExtraKey}}&amp;{{$.ExtraKey}}={{$.ExtraValue}}{{end}}">{{truncate .Value 200}}</a>{{else}}{{truncate .Value 200}}{{end}}</td>
+      <td class="num">{{count .Count}}</td>
+      <td class="num">{{count .IPs}}</td>
     </tr>
   {{else}}
     <tr><td colspan="3" class="dim">empty</td></tr>

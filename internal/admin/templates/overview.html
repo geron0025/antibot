@@ -3,41 +3,98 @@
 {{template "period-picker" .}}
 
 <section class="tiles">
-  <div class="tile"><span class="big-number">{{.Summary.Events}}</span><span class="caption">requests</span></div>
-  <div class="tile"><span class="big-number">{{.Summary.IPCount}}</span><span class="caption">addresses</span></div>
-  <div class="tile"><span class="big-number">{{.Summary.Blocked}}</span><span class="caption">not let through</span></div>
+  <div class="tile"><span class="big-number">{{count .Summary.Events}}</span><span class="caption">requests</span></div>
+  <div class="tile"><span class="big-number">{{count .Summary.IPCount}}</span><span class="caption">addresses</span></div>
+  <div class="tile">
+    <span class="big-number">{{count .Summary.Blocked}}</span>
+    <span class="caption">not let through · {{share .Summary.Blocked .Summary.Events}}</span>
+  </div>
+  <div class="tile">
+    <span class="big-number">{{count .ServerErrors}}</span>
+    <span class="caption"><a href="/events?status=5xx">5xx from the site</a> · {{share .ServerErrors .Summary.Events}}</span>
+  </div>
+  <div class="tile">
+    <span class="big-number">{{latency .Summary.Latency.P50}}</span>
+    <span class="caption">median answer · p95 {{latency .Summary.Latency.P95}}</span>
+  </div>
+  <div class="tile"><span class="big-number">{{bytes .Summary.Bytes}}</span><span class="caption">sent to clients</span></div>
   <div class="tile"><span class="big-number">{{.Effective}}</span><span class="caption">rules in force{{if ne .Rules .Effective}} out of {{.Rules}}{{end}}</span></div>
 </section>
 
-{{if .Summary.Series}}
-<section>
-  <h2>Requests over time</h2>
-  <div class="series">
-    {{$max := .Largest}}
-    {{range .Summary.Series}}
-      <div class="bar" title="{{time .Time}}: {{.Events}} requests, {{.Blocked}} not let through">
-        <div class="total" style="height: {{barHeight .Events $max}}%"></div>
-        <div class="blocked" style="height: {{barHeight .Blocked $max}}%"></div>
-      </div>
-    {{end}}
+<section class="charts">
+  <div class="card">
+    <h2>Answers</h2>
+    {{with .Answers}}{{if .Total}}
+    <div class="answers">
+      <svg class="donut" viewBox="0 0 42 42" role="img" aria-label="Answers by class">
+        <g transform="rotate(-90 21 21)">
+        {{range .Segments}}
+          <circle class="{{.Class}}" cx="21" cy="21" r="15.91549" stroke-width="6"
+            stroke-dasharray="{{.Dash}}" stroke-dashoffset="{{.Offset}}"><title>{{.Title}}</title></circle>
+        {{end}}
+        </g>
+        <text class="donut-total" x="21" y="22" text-anchor="middle">{{count .Total}}</text>
+        <text class="donut-caption" x="21" y="26.5" text-anchor="middle">requests</text>
+      </svg>
+      <table class="legend">
+        <tbody>
+        {{range .Legend}}
+          <tr>
+            <td><span class="swatch {{.Class}}"></span><a href="/events?status={{.Name}}">{{.Label}}</a></td>
+            <td class="num">{{count .Count}}</td>
+            <td class="num dim">{{.Share}}</td>
+          </tr>
+        {{end}}
+        </tbody>
+      </table>
+    </div>
+    {{else}}<p class="dim">No requests over the period.</p>{{end}}{{end}}
+  </div>
+
+  <div class="card">
+    <h2>Requests over time</h2>
+    {{with .Series}}
+    <ul class="chart-legend">
+      {{range .Legend}}<li><span class="swatch {{.Class}}"></span>{{.Label}}</li>{{end}}
+    </ul>
+    <svg class="columns" viewBox="0 0 {{.Width}} {{.Height}}" role="img" aria-label="Requests over time by answer class">
+      {{$left := .Left}}{{$right := .Right}}
+      {{range .Grid}}
+        <line class="grid" x1="{{$left}}" x2="{{$right}}" y1="{{.Y}}" y2="{{.Y}}"/>
+        <text class="tick" x="44" y="{{.Y}}" dy="4" text-anchor="end">{{.Label}}</text>
+      {{end}}
+      {{$top := .Top}}{{$base := .Base}}
+      {{range .Columns}}
+        <g class="column">
+          <title>{{.Title}}</title>
+          <rect class="hit" x="{{.HitX}}" y="{{$top}}" width="{{.HitW}}" height="170"/>
+          {{range .Segments}}<path class="{{.Class}}" d="{{.D}}"/>{{end}}
+        </g>
+      {{end}}
+      <line class="baseline" x1="{{.Left}}" x2="{{.Right}}" y1="{{.Base}}" y2="{{.Base}}"/>
+      {{$labelY := .LabelY}}
+      {{range .XLabels}}<text class="tick" x="{{.X}}" y="{{$labelY}}" text-anchor="middle">{{.Text}}</text>{{end}}
+    </svg>
+    <details>
+      <summary>As a table</summary>
+      <table>
+        <thead><tr><th>from</th>{{range .Classes}}<th class="num">{{.}}</th>{{end}}<th class="num">total</th></tr></thead>
+        <tbody>
+        {{range .Rows}}
+          <tr><td class="num">{{.Time}}</td>{{range .Counts}}<td class="num">{{count .}}</td>{{end}}<td class="num">{{count .Total}}</td></tr>
+        {{end}}
+        </tbody>
+      </table>
+    </details>
+    {{else}}<p class="dim">No requests over the period.</p>{{end}}
   </div>
 </section>
-{{end}}
 
-<section>
-  <h2>Decisions</h2>
-  <table>
-    <tbody>
-      {{$total := .Summary.Events}}
-      {{range $decision, $count := .Summary.Decisions}}
-      <tr>
-        <td><a href="/events?decision={{$decision}}">{{$decision}}</a></td>
-        <td class="num">{{$count}}</td>
-        <td class="num dim">{{share $count $total}}</td>
-      </tr>
-      {{end}}
-    </tbody>
-  </table>
+<section class="two-columns">
+  <div>{{template "breakdown" (breakdown "Site answer code" "status" .Summary.Statuses)}}</div>
+  <div>{{template "breakdown" (breakdown "Path" "q" .Summary.Paths)}}</div>
+  <div>{{template "breakdown" (breakdown "Path answered with 5xx" "q" .Summary.ServerErrorPaths "status" "5xx")}}</div>
+  <div>{{template "breakdown" (breakdown "Path answered with 4xx" "q" .Summary.ClientErrorPaths "status" "4xx")}}</div>
 </section>
 
 <section class="unknown">
@@ -49,12 +106,12 @@
     <tbody>
       <tr>
         <td>requests without a network class</td>
-        <td class="num">{{.Summary.Unknown.NoNetClass}}</td>
+        <td class="num">{{count .Summary.Unknown.NoNetClass}}</td>
         <td class="num dim">{{share .Summary.Unknown.NoNetClass .Summary.Events}}</td>
       </tr>
       <tr>
         <td>requests with a nameless fingerprint</td>
-        <td class="num">{{.Summary.Unknown.NoFamily}}</td>
+        <td class="num">{{count .Summary.Unknown.NoFamily}}</td>
         <td class="num dim">{{share .Summary.Unknown.NoFamily .Summary.Events}}</td>
       </tr>
     </tbody>
@@ -71,8 +128,8 @@
     {{range .}}
       <tr>
         <td><a href="/events?q={{.Value}}">{{.Value}}</a></td>
-        <td class="num">{{.Count}}</td>
-        <td class="num">{{.IPs}}</td>
+        <td class="num">{{count .Count}}</td>
+        <td class="num">{{count .IPs}}</td>
       </tr>
     {{end}}
     </tbody>
@@ -85,12 +142,12 @@
 </section>
 
 <section class="two-columns">
-  <div>{{template "breakdown" (breakdown "Rule" .Summary.Rules)}}</div>
-  <div>{{template "breakdown" (breakdown "Observation" .Summary.Shadows)}}</div>
-  <div>{{template "breakdown" (breakdown "Address" .Summary.IPs)}}</div>
-  <div>{{template "breakdown" (breakdown "JA4 fingerprint" .Summary.JA4)}}</div>
-  <div>{{template "breakdown" (breakdown "User-Agent" .Summary.UA)}}</div>
-  <div>{{template "breakdown" (breakdown "Host" .Summary.Hosts)}}</div>
+  <div>{{template "breakdown" (breakdown "Rule" "rule" .Summary.Rules)}}</div>
+  <div>{{template "breakdown" (breakdown "Observation" "rule" .Summary.Shadows)}}</div>
+  <div>{{template "breakdown" (breakdown "Address" "ip" .Summary.IPs)}}</div>
+  <div>{{template "breakdown" (breakdown "JA4 fingerprint" "ja4" .Summary.JA4)}}</div>
+  <div>{{template "breakdown" (breakdown "User-Agent" "q" .Summary.UA)}}</div>
+  <div>{{template "breakdown" (breakdown "Host" "host" .Summary.Hosts)}}</div>
 </section>
 
 {{if .Summary.Truncated}}

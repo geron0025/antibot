@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	"github.com/geron0025/antibot/internal/events"
 	"github.com/geron0025/antibot/internal/facts"
 	"github.com/geron0025/antibot/internal/rules"
+	"github.com/geron0025/antibot/internal/summary"
 )
 
 const password = "a very long password"
@@ -37,12 +39,13 @@ func newServer(t *testing.T) (*Server, string) {
 	l.Write(facts.Request{
 		Time: now.Add(-time.Minute), IP: "203.0.113.1", Host: "a.ru",
 		Path: "/product", UA: "Mozilla/5.0 (compatible; Googlebot/2.1)",
-		JA4: "t13d1516h2", Decision: "pass",
+		JA4: "t13d1516h2", Decision: "pass", Status: 200, Bytes: 2048,
+		Duration: 30 * time.Millisecond,
 	})
 	l.Write(facts.Request{
 		Time: now, IP: "198.51.100.9", Host: "a.ru", Path: "/api",
 		UA: "curl/8.4", JA4: "t13d0000", Decision: "block", Rule: "block-curl",
-		Shadow: []string{"watch-everything"},
+		Shadow: []string{"watch-everything"}, Status: 403,
 	})
 	if err := l.Close(); err != nil {
 		t.Fatal(err)
@@ -464,5 +467,82 @@ func TestItOpensOnAnEmptyLog(t *testing.T) {
 		if resp := get(t, s, path, cookies); resp.StatusCode != http.StatusOK {
 			t.Errorf("%s on an empty log returned %d", path, resp.StatusCode)
 		}
+	}
+}
+
+// The CSP allows styles only from the stylesheet, and a browser drops a
+// style attribute without a word. The first overview drew its bars with
+// style="height: …" and showed an empty box for it.
+func TestPagesHaveNoInlineStyles(t *testing.T) {
+	s, _ := newServer(t)
+	cookies := logIn(t, s)
+	for _, path := range []string{"/", "/events", "/rules", "/?period=1h", "/?period=168h"} {
+		body, _ := io.ReadAll(get(t, s, path, cookies).Body)
+		if strings.Contains(string(body), "style=") {
+			t.Errorf("%s carries a style attribute, which the CSP forbids", path)
+		}
+	}
+}
+
+func TestOverviewDrawsTheAnswers(t *testing.T) {
+	s, _ := newServer(t)
+	cookies := logIn(t, s)
+
+	body, _ := io.ReadAll(get(t, s, "/", cookies).Body)
+	page := string(body)
+	for _, piece := range []string{
+		`class="donut"`, `class="columns"`,
+		"2xx from the site", "not let through by the node",
+		`/events?status=5xx`, `/events?status=blocked`,
+		"2.0 KB", "30 ms",
+	} {
+		if !strings.Contains(page, piece) {
+			t.Errorf("the overview does not contain %q", piece)
+		}
+	}
+}
+
+func TestEventsByStatus(t *testing.T) {
+	s, _ := newServer(t)
+	cookies := logIn(t, s)
+
+	body, _ := io.ReadAll(get(t, s, "/events?status=blocked", cookies).Body)
+	if !strings.Contains(string(body), "198.51.100.9") || strings.Contains(string(body), "203.0.113.1") {
+		t.Errorf("status=blocked did not select exactly the blocked request")
+	}
+}
+
+// The tallest column must end at the top of the plot and not above it,
+// whatever the numbers.
+func TestColumnsStayInsideThePlot(t *testing.T) {
+	t0 := time.Date(2026, 9, 10, 0, 0, 0, 0, time.UTC)
+	var points []summary.Point
+	for i, n := range []int{0, 7, 1234, 3, 999} {
+		p := summary.Point{Time: t0.Add(time.Duration(i) * time.Hour), Events: n}
+		p.Answers[summary.AnswerOK] = n - n/3
+		p.Answers[summary.AnswerBlocked] = n / 3
+		points = append(points, p)
+	}
+	chart := newColumns(points, 5*time.Hour)
+	if chart == nil {
+		t.Fatal("no chart")
+	}
+	if got := chart.Grid[len(chart.Grid)-1].Label; got != "1,500" {
+		t.Errorf("the top tick reads %s, want a round 1,500", got)
+	}
+	if len(chart.Columns[0].Segments) != 0 {
+		t.Errorf("an empty bucket has %d segments", len(chart.Columns[0].Segments))
+	}
+	for i, col := range chart.Columns {
+		for _, seg := range col.Segments {
+			var x, y float64
+			fmt.Sscanf(seg.D, "M%f %f", &x, &y)
+			if y > plotBase+0.01 {
+				t.Errorf("column %d starts below the baseline: %s", i, seg.D)
+			}
+		}
+	}
+	if newColumns(make([]summary.Point, 5), time.Hour) != nil {
+		t.Error("a chart was drawn over no requests")
 	}
 }
