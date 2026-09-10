@@ -212,13 +212,34 @@ antibot rules check                     # validate the file, change nothing
 antibot rules fields                    # fields and operators
 ```
 
+`enable` and `disable` switch only `enabled`; they do not touch the mode.
+Moving a rule from `shadow` to `active` is an edit of `mode` in
+`rules.json` itself: there is no separate command for it.
+
+It is convenient to make the edit in a draft first, replay the draft over
+history, and put into the live file only what has been checked:
+
+```bash
+cp /var/lib/antibot/rules.json /var/lib/antibot/rules.draft.json
+# edit the draft: mode, conditions, priorities
+antibot replay -rules /var/lib/antibot/rules.draft.json -for 24h
+mv /var/lib/antibot/rules.draft.json /var/lib/antibot/rules.json
+```
+
+`-rules` takes the set from the given file instead of the one named in
+the settings; the event log stays the same. The draft is parsed with the
+same validation as the live file: a broken one will not start the
+replay. `mv` within one directory replaces the file atomically, and the
+node never sees it half-written.
+
 The file is replaced whole and atomically; the node notices the change
 and rereads the set without a restart. **A broken rule discards the whole
 set**, and the previous one stays in force.
 
-Rules are changed only this way — with a command. The one exception is
-the enable/disable button in the admin UI, and it goes **through the same
-write and the same validation**: the rules file has no second writer.
+Rules are changed with a command or by editing the file. The
+enable/disable button in the admin UI goes **through the same write and
+the same validation** as the command: inside the node the rules file has
+no second writer.
 
 There is no way to enable a rule from the outside, and there will not be
 one.

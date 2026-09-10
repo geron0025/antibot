@@ -205,7 +205,8 @@ place.
 |---|---|
 | `304` | nothing, the same version |
 | `401` | the token was not accepted: **works on the previous set**, retries in an hour |
-| `403` | the subscription does not cover the bases: **the base freezes, the protection stays**, retries once a day |
+| `402`, `403` | the subscription does not cover the bases: **the base freezes, the protection stays**, retries once a day |
+| `404` | no set has been published yet: nothing changes, retry with a growing delay |
 | `429`, `5xx` | retry with a growing delay from a minute up to six hours |
 
 The rows about `401` and `403` are the main ones. A subscription that ran
@@ -220,8 +221,11 @@ one that fetches and finds nothing new.
 
 The node creates the installation's identifier itself on the first run
 and keeps it in `node_id_file`. The cloud needs it for exactly one thing
-— telling installations apart; the node reports no domains, no addresses
-and no composition of rules about itself.
+— telling installations apart. When fetching the bases the node reports
+no domains, no addresses and no composition of rules about itself.
+Aggregates, if sending them is switched on, carry the domain and the
+network prefix, `/24` or `/48` — what exactly goes with them is described
+in [protocol/aggregate.md](protocol/aggregate.md).
 
 The distribution is described in full in
 [protocol/fact-set.md](protocol/fact-set.md), the section on

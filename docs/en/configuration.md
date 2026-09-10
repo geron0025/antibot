@@ -287,6 +287,7 @@ only when a token is set. What lies there and what goes next is shown by
 - `cloud.token` without `cloud.url` is an error: nowhere to send;
 - `cloud.token` without `cloud.state_dir` is an error: nowhere to keep what is not sent yet;
 - `facts.url` without `facts.dir` is an error: nowhere to put it;
+- `facts.url` without `cloud.token` is an error: there is no anonymous distribution of the bases;
 - durations look like `30s`, `15m`, `24h` and are not negative.
 
 A duration type of our own is needed because YAML would read `30` as

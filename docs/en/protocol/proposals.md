@@ -2,10 +2,14 @@
 
 Format version: **1**.
 
+> In the current build the node neither fetches nor accepts proposals:
+> there is no button in the admin UI and no `proposals/` directory yet.
+> The format is fixed in advance, like the aggregate format.
+
 The third road between the parts. The first two — the
 [aggregate](aggregate.md) going up and the [fact set](fact-set.md) coming
 down — carry observations and statements about the world. This one
-carries a **draft of a rule**: the cloud analysed one tenant's statistics
+carries a **draft of a rule**: the cloud analysed one subscriber's statistics
 and proposes a rule they can accept with one button in their own admin
 UI.
 
@@ -39,7 +43,7 @@ code.
 
 | | Fact set | Proposal |
 |---|---|---|
-| For whom | the same for everyone | for one tenant |
+| For whom | the same for everyone | for one subscriber |
 | What it carries | statements about the world | a draft of a rule |
 | Signature | the distribution key | a **separate key** |
 | Application | automatic, after the checks | only by the owner's hand |
@@ -126,7 +130,7 @@ that much traffic is never all bots.
 ## Distribution
 
 ```
-GET <cloud.url>/proposals?format=1
+GET <facts.url>/proposals?format=1
 Authorization: Bearer <token>
 ```
 
@@ -190,7 +194,8 @@ The owner presses the button in the admin UI. The node:
 
 After that the rule lives like any other: the owner watches it in
 `shadow`, runs `antibot replay` and moves it to `active` **themselves**,
-with a command. Moving to `active` is not part of this channel.
+by editing `mode` in `rules.json`; the node rereads the file without a
+restart. Moving to `active` is not part of this channel.
 
 ### Declining
 

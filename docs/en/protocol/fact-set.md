@@ -57,8 +57,9 @@ any one row would have cost live visitors or positions in search results.
 
 `confidence` is `verified` (checked by a human or by reverse DNS),
 `derived` (inferred from whois and observations) or `reported` (came from
-subscribers' observations and has not been checked yet). A rule may
-demand a level: `network.confidence == "verified"`.
+subscribers' observations and has not been checked yet). Rules cannot
+see this field yet: it is not among the condition fields
+(`antibot rules fields`).
 
 `source` and `verified_at` are mandatory on every record. A catalogue
 that does not remember where it took a statement from, and when, starts
@@ -94,15 +95,20 @@ genuine TLS fingerprint, and confusing it with curl loses both.
 
 ## New records arrive under observation
 
-`since` is the version of the set the record appeared in. The node counts
-records from the last **three** versions as new and, if a rule refers
-only to them, writes to the log that the decision was made on a fresh
-fact.
+`since` is the version of the set the record appeared in; from it the
+node derives the `network.age` field — how many versions ago the record
+appeared. Records from the last **three** versions are new: if a rule
+fired on them alone, the node should write to the log that the decision
+was made on a fresh fact. This is not implemented yet in the current
+build.
 
 A rule may require a hold explicitly:
 
-```
-network.class == "hosting" and network.age > 3
+```json
+{"all": [
+  {"field": "network.class", "op": "eq", "value": "hosting"},
+  {"field": "network.age", "op": "gt", "value": 3}
+]}
 ```
 
 The point is that the first wrongly classified range would kill somebody
@@ -140,7 +146,7 @@ the version and the date — so that a signature cannot be moved from one
 set to another.
 
 `key_id` selects a key from the trusted list. The list is compiled into
-the binary and supplemented by the configuration; several keys exist so
+the binary and supplemented by the `facts/keys.json` file; several keys exist so
 that rotating one does not require updating every installation at the
 same time.
 
@@ -178,7 +184,7 @@ client's word.
 | `200` | there is a newer version | checks it and applies it |
 | `304` | the same version | nothing, the next attempt on schedule |
 | `401` | the token is unknown or revoked | **works on the last set**, retries in an hour |
-| `403` | the subscription does not cover the bases: ended, suspended, or the wrong scope | **the base freezes**, retries once a day |
+| `402`, `403` | the subscription does not cover the bases: ended, suspended, or the wrong scope | **the base freezes**, retries once a day |
 | `404` | no set has been published yet | changes nothing, retries with a growing delay, as for `5xx` |
 | `429`, `5xx` | the cloud is out of shape | retry with a growing delay: 1, 2, 4… up to 6 hours |
 
@@ -198,8 +204,9 @@ overdue subscription takes exactly that away.
 good, it may have been revoked", and in an hour it is worth trying again;
 `403` is "the token is intact but the subscription does not cover this",
 and nothing will change before the end of the day. Both go into the
-node's log **and** are visible in its admin UI: the owner has to learn
-that the base has frozen from their own node, not from us.
+node's log, and the version and date of the applied set are shown by
+`antibot facts status`: the owner has to learn that the base has frozen
+from their own node, not from us.
 
 ### What the node reports about itself
 
@@ -212,9 +219,7 @@ In the manifest request, as headers:
 | `X-Antibot-Version` | `0.1.0` | the node's version |
 
 The cloud needs the identifier for one thing: to tell installations
-apart. It is what sets `used_at` on the token — an empty field on a
-week-old token means the installation never reached the customer, and it
-is better to ask about that ourselves.
+apart.
 
 The node reports nothing beyond this: no domains, no addresses, no
 composition of rules. Distribution is not an excuse to collect what is
