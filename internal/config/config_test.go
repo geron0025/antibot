@@ -73,11 +73,12 @@ func TestTypoInFieldNameIsAnError(t *testing.T) {
 
 func TestBadValueIsRejected(t *testing.T) {
 	cases := map[string]string{
-		"not a network":      "trusted_proxies:\n  - \"10.0.0.1\"\n",
-		"token without url":  "cloud:\n  token: \"secret\"\n",
-		"empty upstream":     "upstreams:\n  - host: \"shop.ru\"\n",
-		"duration as number": "tls:\n  reload_interval: 30\n",
-		"negative interval":  "tls:\n  reload_interval: -5s\n",
+		"not a network":       "trusted_proxies:\n  - \"10.0.0.1\"\n",
+		"token without url":   "cloud:\n  token: \"secret\"\n",
+		"token without state": "cloud:\n  token: \"secret\"\n  url: \"https://x\"\n  state_dir: \"\"\n",
+		"empty upstream":      "upstreams:\n  - host: \"shop.ru\"\n",
+		"duration as number":  "tls:\n  reload_interval: 30\n",
+		"negative interval":   "tls:\n  reload_interval: -5s\n",
 	}
 	for name, contents := range cases {
 		t.Run(name, func(t *testing.T) {

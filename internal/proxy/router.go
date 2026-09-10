@@ -83,6 +83,26 @@ func (r *Router) To(host string) (string, bool) {
 	return r.fallback, r.fallback != ""
 }
 
+// Named reports whether the host is served by a route that names it —
+// exactly or by a pattern. The default route does not count: it takes
+// whatever the client puts into Host, and the aggregate must not carry
+// a scanner's made-up names to the cloud as "protected domains".
+func (r *Router) Named(host string) bool {
+	h := hostnorm.Normalize(host)
+	if h == "" {
+		return false
+	}
+	if _, ok := r.exact[h]; ok {
+		return true
+	}
+	for _, p := range r.patterns {
+		if strings.HasSuffix(h, p.suffix) {
+			return true
+		}
+	}
+	return false
+}
+
 // Names lists the exact names the node serves. Needed for issuing
 // certificates and for checking rules with a scope.
 func (r *Router) Names() []string {

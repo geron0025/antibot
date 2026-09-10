@@ -255,6 +255,7 @@ cloud:
   token: ""
   # url: "https://updates.example.com/ingest"
   interval: 15m
+  state_dir: "/var/lib/antibot/aggregate"
 ```
 
 Sending anonymized aggregates. **An empty token means no sending at
@@ -264,7 +265,16 @@ the node does not know where to send and does not try.
 What exactly leaves and what never does is in
 [protocol/aggregate.md](protocol/aggregate.md).
 
-> The sending is not written yet. The keys are declared and validated.
+`interval` is how often closed windows are packed into a batch and
+sent; the window itself is always five minutes. The first batch leaves
+after a random share of the interval following the start: otherwise
+installations from one image would knock on the cloud at the same
+second.
+
+`state_dir` holds the open window and the batches the cloud has not
+accepted yet: no more than 200 of them, about two days. It is created
+only when a token is set. What lies there and what goes next is shown by
+`antibot aggregate status` and `antibot aggregate show`.
 
 ## What is checked at startup
 
@@ -275,6 +285,7 @@ What exactly leaves and what never does is in
 - `admin_ui.enabled` without `listen` is an error;
 - `certificate` and `key` are set together;
 - `cloud.token` without `cloud.url` is an error: nowhere to send;
+- `cloud.token` without `cloud.state_dir` is an error: nowhere to keep what is not sent yet;
 - `facts.url` without `facts.dir` is an error: nowhere to put it;
 - durations look like `30s`, `15m`, `24h` and are not negative.
 

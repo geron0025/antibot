@@ -38,6 +38,8 @@ func main() {
 		err = factsCommand(os.Args[2:], log)
 	case "admin":
 		err = adminCommand(os.Args[2:])
+	case "aggregate":
+		err = aggregateCommand(os.Args[2:])
 	case "version":
 		fmt.Println("antibot", Version)
 	case "help", "-h", "--help":
@@ -63,6 +65,7 @@ Commands:
   replay    replay the rules over recorded events
   facts     show and roll back the network and fingerprint bases
   admin     accounts of the viewing admin UI
+  aggregate show what is counted and about to be sent to the cloud
   version   show the version
 
 Examples:
@@ -71,5 +74,6 @@ Examples:
   antibot facts status
   antibot replay -for 24h
   antibot admin passwd owner
+  antibot aggregate status
 `)
 }

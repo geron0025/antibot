@@ -15,10 +15,12 @@ import (
 	"golang.org/x/net/http2"
 
 	"github.com/geron0025/antibot/internal/admin"
+	"github.com/geron0025/antibot/internal/aggregate"
 	"github.com/geron0025/antibot/internal/catalog"
 	"github.com/geron0025/antibot/internal/config"
 	"github.com/geron0025/antibot/internal/edgetls"
 	"github.com/geron0025/antibot/internal/events"
+	"github.com/geron0025/antibot/internal/facts"
 	"github.com/geron0025/antibot/internal/h2fp"
 	"github.com/geron0025/antibot/internal/nodeid"
 	"github.com/geron0025/antibot/internal/proxy"
@@ -75,9 +77,46 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		return err
 	}
 
+	router := proxy.NewRouter(routes)
+
+	// The identifier is needed only to talk to the cloud, and without a
+	// token there is no talking: a node without one does not even create
+	// the file.
+	var node string
+	if cfg.Cloud.Token != "" {
+		node = nodeIdentity(cfg, log)
+	}
+
+	// The aggregate exists only with a token. A failure to assemble it is
+	// no reason to stop the node: the traffic is served whether or not
+	// the cloud hears about it.
+	var agg *aggregate.Aggregator
+	if cfg.Cloud.Token != "" {
+		agg, err = aggregate.Open(aggregate.Options{
+			Dir:          cfg.Cloud.StateDir,
+			URL:          cfg.Cloud.URL,
+			Token:        cfg.Cloud.Token,
+			NodeID:       node,
+			Version:      Version,
+			Interval:     cfg.Cloud.Interval.Duration(),
+			Served:       router.Named,
+			FactsVersion: func() int { return factStore.Current().Version() },
+			Log:          log,
+		})
+		if err != nil {
+			log.Error("the aggregate will not be sent", "err", err)
+			agg = nil
+		}
+	}
+
+	var sink proxy.EventLog = eventLog
+	if agg != nil {
+		sink = fanOut{eventLog, agg}
+	}
+
 	handler := proxy.New(&proxy.Handler{
-		Routes:         proxy.NewRouter(routes),
-		Events:         eventLog,
+		Routes:         router,
+		Events:         sink,
 		Decider:        ruleStore,
 		Facts:          factStore,
 		TrustedProxies: config.Prefixes(cfg.TrustedProxies),
@@ -102,7 +141,7 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 	// from and something to prove the right with. Without a token there
 	// is no addressee, and that is a state, not a failure.
 	if fetcher := catalog.NewFetcher(factStore, cfg.Facts.URL, cfg.Cloud.Token,
-		nodeIdentity(cfg, log), Version, log); fetcher != nil {
+		node, Version, log); fetcher != nil {
 		go fetcher.Run(ctx, cfg.Facts.Interval.Duration())
 	}
 
@@ -139,6 +178,24 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 				return err
 			}
 		}
+	}
+
+	// The aggregator starts after every early return: on the way out the
+	// process waits for it to save the open window, and it must not wait
+	// for one that never started. Its context is not the signal's but
+	// its own, cancelled only once the listeners are done — the requests
+	// finishing during the shutdown were served and are counted.
+	if agg != nil {
+		aggCtx, stopAgg := context.WithCancel(context.Background())
+		aggDone := make(chan struct{})
+		go func() {
+			agg.Run(aggCtx)
+			close(aggDone)
+		}()
+		defer func() {
+			stopAgg()
+			<-aggDone
+		}()
 	}
 
 	var group sync.WaitGroup
@@ -178,7 +235,7 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		group.Add(1)
 		go func() {
 			defer group.Done()
-			if err := serveService(ctx, cfg.Listen.Admin, eventLog, log); err != nil {
+			if err := serveService(ctx, cfg.Listen.Admin, eventLog, agg, log); err != nil {
 				errs <- err
 			}
 		}()
@@ -186,7 +243,7 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 
 	log.Info("the node has started", "http", cfg.Listen.HTTP, "https", cfg.Listen.HTTPS,
 		"events", cfg.Events.Dir, "rules", len(ruleStore.Set().Effective()),
-		"facts", factStore.Current().Version(), "version", Version)
+		"facts", factStore.Current().Version(), "aggregate", agg != nil, "version", Version)
 
 	group.Wait()
 	close(errs)
@@ -372,4 +429,15 @@ func nodeIdentity(cfg config.Config, log *slog.Logger) string {
 		return ""
 	}
 	return id
+}
+
+// fanOut hands every event to each sink: the log on disk and, with a
+// token, the aggregator. Both only queue the event, so the handler waits
+// for neither.
+type fanOut []proxy.EventLog
+
+func (f fanOut) Write(r facts.Request) {
+	for _, sink := range f {
+		sink.Write(r)
+	}
 }

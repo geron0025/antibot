@@ -81,10 +81,12 @@ and [configuration](docs/en/configuration.md).
 - **replaying over history** — with the same matcher the hot path uses;
 - **a rate limiter** — a sliding window in the process's memory;
 - **an admin UI**: events, statistics and rules;
-- **fact bases**: parsing, signature, applying from disk, rollback.
+- **fact bases**: parsing, signature, applying from disk, fetching over
+  the network, rollback;
+- **sending aggregates** to the cloud — only with a subscription token;
+  `antibot aggregate show` prints exactly what would leave.
 
-Not there: fetching the bases over the network, sending aggregates, ACME,
-Prometheus metrics.
+Not there: ACME, Prometheus metrics.
 
 Verified: the container comes up in a network **with no outside access**,
 with an empty base directory, and serves HTTPS and HTTP. Not one database

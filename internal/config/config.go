@@ -126,6 +126,11 @@ type Cloud struct {
 	Token    string   `yaml:"token"`
 	URL      string   `yaml:"url"`
 	Interval Duration `yaml:"interval"`
+
+	// StateDir keeps the open aggregate window across a restart and the
+	// batches the cloud has not taken yet. Created only when there is a
+	// token: a node that sends nothing keeps nothing for sending.
+	StateDir string `yaml:"state_dir"`
 }
 
 // Defaults are the settings of a node that has just been installed: it
@@ -156,7 +161,10 @@ func Defaults() Config {
 			Enabled: true, Dir: "/var/lib/antibot/facts",
 			Interval: Duration(24 * time.Hour),
 		},
-		Cloud: Cloud{Interval: Duration(15 * time.Minute)},
+		Cloud: Cloud{
+			Interval: Duration(15 * time.Minute),
+			StateDir: "/var/lib/antibot/aggregate",
+		},
 	}
 }
 
@@ -225,6 +233,9 @@ func (c *Config) Validate() error {
 
 	if c.Cloud.Token != "" && c.Cloud.URL == "" {
 		return fmt.Errorf("cloud.token is set and cloud.url is not: nowhere to send")
+	}
+	if c.Cloud.Token != "" && c.Cloud.StateDir == "" {
+		return fmt.Errorf("cloud.token is set and cloud.state_dir is not: nowhere to keep what is not sent yet")
 	}
 	if c.Facts.Enabled && c.Facts.URL != "" {
 		if c.Facts.Dir == "" {

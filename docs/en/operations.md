@@ -66,12 +66,20 @@ curl http://127.0.0.1:8091/stats      # {"events_dropped":0,"version":"0.1.0"}
 worse than none, because people draw conclusions from it. If it grows,
 raise `events.queue` or work out why the disk is not keeping up.
 
+With a cloud token `/stats` gains two more counters:
+`aggregate_dropped` — events that did not make it into the aggregate
+because the queue was full, and `aggregate_outbox` — batches the cloud
+has not accepted yet. Without a token they are absent altogether: a zero
+would claim that the sending works and has nothing to report.
+
 The port is not published outwards.
 
 ## What to put into monitoring
 
 - `/healthz` — liveness;
 - `events_dropped` from `/stats` — whether it is growing;
+- `aggregate_outbox` — whether batches pile up: the cloud is unreachable
+  or does not accept the token;
 - the share of `decision: "block"` — a sharp rise means either a raid or
   a rule that caught people;
 - the date in `antibot facts status` — whether the base has frozen.
@@ -141,11 +149,24 @@ can be recovered only from the raw bytes, which `net/http` does not keep.
 For HTTP/2 the order is known exactly, and the fingerprint is stronger
 there.
 
+## What goes to the cloud
+
+Only when `cloud.token` is set. What has been counted and what goes next:
+
+```bash
+antibot aggregate status   # open windows, closed ones, unsent batches
+antibot aggregate show     # the oldest unsent batch — exactly what will leave
+```
+
+What a batch may contain is written in [protocol/aggregate.md](protocol/aggregate.md);
+`show` shows what it actually contains.
+
 ## Updating the node
 
 The state is files in `/var/lib/antibot`; they survive a replacement of
 the binary and of the image. Rules, accounts, fact sets and events stay
-where they are.
+where they are, and with a cloud token so do the open aggregate window
+and the unsent batches.
 
 ```bash
 docker pull ghcr.io/geron0025/antibot:latest

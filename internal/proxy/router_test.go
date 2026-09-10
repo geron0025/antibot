@@ -55,3 +55,25 @@ func TestWithoutAFallbackThereIsNoRoute(t *testing.T) {
 		t.Error("a route was found where none was configured")
 	}
 }
+
+// The default route serves anything, but names nothing: a scanner's
+// made-up host is not a protected domain.
+func TestNamedIgnoresTheDefaultRoute(t *testing.T) {
+	r := NewRouter(map[string]string{
+		"shop.example.ru": "http://a",
+		"*.example.ru":    "http://b",
+		"*":               "http://c",
+	})
+	for host, want := range map[string]bool{
+		"shop.example.ru":      true,
+		"Shop.Example.RU:443":  true,
+		"img.cdn.example.ru":   true,
+		"example.ru":           false,
+		"junk.scanner.example": false,
+		"":                     false,
+	} {
+		if got := r.Named(host); got != want {
+			t.Errorf("Named(%q) = %v, want %v", host, got, want)
+		}
+	}
+}

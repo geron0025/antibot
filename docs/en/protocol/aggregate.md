@@ -86,11 +86,39 @@ claimed client was compared against the fingerprint base at the moment of
 the request. It cannot be computed after the fact in the cloud, because
 by then the base is already a different one.
 
+Three clarifications on what the node puts into the key and the
+counters:
+
+- `domain` is only a domain the node serves. `Host` is sent by the
+  client, and a scanner writes whatever it likes there. A name not named
+  by a route, exactly or by a pattern (the default route `*` does not
+  count), an address instead of a name and a string longer than
+  253 characters go out as an empty string `""`: otherwise scanner junk
+  would travel to the cloud, and a single overlong name would get the
+  whole batch rejected by the schema.
+- `net` is empty when the client's address could not be determined.
+- `methods` counts `GET`, `HEAD`, `POST`, `PUT`, `DELETE`, `PATCH`,
+  `OPTIONS`, `CONNECT` and `TRACE` by name, and everything else under the
+  key `OTHER`. The method is sent by the client too, and without a list a
+  single row could carry a thousand made-up verbs.
+
 ## The size limit
 
-No more than **5000** rows in one window. Beyond that the rows with the
-smallest `requests` are folded into one whose every key field equals
-`"~rest"`, with the counters summed.
+No more than **5000** rows in one window. Beyond that the 4999 largest
+by `requests` stay, and the rest are folded into one row whose `domain`,
+`ja4`, `h2`, `headers`, `ua_family` and `net` equal `"~rest"`, with the
+counters summed. Two key fields are not folded: `window` stays the start
+of the window and `ua_matches_ja4` is `true`. The schema requires a date
+and a boolean there, and `true` means the same as the node's default —
+"no grounds to believe the client is lying". The `uniq_paths` and
+`uniq_addrs` of the folded row are merged, not summed: one path seen by
+two rows is still one path.
+
+The same limit applies to **the whole batch** — `rows.maxItems` in the
+schema. A window is never split between batches: when the closed windows
+together exceed the limit, they go out in several batches. A batch
+carries one `facts_version`, so a change of base between windows starts a
+new one as well.
 
 The limit is mandatory: under a distributed attack the number of unique
 combinations grows with the number of addresses, and without it the node
@@ -98,12 +126,17 @@ would start sending megabytes at exactly the moment its owner least needs
 trouble with the channel. A folded row keeps the scale of what is
 happening while losing the detail.
 
+The node holds no more than 20,000 distinct keys in memory per open
+window; new keys beyond that go straight into `~rest`. A limit on
+sending without a limit on memory would protect the channel but not the
+node itself.
+
 ## The whole batch
 
 ```json
 {
   "format": 1,
-  "batch": "01J8Z3K7Q4V0X2M5N9P1R6T8W3",
+  "batch": "8f14e45fceea167a5a36dedd4bea2543-20260908T1700Z",
   "node": "8f14e45fceea167a5a36dedd4bea2543",
   "node_version": "0.1.0",
   "facts_version": 137,
@@ -149,17 +182,30 @@ subscription token in the `Authorization` header.
 | Answer | What the node does |
 |---|---|
 | `202` | the batch was accepted, the buffer is freed |
-| `400` | the format was rejected — **no retry**, writes to the log, frees the buffer |
+| `400`, `413` | the format or the size was rejected — **no retry**, writes to the log, frees the buffer |
 | `401`, `403` | the token is no good, sending sleeps for an hour |
 | `429`, `5xx` | retry with a growing delay: 1, 2, 4… up to 30 minutes |
 
 `batch` is an idempotency key: a repeat of the same batch after a broken
-connection must not double the counters on the far side.
+connection must not double the counters on the far side. The node derives
+it from its identifier and the start of the batch's first window rather
+than picking it at random: a window belongs to exactly one batch, and a
+batch assembled again after a crash gets the same key. The cloud drops a
+repeated key.
+
+Batches go one at a time, **the oldest first**, and while it has not
+been accepted the ones after it wait: the cloud receives the windows in
+order.
 
 The buffer of unsent batches is limited to **200** (about two days).
 Beyond that the oldest are dropped. An unreachable cloud has no right to
 fill somebody else's disk: the service here is the traffic, not the
 reporting.
+
+The buffer lives on disk, in `cloud.state_dir`, and survives a restart.
+The open window is saved there too, once a minute and on stop: a crash
+of the process loses at most a minute of counting, a graceful stop loses
+nothing.
 
 **Sending does not touch the hot path.** It lives in its own goroutine,
 and the cloud being unreachable affects serving requests in no way beyond

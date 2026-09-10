@@ -138,3 +138,5 @@ cloud:
   token: ""
   # url: "https://updates.example.com/ingest"
   interval: 15m
+  # Открытое окно и пачки, которые облако ещё не приняло (не больше 200).
+  state_dir: "/var/lib/antibot/aggregate"
