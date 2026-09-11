@@ -8,34 +8,25 @@ own file and take effect at once.</p>
 <section class="domains">
 {{range .Rows}}
   <article class="card domain{{if .Shadowed}} disabled{{end}}">
-    <div class="domain-head">
+    <div class="domain-main">
       <h2 class="value">{{.Host}}</h2>
       <span class="dim">{{if .FromConfig}}from the configuration{{else if .Shadowed}}silenced by the configuration{{else}}added here{{end}}</span>
-      {{if not .FromConfig}}
-      <form method="post" action="/domains/remove">
-        <input type="hidden" name="csrf" value="{{$.CSRF}}">
-        <input type="hidden" name="host" value="{{.Host}}">
-        <button type="submit">remove</button>
-      </form>
-      {{end}}
+      <dl class="facts">
+        <dt>site server</dt><dd class="value">{{.To}}</dd>
+        <dt>DNS</dt><dd>{{.DNS}}</dd>
+      </dl>
     </div>
 
-    <dl class="facts">
-      <dt>site server</dt><dd class="value">{{.To}}</dd>
-      <dt>DNS</dt><dd>{{.DNS}}</dd>
-    </dl>
-
     <div class="cert{{with .Cert}}{{if .Expiring}} expiring{{end}}{{else}} none{{end}}">
-      <h3>Certificate</h3>
       {{with .Cert}}
       <dl class="facts">
-        <dt>names</dt><dd class="value" title="{{.Names}}">{{truncate .Names 120}}</dd>
+        <dt>certificate</dt><dd class="value" title="{{.Names}}">{{truncate .Names 120}}</dd>
         <dt>valid until</dt>
         <dd class="term">{{time .NotAfter}} · {{if lt .Days 0}}expired{{else if eq .Days 0}}expires today{{else}}{{.Days}} d left{{end}}</dd>
       </dl>
       {{else}}
-      <p class="term">none — the node answers with its self-signed one, and
-      the browser warns</p>
+      <p class="term">No certificate — the node answers with its self-signed
+      one, and the browser warns.</p>
       {{end}}
 
       {{if $.CanUpload}}
@@ -52,39 +43,49 @@ own file and take effect at once.</p>
       </form>
       {{end}}
     </div>
+
+    <div class="domain-actions">
+      {{if not .FromConfig}}
+      <form method="post" action="/domains/remove">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <input type="hidden" name="host" value="{{.Host}}">
+        <button type="submit">remove</button>
+      </form>
+      {{end}}
+    </div>
   </article>
 {{end}}
+</section>
 
-  <article class="card domain add">
-    <h2>Add a domain</h2>
-    <p class="dim">The name clients come with, and the site's server the
-    node forwards to — <span class="value">http://203.0.113.7:8080</span>,
-    or just <span class="value">127.0.0.1:3000</span> for http. Loopback
-    and private addresses are fine: the site often lives on the same
-    machine. A pattern like <span class="value">*.example.ru</span> covers
-    every subdomain. The certificate is uploaded in the domain's card once
-    it is added.</p>
-    <form method="post" action="/domains/add" class="fields">
-      <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <label>domain
-        <input type="text" name="host" placeholder="shop.example.ru" required>
-      </label>
-      <label>site server
-        <input type="text" name="server" placeholder="http://203.0.113.7:8080" required>
-      </label>
-      <button type="submit">add</button>
-    </form>
-  </article>
+<section class="card add-domain">
+  <h2>Add a domain</h2>
+  <p class="dim">The name clients come with, and the site's server the
+  node forwards to — <span class="value">http://203.0.113.7:8080</span>,
+  or just <span class="value">127.0.0.1:3000</span> for http. Loopback
+  and private addresses are fine: the site often lives on the same
+  machine. A pattern like <span class="value">*.example.ru</span> covers
+  every subdomain. The certificate is uploaded in the domain's row once
+  it is added.</p>
+  <form method="post" action="/domains/add" class="fields">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>domain
+      <input type="text" name="host" placeholder="shop.example.ru" required>
+    </label>
+    <label>site server
+      <input type="text" name="server" placeholder="http://203.0.113.7:8080" required>
+    </label>
+    <button type="submit">add</button>
+  </form>
 </section>
 
 {{if .Fallback}}
 <p class="dim">Everything else — names no route knows — goes to
 <span class="value">{{.Fallback}}</span>: the default route from the
-configuration. The DNS line in a card is a hint: a domain that does not
-point at this machine never reaches the node.</p>
+configuration. The DNS line is a hint: a domain that does not point at
+this machine never reaches the node.</p>
 {{end}}
 
 <p class="dim">The node neither issues nor renews certificates: renewal is
-uploading a fresh pair in the domain's card, or certbot next to the node.</p>
+uploading a fresh pair in the domain's row, or certbot next to the node.</p>
 
 {{template "footer" .}}

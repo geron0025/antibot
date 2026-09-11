@@ -114,9 +114,9 @@ here.
 
 ### Domains
 
-Every domain is a card: the name, where it came from, the site's server,
+Every domain is a row of the list: the name, where it came from, the site's server,
 the DNS hint and **its certificate**. The certificate belongs to the
-domain, so it lives in the domain's card: the names, the term and the
+domain, so it lives in the domain's row: the names, the term and the
 upload of a new pair are all there, rather than in a separate form where
 the domain would have to be picked again.
 
@@ -128,7 +128,7 @@ overridden from the admin UI, not even by someone who stole a session.
 Such a domain is marked as silenced.
 
 No certificate means the node hands out the self-signed one, and the
-browser will warn; the card says so plainly.
+browser will warn; the row says so plainly.
 
 The **DNS** line is a hint, not a condition: whether the domain points
 at this machine, and where it points if not. The node may stand behind
@@ -144,16 +144,16 @@ A `*.example.ru` pattern covers the subdomains. The default route `*` is
 not set here: what to answer to made-up names is the configuration's
 call.
 
-**The certificate** is uploaded in its domain's card — two files, the
+**The certificate** is uploaded in its domain's row — two files, the
 chain (`fullchain.pem`) and the key (`privkey.pem`). The domain is not
-typed: it is the one whose card the button is in. A new pair replaces
+typed: it is the one whose row the button is in. A new pair replaces
 the previous one — that is what renewal is. A pair for several names or
-with a wildcard, uploaded in one card, serves all of its names. Before
+with a wildcard, uploaded in one row, serves all of its names. Before
 it is accepted, the pair is checked:
 
 - the key matches the certificate;
 - the term has not ended and has already begun;
-- the certificate fits the card's domain; a `*.example.ru` pattern needs
+- the certificate fits the row's domain; a `*.example.ru` pattern needs
   exactly that wildcard name.
 
 A refusal comes with a clear reason, and **the previous certificate
@@ -171,7 +171,7 @@ through.
 Since there is no renewal, an expiring certificate is the owner's errand,
 and the admin UI has to say so: **14 days** before the end of the term a
 warning appears on the overview, and the term is highlighted in the
-domain's card.
+domain's row.
 
 ## The writing actions
 
