@@ -2,6 +2,14 @@
 
 {{template "period-picker" .}}
 
+{{range .ExpiringCerts}}
+<div class="warning">The certificate for <b>{{.Names}}</b>
+  {{if lt .Days 0}}expired on {{time .NotAfter}}{{else if eq .Days 0}}expires
+  today{{else}}expires in {{.Days}} days ({{time .NotAfter}}){{end}} —
+  there is no auto-renewal; upload a fresh one on the
+  <a href="/domains">Domains</a> page or renew it with certbot.</div>
+{{end}}
+
 <section class="tiles">
   <div class="tile"><span class="big-number">{{count .Summary.Events}}</span><span class="caption">requests</span></div>
   <div class="tile"><span class="big-number">{{count .Summary.IPCount}}</span><span class="caption">addresses</span></div>

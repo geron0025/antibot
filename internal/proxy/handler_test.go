@@ -46,7 +46,7 @@ func testBench(t *testing.T, decider Decider, own []netip.Prefix) (*Handler, *me
 
 	l := &memoryLog{}
 	h := New(&Handler{
-		Routes:      NewRouter(map[string]string{"shop.example.ru": backend.URL}),
+		Routes:      NewRouteTable(NewRouter(map[string]string{"shop.example.ru": backend.URL})),
 		Events:      l,
 		Decider:     decider,
 		OwnNetworks: own,

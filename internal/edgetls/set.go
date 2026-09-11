@@ -18,6 +18,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -26,7 +27,7 @@ import (
 // Set keeps the certificates in memory and refreshes them in the
 // background.
 type Set struct {
-	dir      string
+	dirs     []string
 	fallback *tls.Certificate
 	log      *slog.Logger
 
@@ -48,14 +49,22 @@ type stamp struct {
 	modTime time.Time
 }
 
-// Open builds the set from a directory. An empty or missing directory is
+// Open builds the set from directories — the catalog led by hand or by
+// certbot, and the catalog of uploads. Empty or missing directories are
 // not an error: a node with a single self-signed certificate must come
-// up.
-func Open(dir string, fallback *tls.Certificate, log *slog.Logger) *Set {
+// up. When two files claim the same name, the certificate that lives
+// longer wins: whichever way a renewal arrived, the fresh one serves.
+func Open(dirs []string, fallback *tls.Certificate, log *slog.Logger) *Set {
 	if log == nil {
 		log = slog.Default()
 	}
-	s := &Set{dir: dir, fallback: fallback, log: log}
+	kept := make([]string, 0, len(dirs))
+	for _, dir := range dirs {
+		if dir != "" {
+			kept = append(kept, dir)
+		}
+	}
+	s := &Set{dirs: kept, fallback: fallback, log: log}
 	s.current.Store(&snapshot{
 		byName: map[string]*tls.Certificate{},
 		byPath: map[string]*tls.Certificate{},
@@ -106,20 +115,27 @@ func (s *Set) Get(hi *tls.ClientHelloInfo) (*tls.Certificate, error) {
 	return nil, fmt.Errorf("no certificate for %q", hi.ServerName)
 }
 
-// Reload scans the directory and updates the snapshot if anything
+// Reload scans the directories and updates the snapshot if anything
 // changed.
 func (s *Set) Reload() {
-	if s.dir == "" {
+	if len(s.dirs) == 0 {
 		return
 	}
 
-	pairs, err := findPairs(s.dir)
-	if err != nil {
-		// An unreachable directory does not discard the previous set: the
-		// certificates in memory keep serving the site while the human
-		// fixes the disk.
-		s.log.Warn("the certificate directory was not read", "dir", s.dir, "err", err)
-		return
+	var pairs []pair
+	for _, dir := range s.dirs {
+		found, err := findPairs(dir)
+		if err != nil {
+			// An unreachable directory does not discard the previous set:
+			// the certificates in memory keep serving the site while the
+			// human fixes the disk. A vanished directory counts too — an
+			// unmounted volume must not take the sites off the air. The
+			// upload directory is created at startup exactly so that its
+			// absence never lands here.
+			s.log.Warn("the certificate directory was not read", "dir", dir, "err", err)
+			return
+		}
+		pairs = append(pairs, found...)
 	}
 
 	old := s.current.Load()
@@ -142,9 +158,7 @@ func (s *Set) Reload() {
 		if previous, ok := old.stamps[p.cert]; ok && previous == st {
 			if kept, ok := old.byPath[p.cert]; ok {
 				fresh.byPath[p.cert] = kept
-				for _, name := range certificateNames(kept) {
-					fresh.byName[name] = kept
-				}
+				claim(fresh, kept)
 				continue
 			}
 		}
@@ -166,13 +180,74 @@ func (s *Set) Reload() {
 			}
 		}
 		fresh.byPath[p.cert] = &cert
-		for _, name := range certificateNames(&cert) {
-			fresh.byName[name] = &cert
-		}
+		claim(fresh, &cert)
 	}
 
 	s.current.Store(fresh)
 }
+
+// claim writes the certificate under its names. When two files claim
+// the same name, the certificate that lives longer wins: whichever way
+// a renewal arrived — certbot or an upload — the fresh one serves.
+func claim(snap *snapshot, c *tls.Certificate) {
+	for _, name := range certificateNames(c) {
+		if existing, ok := snap.byName[name]; ok && notAfter(existing).After(notAfter(c)) {
+			continue
+		}
+		snap.byName[name] = c
+	}
+}
+
+func notAfter(c *tls.Certificate) time.Time {
+	if c.Leaf != nil {
+		return c.Leaf.NotAfter
+	}
+	return time.Time{}
+}
+
+// Info describes one loaded certificate — for the admin UI, which must
+// show the owner what serves and when it expires.
+type Info struct {
+	Path     string
+	Names    []string
+	NotAfter time.Time
+}
+
+// List describes every loaded certificate, sorted by path.
+func (s *Set) List() []Info {
+	snap := s.current.Load()
+	out := make([]Info, 0, len(snap.byPath))
+	for path, c := range snap.byPath {
+		out = append(out, Info{Path: path, Names: certificateNames(c), NotAfter: notAfter(c)})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	return out
+}
+
+// Covering returns the certificate that would serve the name, or nil
+// when only the self-signed fallback would. The name may be a
+// "*.example.ru" pattern — then the certificate must carry exactly that
+// wildcard name.
+func (s *Set) Covering(name string) *x509.Certificate {
+	snap := s.current.Load()
+	n := strings.ToLower(strings.TrimSuffix(name, "."))
+
+	if c, ok := snap.byName[n]; ok {
+		return c.Leaf
+	}
+	if strings.HasPrefix(n, "*.") {
+		return nil
+	}
+	if i := strings.IndexByte(n, '.'); i >= 0 {
+		if c, ok := snap.byName["*"+n[i:]]; ok {
+			return c.Leaf
+		}
+	}
+	return nil
+}
+
+// Len is how many certificates are loaded, the fallback not counted.
+func (s *Set) Len() int { return len(s.current.Load().byPath) }
 
 // certificateNames takes the names from the certificate itself rather
 // than from the configuration. A second source of truth would drift apart
@@ -182,14 +257,7 @@ func certificateNames(c *tls.Certificate) []string {
 	if c.Leaf == nil {
 		return nil
 	}
-	out := make([]string, 0, len(c.Leaf.DNSNames)+1)
-	for _, name := range c.Leaf.DNSNames {
-		out = append(out, strings.ToLower(name))
-	}
-	if len(out) == 0 && c.Leaf.Subject.CommonName != "" {
-		out = append(out, strings.ToLower(c.Leaf.Subject.CommonName))
-	}
-	return out
+	return LeafNames(c.Leaf)
 }
 
 type pair struct{ cert, key string }

@@ -1,7 +1,8 @@
 # The admin UI
 
-Shows events, statistics and rules. It can change **exactly one** thing:
-enable or disable an already written rule.
+Shows events, statistics, rules and domains. It can change a few things,
+and all of them are listed: enable or disable an already written rule,
+add or remove a domain, upload a ready-made certificate.
 
 It exists because an antibot whose work is invisible never gets put into
 blocking mode: a human first looks at whom the node is about to cut off,
@@ -38,6 +39,7 @@ the documentation says.
 | `/` | overview: how many requests, who was not let through, what the node does not know |
 | `/events` | events with filters |
 | `/rules` | rules in the order of application, with how often they fired |
+| `/domains` | domains, their sites' addresses, certificates and terms |
 | `/login` | the login |
 
 ### Overview
@@ -107,10 +109,75 @@ times it fired over the period and from how many addresses; the numbers
 come from the log rather than from in-memory counters, because after a
 restart the counters reset while the log stays.
 
-The enable/disable button is the single writing action in the whole admin
-UI.
+The enable/disable button is the only thing that can be done to a rule
+here.
 
-## The single writing action
+### Domains
+
+Which names the node serves and where their sites live. The table has
+both sources: the `upstreams` lines of the configuration and the domains
+added here or with `antibot domains`. The former are visible but changed
+only in the configuration; on a name both know, **the configuration
+wins** — what the machine's owner wrote by hand is not overridden from
+the admin UI, not even by someone who stole a session. Such a domain is
+marked as silenced in the table.
+
+Every domain shows the certificate it is served with and its term. No
+certificate means the node hands out the self-signed one, and the browser
+will warn.
+
+The **DNS** column is a hint, not a condition: whether the domain points
+at this machine, and where it points if not. The node may stand behind
+NAT and not know its public address, so "points elsewhere" does not stop
+a domain from being added.
+
+**Add a domain** — two fields: the name, and the site's server in one
+line — `http://203.0.113.7:8080`, `https://10.0.0.5` or just
+`127.0.0.1:3000`: without a scheme it is `http`. The server is an IP or a
+name; loopback and private networks are fine: the site often lives on
+the same machine. `Host` reaches the site as is.
+A `*.example.ru` pattern covers the subdomains. The default route `*` is
+not set here: what to answer to made-up names is the configuration's
+call.
+
+**Upload a certificate** — just two files: the chain (`fullchain.pem`)
+and the key (`privkey.pem`). Which domain the pair is for is not asked:
+the names are written in the certificate itself, and a second copy typed
+by hand could only disagree with them. The node finds the served domains
+among the names on its own — a certificate for several names or with a
+wildcard lands once and serves them all. Before it is accepted, the pair
+is checked:
+
+- the key matches the certificate;
+- the term has not ended and has already begun;
+- at least one of the certificate's names is a served domain; a
+  `*.example.ru` pattern needs exactly that wildcard name. A certificate
+  for foreign names only is a mistake caught now, not a file found a year
+  later.
+
+A refusal comes with a clear reason, and **the previous certificate
+stays in force**, the way the previous rule set does when the file is
+broken. An accepted pair lands in `tls.uploaded_dir` in the certbot
+layout — a subdirectory per domain, `fullchain.pem` and `privkey.pem`,
+the key with `0600` — and starts serving at once, without a restart.
+
+The node **neither issues nor renews** certificates: renewal is uploading
+a fresh pair, or certbot next to the node, as before. When a certificate
+for one name lies both in certbot's directory and among the uploads, the
+one that lives longer serves: the renewal wins whichever door it came
+through.
+
+Since there is no renewal, an expiring certificate is the owner's errand,
+and the admin UI has to say so: **14 days** before the end of the term a
+warning appears on the overview, and the term is highlighted in the
+domains table.
+
+## The writing actions
+
+There are four and no others: enable or disable a rule, add a domain,
+remove a domain, upload a certificate.
+
+### A rule: enable and disable
 
 A rule that is cutting off live people gets turned off in the minute it
 is noticed, not when somebody finds where `rules.json` lives on somebody
@@ -131,6 +198,28 @@ level=INFO msg="a rule was toggled from the admin UI"
   rule=block-hosting enabled=false who=owner address=127.0.0.1
 ```
 
+### Domains and certificates
+
+More dangerous than rules: changing the address of a site's server means
+taking all its traffic elsewhere. The decision is deliberate — **the node's
+owner manages it and carries the risk**, and the admin UI puts up no
+extra barriers. What remains is the same as for any change of protection:
+a login, CSRF, the same validation and the same atomic file replacement
+as the command, and a line in the node's log — who, what and from where.
+
+```
+level=INFO msg="a domain was added from the admin UI"
+  host=shop.example.ru to=http://127.0.0.1:8080 who=owner address=127.0.0.1
+level=INFO msg="a certificate was uploaded from the admin UI"
+  host=shop.example.ru not_after=2026-12-10 who=owner address=127.0.0.1
+```
+
+The domains live in a file of their own — `domains.file`, by default
+`/var/lib/antibot/domains.json` — rather than in `config.yaml`: the node
+never writes the YAML. The file has two writers, the admin UI and
+`antibot domains`, and both go through one validation. The file is
+reread on the fly, like the rules.
+
 ## The borders
 
 - **a login is mandatory**, the password is stored as a
@@ -150,8 +239,11 @@ level=INFO msg="a rule was toggled from the admin UI"
   logged in with;
 - **`X-Robots-Tag: noindex`** — the admin UI shows the events of somebody
   else's site, it has no business in search results;
-- **exactly one write path**: any method other than GET is not handled on
-  the pages.
+- **the write paths are listed**: `POST /rules/toggle`, `/domains/add`,
+  `/domains/remove`, `/domains/certificate`. Any method other than GET is
+  not handled on the pages themselves;
+- **an upload is capped at a megabyte** — two PEM files with room to
+  spare, so the admin UI does not become a way to fill the disk.
 
 ## Exposing it
 
@@ -176,12 +268,13 @@ second after startup, having managed to accept requests.
 ## What the admin UI does not have
 
 - a rule editor — conditions are composed with a command;
-- editing the settings;
+- editing the settings — including the `upstreams` of `config.yaml`;
+- issuing and renewing certificates — only uploading ready-made ones;
 - creating accounts — only `antibot admin passwd`. Changing a password
   through the admin UI would mean that whoever stole a session takes the
   access for good;
 - exporting events and a page for a single rule — simply not written yet.
 
-Accepting rule proposals from the update service will become the
-**second** writing action when it appears; the rule will land in
-`shadow`, and enabling it will still be a human's job.
+Accepting rule proposals from the update service will become one more
+writing action when it appears; the rule will land in `shadow`, and
+enabling it will still be a human's job.

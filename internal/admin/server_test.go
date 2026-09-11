@@ -271,13 +271,13 @@ func TestFiltersOnTheEventsPage(t *testing.T) {
 	}
 }
 
-// There is exactly one write path in the admin UI — enabling and
-// disabling a rule. Nothing else can be written on any page.
-func TestThereIsOnlyOneWritePath(t *testing.T) {
+// The write paths of the admin UI are the named POST handlers and
+// nothing else: no page accepts a write of its own.
+func TestNoWritesBesideTheNamedPaths(t *testing.T) {
 	s, _ := newServer(t)
 	cookies := logIn(t, s)
 
-	for _, path := range []string{"/", "/rules", "/events"} {
+	for _, path := range []string{"/", "/rules", "/events", "/domains"} {
 		for _, method := range []string{"POST", "PUT", "DELETE", "PATCH"} {
 			req := httptest.NewRequest(method, path, nil)
 			for _, c := range cookies {

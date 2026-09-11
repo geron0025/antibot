@@ -68,7 +68,7 @@ func TestSelectionBySNI(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := Open(dir, fallback, nil)
+	s := Open([]string{dir}, fallback, nil)
 
 	if c := get(t, s, "shop.example.ru"); c.Leaf.Subject.CommonName != "shop.example.ru" {
 		t.Errorf("exact name: picked %q", c.Leaf.Subject.CommonName)
@@ -91,7 +91,7 @@ func TestSelectionBySNI(t *testing.T) {
 // directory is rescanned for.
 func TestANewDomainIsPickedUpWithoutARestart(t *testing.T) {
 	dir := t.TempDir()
-	s := Open(dir, nil, nil)
+	s := Open([]string{dir}, nil, nil)
 
 	if _, err := s.Get(&tls.ClientHelloInfo{ServerName: "new.example.ru"}); err == nil {
 		t.Fatal("a certificate was found before it was put there")
@@ -110,7 +110,7 @@ func TestANewDomainIsPickedUpWithoutARestart(t *testing.T) {
 func TestAnUnreachableDirectoryDoesNotDiscardTheSet(t *testing.T) {
 	dir := t.TempDir()
 	putCertificate(t, dir, "shop.example.ru", []string{"shop.example.ru"})
-	s := Open(dir, nil, nil)
+	s := Open([]string{dir}, nil, nil)
 	before := get(t, s, "shop.example.ru")
 
 	if err := os.RemoveAll(dir); err != nil {

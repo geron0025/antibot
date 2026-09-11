@@ -1,0 +1,93 @@
+{{template "header" .}}
+
+<p class="dim">Which names the node serves and where their sites live.
+Domains from the configuration file are shown but changed only there;
+domains added here go to their own file and take effect at once. The
+<span class="value">DNS</span> column is a hint: a domain that does not
+point at this machine never reaches the node.</p>
+
+<table>
+  <thead>
+    <tr>
+      <th>domain</th><th>site server</th><th>source</th>
+      <th>certificate</th><th>expires</th><th>DNS</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {{range .Rows}}
+    <tr {{if .Shadowed}}class="disabled"{{end}}>
+      <td class="value">{{.Host}}</td>
+      <td class="value">{{.To}}</td>
+      <td class="dim">{{if .FromConfig}}configuration{{else if .Shadowed}}file · silenced by the configuration{{else}}added here{{end}}</td>
+      <td>{{with .Cert}}<span class="value" title="{{.Names}}">{{truncate .Names 60}}</span>{{else}}<span class="dim">self-signed</span>{{end}}</td>
+      <td>{{with .Cert}}{{if .Expiring}}<b>{{time .NotAfter}} · {{if lt .Days 0}}expired{{else}}{{.Days}} d left{{end}}</b>{{else}}{{time .NotAfter}}{{end}}{{else}}<span class="dim">—</span>{{end}}</td>
+      <td class="dim">{{.DNS}}</td>
+      <td class="num">
+        {{if not .FromConfig}}
+        <form method="post" action="/domains/remove">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <input type="hidden" name="host" value="{{.Host}}">
+          <button type="submit">remove</button>
+        </form>
+        {{end}}
+      </td>
+    </tr>
+  {{else}}
+    <tr><td colspan="7" class="dim">no domains yet</td></tr>
+  {{end}}
+  </tbody>
+</table>
+
+{{if .Fallback}}
+<p class="dim">Everything else — names no route knows — goes to
+<span class="value">{{.Fallback}}</span>: the default route from the
+configuration.</p>
+{{end}}
+
+<section class="cards">
+  <div class="card">
+    <h2>Add a domain</h2>
+    <p class="dim">The name clients come with, and the site's server the
+    node forwards to — <span class="value">http://203.0.113.7:8080</span>,
+    or just <span class="value">127.0.0.1:3000</span> for http. Loopback
+    and private addresses are fine: the site often lives on the same
+    machine. A pattern like <span class="value">*.example.ru</span> covers
+    every subdomain.</p>
+    <form method="post" action="/domains/add" class="fields">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label>domain
+        <input type="text" name="host" placeholder="shop.example.ru" required>
+      </label>
+      <label>site server
+        <input type="text" name="server" placeholder="http://203.0.113.7:8080" required>
+      </label>
+      <button type="submit">add</button>
+    </form>
+  </div>
+
+  {{if .CanUpload}}
+  <div class="card">
+    <h2>Upload a certificate</h2>
+    <p class="dim">A ready-made pair: the chain
+    (<span class="value">fullchain.pem</span>) and the private key
+    (<span class="value">privkey.pem</span>). The domains are taken from
+    the certificate's own names. The pair is checked before it is
+    accepted — the key must match, the term must not be over, at least one
+    name must be a served domain — and starts serving at once. The node
+    does not issue or renew certificates: renewal is uploading a fresh
+    pair, or certbot next to the node.</p>
+    <form method="post" action="/domains/certificate" enctype="multipart/form-data" class="fields">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <label>chain
+        <input type="file" name="fullchain" required>
+      </label>
+      <label>private key
+        <input type="file" name="privkey" required>
+      </label>
+      <button type="submit">upload</button>
+    </form>
+  </div>
+  {{end}}
+</section>
+
+{{template "footer" .}}

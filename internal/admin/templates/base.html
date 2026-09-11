@@ -13,6 +13,7 @@
       <a href="/" {{if eq .Section "overview"}}class="current"{{end}}>Overview</a>
       <a href="/events" {{if eq .Section "events"}}class="current"{{end}}>Events</a>
       <a href="/rules" {{if eq .Section "rules"}}class="current"{{end}}>Rules</a>
+      <a href="/domains" {{if eq .Section "domains"}}class="current"{{end}}>Domains</a>
     </nav>
     <div class="right">
       <span class="dim">{{.User}}</span>
@@ -30,8 +31,9 @@
 {{define "footer"}}
 </main>
 <footer>
-  <span class="dim">antibot {{.Version}} · the admin UI only shows;
-  rules are changed with <code>antibot rules</code></span>
+  <span class="dim">antibot {{.Version}} · rule conditions are composed
+  with <code>antibot rules</code>; every change made here lands in the
+  node's log</span>
 </footer>
 </body>
 </html>{{end}}

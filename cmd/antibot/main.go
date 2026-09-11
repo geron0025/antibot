@@ -32,6 +32,8 @@ func main() {
 		err = serveCommand(ctx, os.Args[2:], log)
 	case "rules":
 		err = rulesCommand(os.Args[2:], log)
+	case "domains":
+		err = domainsCommand(os.Args[2:], log)
 	case "replay":
 		err = replayCommand(os.Args[2:])
 	case "facts":
@@ -62,6 +64,7 @@ func usage() {
 Commands:
   serve     serve traffic
   rules     show and change the rules
+  domains   show and change the domains added at run time
   replay    replay the rules over recorded events
   facts     show and roll back the network and fingerprint bases
   admin     accounts of the viewing admin UI
@@ -71,6 +74,7 @@ Commands:
 Examples:
   antibot serve -config /etc/antibot/config.yaml
   antibot rules list
+  antibot domains add shop.example.ru http://203.0.113.7:8080
   antibot facts status
   antibot replay -for 24h
   antibot admin passwd owner

@@ -1,15 +1,16 @@
 // Package admin is the node's admin UI.
 //
-// It shows events, statistics and rules. It can change exactly one
-// thing: enable or disable an already written rule. Composing a
+// It shows events, statistics, rules and domains, and can change a
+// counted few things: enable or disable an already written rule, add or
+// remove a domain, upload a ready-made certificate. Composing a rule
 // condition, editing the settings or creating an account through it is
 // impossible — that is done with commands, and there is no second path:
 // the admin UI stands on somebody else's perimeter, and a hole in it must
 // not become a hole in the site's protection.
 //
-// Even that single change goes through the same file write and the same
-// set validation as `antibot rules`: there is one rule engine in the
-// project, and one write path to it as well.
+// Every change goes through the same file write and the same validation
+// as the commands — `antibot rules` and `antibot domains`: one engine,
+// one write path, and the node's log says who changed what from where.
 //
 // It exists because an antibot whose work is invisible never gets put
 // into blocking mode: a human first looks at whom the node is about to
@@ -28,6 +29,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/geron0025/antibot/internal/domains"
+	"github.com/geron0025/antibot/internal/edgetls"
 	"github.com/geron0025/antibot/internal/rules"
 )
 
@@ -55,6 +58,16 @@ type Options struct {
 	EventsDir string
 	Rules     *rules.Store
 
+	// Domains is the file of domains added at run time; ConfigRoutes are
+	// the routes led by hand in config.yaml, shown but never written.
+	Domains      *domains.Store
+	ConfigRoutes map[string]string
+
+	// Certs shows what serves each name; UploadedCertsDir is where an
+	// uploaded pair lands. With an empty directory uploads are off.
+	Certs            *edgetls.Set
+	UploadedCertsDir string
+
 	Version string
 	Log     *slog.Logger
 }
@@ -63,6 +76,11 @@ type Options struct {
 type Server struct {
 	o         Options
 	templates *template.Template
+
+	// Replaceable in tests: the domains page must not depend on the DNS
+	// and the interfaces of the machine the tests run on.
+	lookupHost func(context.Context, string) ([]string, error)
+	ownAddrs   func() []netip.Addr
 }
 
 // New validates the options and assembles the admin UI.
@@ -211,12 +229,18 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /{$}", s.requireLogin(s.overviewPage))
 	mux.Handle("GET /events", s.requireLogin(s.eventsPage))
 	mux.Handle("GET /rules", s.requireLogin(s.rulesPage))
+	mux.Handle("GET /domains", s.requireLogin(s.domainsPage))
 
-	// The only writing action. Composing a rule here is impossible —
-	// only enabling or disabling an already written one, and even that
-	// through the same validation and the same atomic replacement as
-	// `antibot rules`.
+	// The writing actions, all of them. Composing a rule here is
+	// impossible — only enabling or disabling an already written one;
+	// domains and certificates are the owner's own risk, taken by the
+	// product decision of 10 September 2026. Every write goes through
+	// the same validation and the same atomic replacement as the
+	// commands, and lands in the node's log with a name and an address.
 	mux.Handle("POST /rules/toggle", s.requireLogin(s.toggleRule))
+	mux.Handle("POST /domains/add", s.requireLogin(s.addDomain))
+	mux.Handle("POST /domains/remove", s.requireLogin(s.removeDomain))
+	mux.Handle("POST /domains/certificate", s.requireLogin(s.uploadCertificate))
 
 	return s.securityHeaders(mux)
 }

@@ -22,6 +22,11 @@ tls:
 
   # Если сертификатов нет, выпускается самоподписанный и сохраняется
   # здесь — чтобы пережить перезапуск и не менять отпечаток сайта.
+  # Сюда ложатся сертификаты, загруженные через админку, — в той же
+  # раскладке certbot. Отдельно от certificates_dir: тот часто принадлежит
+  # certbot или смонтирован только для чтения. Пусто — загрузка выключена.
+  uploaded_dir: "/var/lib/antibot/certificates"
+
   self_signed_dir: "/var/lib/antibot/certs"
   reload_interval: 30s
 
@@ -110,6 +115,14 @@ admin_ui:
 # видимый в истории оболочки.
 rules:
   file: "/var/lib/antibot/rules.json"
+  reload_interval: 5s
+
+# Домены, добавленные во время работы — из админки или командой
+# antibot domains. Этот YAML нода не пишет, поэтому у них свой файл, по
+# образцу rules.json. На имя, известное и ему, и upstreams выше,
+# побеждает upstreams: написанное руками не перебивается из админки.
+domains:
+  file: "/var/lib/antibot/domains.json"
   reload_interval: 5s
 
 # Базы сетей и отпечатков.

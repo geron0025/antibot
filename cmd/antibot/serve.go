@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/geron0025/antibot/internal/aggregate"
 	"github.com/geron0025/antibot/internal/catalog"
 	"github.com/geron0025/antibot/internal/config"
+	"github.com/geron0025/antibot/internal/domains"
 	"github.com/geron0025/antibot/internal/edgetls"
 	"github.com/geron0025/antibot/internal/events"
 	"github.com/geron0025/antibot/internal/facts"
@@ -52,9 +54,9 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 	}
 	defer eventLog.Close()
 
-	routes := make(map[string]string, len(cfg.Upstreams))
+	configRoutes := make(map[string]string, len(cfg.Upstreams))
 	for _, u := range cfg.Upstreams {
-		routes[u.Host] = u.To
+		configRoutes[u.Host] = u.To
 	}
 
 	// The rate limiter lives in this process's memory: with several node
@@ -77,7 +79,25 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		return err
 	}
 
-	router := proxy.NewRouter(routes)
+	domainStore, err := domains.Open(cfg.Domains.File, log)
+	if err != nil {
+		return err
+	}
+	go domainStore.Watch(ctx, cfg.Domains.ReloadInterval.Duration())
+
+	// The routes come from two lists: the configuration and the domains
+	// file. On a name both know, the configuration wins — what the
+	// machine's owner wrote by hand must not be overridden through the
+	// admin UI.
+	buildRouter := func() *proxy.Router {
+		routes := domainStore.Routes()
+		for host, to := range configRoutes {
+			routes[host] = to
+		}
+		return proxy.NewRouter(routes)
+	}
+	router := proxy.NewRouteTable(buildRouter())
+	domainStore.OnChange(func() { router.Swap(buildRouter()) })
 
 	// The identifier is needed only to talk to the cloud, and without a
 	// token there is no talking: a node without one does not even create
@@ -128,9 +148,17 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 	if err != nil {
 		return fmt.Errorf("self-signed certificate: %w", err)
 	}
-	certs := edgetls.Open(cfg.TLS.CertificatesDir, fallback, log)
-	if cfg.TLS.CertificatesDir == "" {
-		log.Warn("no certificates configured: working on the self-signed one, the browser will complain")
+	// The upload directory is created here: a directory the scanner
+	// cannot read keeps the whole previous set in force, and the first
+	// upload must not depend on being the one to create it.
+	if cfg.TLS.UploadedDir != "" {
+		if err := os.MkdirAll(cfg.TLS.UploadedDir, 0o750); err != nil {
+			return fmt.Errorf("uploaded certificates directory: %w", err)
+		}
+	}
+	certs := edgetls.Open([]string{cfg.TLS.CertificatesDir, cfg.TLS.UploadedDir}, fallback, log)
+	if certs.Len() == 0 {
+		log.Warn("no certificates yet: working on the self-signed one, the browser will complain")
 	}
 
 	stop := make(chan struct{})
@@ -162,17 +190,21 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 				"file", cfg.Admin.UsersFile, "what to do", "antibot admin passwd NAME")
 		} else {
 			adminUI, err = admin.New(admin.Options{
-				Addr:      cfg.Admin.Listen,
-				HTTPAddr:  cfg.Admin.RedirectFrom,
-				Cert:      cfg.Admin.Certificate,
-				Key:       cfg.Admin.Key,
-				Users:     users,
-				Sessions:  admin.NewSessions(cfg.Admin.SessionTTL.Duration()),
-				Attempts:  windows,
-				EventsDir: cfg.Events.Dir,
-				Rules:     ruleStore,
-				Version:   Version,
-				Log:       log,
+				Addr:             cfg.Admin.Listen,
+				HTTPAddr:         cfg.Admin.RedirectFrom,
+				Cert:             cfg.Admin.Certificate,
+				Key:              cfg.Admin.Key,
+				Users:            users,
+				Sessions:         admin.NewSessions(cfg.Admin.SessionTTL.Duration()),
+				Attempts:         windows,
+				EventsDir:        cfg.Events.Dir,
+				Rules:            ruleStore,
+				Domains:          domainStore,
+				Certs:            certs,
+				UploadedCertsDir: cfg.TLS.UploadedDir,
+				ConfigRoutes:     configRoutes,
+				Version:          Version,
+				Log:              log,
 			})
 			if err != nil {
 				return err

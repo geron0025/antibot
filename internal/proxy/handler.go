@@ -69,7 +69,7 @@ func Pass() Decision { return Decision{Action: ActionPass} }
 
 // Handler is the hot path of a single request.
 type Handler struct {
-	Routes         *Router
+	Routes         *RouteTable
 	Events         EventLog
 	Decider        Decider
 	Facts          Facts

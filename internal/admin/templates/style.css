@@ -97,6 +97,23 @@ input, select {
   color: var(--red);
 }
 
+.warning {
+  padding: 10px 14px; margin-bottom: 16px;
+  border: 1px solid var(--yellow); border-radius: 4px;
+  color: var(--yellow);
+}
+.warning a { color: inherit; }
+
+/* The forms of the domains page: label above field, fields in a row. */
+.cards {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 12px; margin-top: 16px;
+}
+.fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dim); }
+.fields input[type="text"] { min-width: 160px; }
+.fields input[type="file"] { font-size: 12px; }
+
 .periods { margin-bottom: 16px; display: flex; gap: 10px; align-items: baseline; }
 
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }

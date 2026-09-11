@@ -42,11 +42,12 @@ type Config struct {
 	// and the configuration is often mounted read-only.
 	NodeIDFile string `yaml:"node_id_file"`
 
-	Events Events `yaml:"events"`
-	Admin  Admin  `yaml:"admin_ui"`
-	Rules  Rules  `yaml:"rules"`
-	Facts  Facts  `yaml:"facts"`
-	Cloud  Cloud  `yaml:"cloud"`
+	Events  Events  `yaml:"events"`
+	Admin   Admin   `yaml:"admin_ui"`
+	Rules   Rules   `yaml:"rules"`
+	Domains Domains `yaml:"domains"`
+	Facts   Facts   `yaml:"facts"`
+	Cloud   Cloud   `yaml:"cloud"`
 }
 
 type Listen struct {
@@ -58,9 +59,17 @@ type Listen struct {
 type TLS struct {
 	// CertificatesDir is scanned anew on every check, so the certificate
 	// of a new domain is picked up without a restart.
-	CertificatesDir string   `yaml:"certificates_dir"`
-	SelfSignedDir   string   `yaml:"self_signed_dir"`
-	ReloadInterval  Duration `yaml:"reload_interval"`
+	CertificatesDir string `yaml:"certificates_dir"`
+
+	// UploadedDir is where the certificates uploaded through the admin
+	// UI land, in the same certbot layout. A separate directory rather
+	// than CertificatesDir: that one is often certbot's own or mounted
+	// read-only, and the node must not write into a catalog somebody
+	// else leads.
+	UploadedDir string `yaml:"uploaded_dir"`
+
+	SelfSignedDir  string   `yaml:"self_signed_dir"`
+	ReloadInterval Duration `yaml:"reload_interval"`
 }
 
 type Upstream struct {
@@ -111,6 +120,17 @@ type Rules struct {
 	ReloadInterval Duration `yaml:"reload_interval"`
 }
 
+// Domains is the file with the domains added while the node runs — from
+// the admin UI or with `antibot domains`. The upstreams from this very
+// configuration stay a separate, hand-led list; on a name both know,
+// the configuration wins.
+type Domains struct {
+	File string `yaml:"file"`
+
+	// ReloadInterval is how often to check whether the file has changed.
+	ReloadInterval Duration `yaml:"reload_interval"`
+}
+
 type Facts struct {
 	// Enabled turns off the use of the fact bases entirely — with the
 	// very line promised in the protocol.
@@ -140,6 +160,7 @@ func Defaults() Config {
 		Listen:     Listen{HTTP: ":80", HTTPS: ":443", Admin: "127.0.0.1:8091"},
 		NodeIDFile: "/var/lib/antibot/node.id",
 		TLS: TLS{
+			UploadedDir:    "/var/lib/antibot/certificates",
 			SelfSignedDir:  "/var/lib/antibot/certs",
 			ReloadInterval: Duration(30 * time.Second),
 		},
@@ -155,6 +176,10 @@ func Defaults() Config {
 		},
 		Rules: Rules{
 			File:           "/var/lib/antibot/rules.json",
+			ReloadInterval: Duration(5 * time.Second),
+		},
+		Domains: Domains{
+			File:           "/var/lib/antibot/domains.json",
 			ReloadInterval: Duration(5 * time.Second),
 		},
 		Facts: Facts{

@@ -36,6 +36,8 @@ func parseTemplates() (*template.Template, error) {
 				return "Events"
 			case "rules":
 				return "Rules"
+			case "domains":
+				return "Domains"
 			default:
 				return "Overview"
 			}
@@ -185,9 +187,29 @@ type overviewData struct {
 	Rules     int
 	Effective int
 
+	// ExpiringCerts is the 14-day warning: there is no auto-renewal, so
+	// an expiring certificate is the owner's errand, and the overview is
+	// where it must be impossible to miss.
+	ExpiringCerts []CertState
+
 	ServerErrors int
 	Answers      donutChart
 	Series       *columnsChart
+}
+
+// expiringCerts lists the loaded certificates that run out within the
+// warning window.
+func (s *Server) expiringCerts(now time.Time) []CertState {
+	if s.o.Certs == nil {
+		return nil
+	}
+	var out []CertState
+	for _, info := range s.o.Certs.List() {
+		if info.NotAfter.Sub(now) < expiryWarning {
+			out = append(out, *certStateOf(info.Names, "", info.NotAfter, now))
+		}
+	}
+	return out
 }
 
 func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request, user string) {
@@ -212,12 +234,13 @@ func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request, user strin
 	}
 
 	data := overviewData{
-		pageCommon:   s.common(user, "overview", period, ""),
-		CSRF:         s.csrfToken(r),
-		Summary:      result,
-		ServerErrors: result.Answers[summary.AnswerServerError],
-		Answers:      newDonut(result.Answers),
-		Series:       newColumns(result.Series, period),
+		pageCommon:    s.common(user, "overview", period, ""),
+		CSRF:          s.csrfToken(r),
+		Summary:       result,
+		ExpiringCerts: s.expiringCerts(now),
+		ServerErrors:  result.Answers[summary.AnswerServerError],
+		Answers:       newDonut(result.Answers),
+		Series:        newColumns(result.Series, period),
 	}
 	if s.o.Rules != nil {
 		set := s.o.Rules.Set()

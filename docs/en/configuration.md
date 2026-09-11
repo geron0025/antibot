@@ -50,15 +50,23 @@ The name `listen.admin` is left over from an early version and means the
 ```yaml
 tls:
   certificates_dir: "/etc/letsencrypt/live"
+  uploaded_dir: "/var/lib/antibot/certificates"
   self_signed_dir: "/var/lib/antibot/certs"
   reload_interval: 30s
 ```
 
 | Key | Default | What |
 |---|---|---|
-| `certificates_dir` | empty | the certificate directory; empty means self-signed only |
+| `certificates_dir` | empty | the certificate directory led by hand or by certbot |
+| `uploaded_dir` | `/var/lib/antibot/certificates` | where certificates uploaded through the admin UI land; empty turns uploads off |
 | `self_signed_dir` | `/var/lib/antibot/certs` | where the fallback is kept |
-| `reload_interval` | `30s` | how often to rescan the directory |
+| `reload_interval` | `30s` | how often to rescan the directories |
+
+Two directories rather than one, on purpose: `certificates_dir` often
+belongs to certbot or is mounted read-only, and the node does not write
+into a directory somebody else leads. Both are scanned, with one layout.
+When both hold a certificate for the same name, the one that lives longer
+serves.
 
 The self-signed certificate is **saved** to disk. That matters more than
 it looks: a certificate created anew on every start changes the site's
@@ -98,6 +106,10 @@ while the certificate `*.example.ru` will not fit.
 Names are brought to a single form: no port, lowercased, in punycode.
 `Пример.РФ`, `пример.рф.` and `xn--e1afmkfd.xn--p1ai` are one name — in a
 rule, in a route and in an event alike.
+
+Domains can also be added without touching this file — from the admin UI
+or with `antibot domains`; they live separately, see
+[`domains`](#domains). On a name both lists know, `upstreams` wins.
 
 ## trusted_proxies
 
@@ -226,6 +238,33 @@ The check is cheap — one look at the file's metadata.
 A broken rule discards the **whole** set, and the previous one stays in
 force. A half-applied set looks like it works and is therefore more
 dangerous than a refusal.
+
+## domains
+
+```yaml
+domains:
+  file: "/var/lib/antibot/domains.json"
+  reload_interval: 5s
+```
+
+The domains added while the node runs: from the admin UI or with the
+command
+
+```bash
+antibot domains add shop.example.ru http://127.0.0.1:8080
+antibot domains list
+antibot domains remove shop.example.ru
+```
+
+The node does not write the YAML, so the domains are a file of their own
+modelled on `rules.json`: the same validation, the same atomic
+replacement, the same rereading on the fly. Both lists work together,
+and on a name both know **`upstreams` wins** — what the machine's owner
+wrote by hand is not overridden from the admin UI. The default route `*`
+is set only in `upstreams`.
+
+A broken file at startup is an error; broken on the fly, it leaves the
+previous list in force, and no added site drops off because of a typo.
 
 ## facts
 
