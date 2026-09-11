@@ -104,11 +104,31 @@ input, select {
 }
 .warning a { color: inherit; }
 
-/* The forms of the domains page: label above field, fields in a row. */
-.cards {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 12px; margin-top: 16px;
+/* The domains page: a card per domain, the certificate inside the card
+   it belongs to. */
+.domains {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr));
+  gap: 12px; margin-bottom: 16px;
 }
+.domain { display: flex; flex-direction: column; gap: 12px; }
+.domain.disabled { opacity: .6; }
+.domain-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.domain-head h2 { margin: 0; font-size: 16px; overflow-wrap: anywhere; }
+.domain-head form { margin-left: auto; }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 0; }
+.facts dt { color: var(--dim); }
+.facts dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.cert {
+  display: flex; flex-direction: column; gap: 8px;
+  padding-top: 10px; border-top: 1px solid var(--border);
+}
+.cert h3 { margin: 0; font-size: 13px; }
+.cert p { margin: 0; }
+.cert.none .term { color: var(--dim); }
+.cert.expiring { border-top-color: var(--yellow); }
+.cert.expiring .term { color: var(--yellow); font-weight: 600; }
+
+/* The forms: label above field, fields in a row. */
 .fields { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
 .fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dim); }
 .fields input[type="text"] { min-width: 160px; }

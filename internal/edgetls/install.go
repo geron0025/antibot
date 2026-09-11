@@ -3,7 +3,6 @@ package edgetls
 import (
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/pem"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -69,21 +68,6 @@ func Install(dir, host string, chain, key []byte) (time.Time, error) {
 		return time.Time{}, err
 	}
 	return leaf.NotAfter, nil
-}
-
-// ParseLeaf reads the first certificate of a PEM chain — the one the
-// names and the term are taken from.
-func ParseLeaf(chain []byte) (*x509.Certificate, error) {
-	for {
-		var block *pem.Block
-		block, chain = pem.Decode(chain)
-		if block == nil {
-			return nil, fmt.Errorf("no certificate in the file")
-		}
-		if block.Type == "CERTIFICATE" {
-			return x509.ParseCertificate(block.Bytes)
-		}
-	}
 }
 
 // Fits answers whether the certificate serves the host. A

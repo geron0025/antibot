@@ -71,11 +71,12 @@ func postForm(t *testing.T, s *Server, path string, cookies []*http.Cookie, form
 	return resp
 }
 
-func upload(t *testing.T, s *Server, cookies []*http.Cookie, csrf string, chain, key []byte) *httptest.ResponseRecorder {
+func upload(t *testing.T, s *Server, cookies []*http.Cookie, csrf, host string, chain, key []byte) *httptest.ResponseRecorder {
 	t.Helper()
 	var body bytes.Buffer
 	w := multipart.NewWriter(&body)
 	w.WriteField("csrf", csrf)
+	w.WriteField("host", host)
 	part, _ := w.CreateFormFile("fullchain", "fullchain.pem")
 	part.Write(chain)
 	part, _ = w.CreateFormFile("privkey", "privkey.pem")
@@ -249,23 +250,31 @@ func TestDomainRefusalsAreShown(t *testing.T) {
 	}
 }
 
-// The domain is taken from the certificate itself: the form asks only
-// for the two files.
+// The certificate is uploaded in its domain's card: the domain comes in
+// a hidden field, never typed.
 func TestUploadingACertificate(t *testing.T) {
 	s, dir := newDomainsServer(t)
 	cookies := logIn(t, s)
 	csrf := tokenFrom(cookies)
 
+	// The card carries the upload form with its own domain.
+	page := body(t, s, "/domains", cookies)
+	if !strings.Contains(page, `<article class="card domain">`) ||
+		!strings.Contains(page, `action="/domains/certificate"`) ||
+		!strings.Contains(page, `name="host" value="hand.example.ru"`) {
+		t.Error("the domain's card does not carry its certificate form")
+	}
+
 	chain, key := pemPair(t, time.Now().AddDate(0, 3, 0), "hand.example.ru")
 
-	if resp := upload(t, s, cookies, "", chain, key); resp.Code != http.StatusForbidden {
+	if resp := upload(t, s, cookies, "", "hand.example.ru", chain, key); resp.Code != http.StatusForbidden {
 		t.Errorf("an upload without a token returned %d, want 403", resp.Code)
 	}
 	if s.o.Certs.Covering("hand.example.ru") != nil {
 		t.Fatal("the certificate got in without a token")
 	}
 
-	resp := upload(t, s, cookies, csrf, chain, key)
+	resp := upload(t, s, cookies, csrf, "hand.example.ru", chain, key)
 	if resp.Code != http.StatusSeeOther || resp.Header().Get("Location") != "/domains" {
 		t.Fatalf("the upload returned %d to %q (%s)", resp.Code, resp.Header().Get("Location"), errorOf(resp))
 	}
@@ -274,16 +283,31 @@ func TestUploadingACertificate(t *testing.T) {
 		t.Fatal("the uploaded certificate does not serve")
 	}
 	if _, err := os.Stat(filepath.Join(dir, "certificates", "hand.example.ru", "fullchain.pem")); err != nil {
-		t.Errorf("the pair is not where the domain says: %v", err)
+		t.Errorf("the pair is not in its domain's directory: %v", err)
 	}
-	if page := body(t, s, "/domains", cookies); strings.Contains(page, "d left") {
+	page = body(t, s, "/domains", cookies)
+	if strings.Contains(page, `class="cert expiring"`) {
 		t.Error("a certificate for three months is shown as expiring")
+	}
+	if !strings.Contains(page, ">replace</button>") {
+		t.Error("a card with a certificate does not offer to replace it")
+	}
+
+	// A fresh pair replaces the previous one: that is the renewal.
+	fresh, freshKey := pemPair(t, time.Now().AddDate(0, 6, 0), "hand.example.ru")
+	if msg := errorOf(upload(t, s, cookies, csrf, "hand.example.ru", fresh, freshKey)); msg != "" {
+		t.Fatalf("the renewal was refused: %s", msg)
+	}
+	if leaf := s.o.Certs.Covering("hand.example.ru"); leaf == nil || leaf.NotAfter.Before(time.Now().AddDate(0, 5, 0)) {
+		t.Error("the renewed pair does not serve")
+	}
+	if n := s.o.Certs.Len(); n != 1 {
+		t.Errorf("the renewal left %d pairs rather than replacing one", n)
 	}
 }
 
-// One wildcard certificate serves every served name it fits, and lands
-// once.
-func TestAWildcardCertificateCoversItsServedNames(t *testing.T) {
+// A wildcard pair uploaded in one card serves every name it fits.
+func TestAWildcardCertificateCoversItsNames(t *testing.T) {
 	s, _ := newDomainsServer(t)
 	cookies := logIn(t, s)
 	csrf := tokenFrom(cookies)
@@ -291,16 +315,13 @@ func TestAWildcardCertificateCoversItsServedNames(t *testing.T) {
 	postForm(t, s, "/domains/add", cookies, url.Values{"csrf": {csrf}, "host": {"here.example.ru"}, "server": {"127.0.0.1"}})
 
 	chain, key := pemPair(t, time.Now().AddDate(0, 3, 0), "*.example.ru")
-	if resp := upload(t, s, cookies, csrf, chain, key); errorOf(resp) != "" {
-		t.Fatalf("the wildcard pair was refused: %s", errorOf(resp))
+	if msg := errorOf(upload(t, s, cookies, csrf, "hand.example.ru", chain, key)); msg != "" {
+		t.Fatalf("the wildcard pair was refused: %s", msg)
 	}
 	for _, host := range []string{"hand.example.ru", "here.example.ru"} {
 		if s.o.Certs.Covering(host) == nil {
 			t.Errorf("%s is not covered by the wildcard", host)
 		}
-	}
-	if n := s.o.Certs.Len(); n != 1 {
-		t.Errorf("the pair landed %d times", n)
 	}
 }
 
@@ -315,15 +336,18 @@ func TestUploadRefusals(t *testing.T) {
 
 	cases := []struct {
 		name       string
+		host       string
 		chain, key []byte
 		want       string
 	}{
-		{"a key that does not match", chain, strangerKey, "does not match"},
-		{"a certificate only for names the node does not serve", foreign, foreignKey, "serves none"},
-		{"not PEM at all", []byte("hello"), []byte("world"), "no certificate"},
+		{"a key that does not match", "hand.example.ru", chain, strangerKey, "does not match"},
+		{"a certificate for another name", "hand.example.ru", foreign, foreignKey, "does not fit"},
+		{"a domain the node does not serve", "nobody.example.ru", foreign, foreignKey, "does not serve"},
+		{"the default route", "*", chain, strangerKey, "configuration"},
+		{"not PEM at all", "hand.example.ru", []byte("hello"), []byte("world"), "not accepted"},
 	}
 	for _, c := range cases {
-		if got := errorOf(upload(t, s, cookies, csrf, c.chain, c.key)); !strings.Contains(got, c.want) {
+		if got := errorOf(upload(t, s, cookies, csrf, c.host, c.chain, c.key)); !strings.Contains(got, c.want) {
 			t.Errorf("%s: the message is %q, want one mentioning %q", c.name, got, c.want)
 		}
 	}
@@ -339,7 +363,7 @@ func TestTheOverviewWarnsAboutAnExpiringCertificate(t *testing.T) {
 	cookies := logIn(t, s)
 
 	chain, key := pemPair(t, time.Now().Add(5*24*time.Hour+time.Hour), "hand.example.ru")
-	if resp := upload(t, s, cookies, tokenFrom(cookies), chain, key); errorOf(resp) != "" {
+	if resp := upload(t, s, cookies, tokenFrom(cookies), "hand.example.ru", chain, key); errorOf(resp) != "" {
 		t.Fatalf("the upload was refused: %s", errorOf(resp))
 	}
 
@@ -347,7 +371,8 @@ func TestTheOverviewWarnsAboutAnExpiringCertificate(t *testing.T) {
 	if !strings.Contains(page, `class="warning"`) || !strings.Contains(page, "expires in 5 days") {
 		t.Error("the overview does not warn about a certificate expiring in five days")
 	}
-	if !strings.Contains(body(t, s, "/domains", cookies), "5 d left") {
-		t.Error("the domains page does not mark the expiring certificate")
+	if page := body(t, s, "/domains", cookies); !strings.Contains(page, `class="cert expiring"`) ||
+		!strings.Contains(page, "5 d left") {
+		t.Error("the domain's card does not mark the expiring certificate")
 	}
 }

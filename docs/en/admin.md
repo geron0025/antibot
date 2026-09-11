@@ -114,19 +114,23 @@ here.
 
 ### Domains
 
-Which names the node serves and where their sites live. The table has
-both sources: the `upstreams` lines of the configuration and the domains
-added here or with `antibot domains`. The former are visible but changed
-only in the configuration; on a name both know, **the configuration
-wins** — what the machine's owner wrote by hand is not overridden from
-the admin UI, not even by someone who stole a session. Such a domain is
-marked as silenced in the table.
+Every domain is a card: the name, where it came from, the site's server,
+the DNS hint and **its certificate**. The certificate belongs to the
+domain, so it lives in the domain's card: the names, the term and the
+upload of a new pair are all there, rather than in a separate form where
+the domain would have to be picked again.
 
-Every domain shows the certificate it is served with and its term. No
-certificate means the node hands out the self-signed one, and the browser
-will warn.
+The page has both sources: the `upstreams` lines of the configuration and
+the domains added here or with `antibot domains`. The former are visible
+but changed only in the configuration; on a name both know, **the
+configuration wins** — what the machine's owner wrote by hand is not
+overridden from the admin UI, not even by someone who stole a session.
+Such a domain is marked as silenced.
 
-The **DNS** column is a hint, not a condition: whether the domain points
+No certificate means the node hands out the self-signed one, and the
+browser will warn; the card says so plainly.
+
+The **DNS** line is a hint, not a condition: whether the domain points
 at this machine, and where it points if not. The node may stand behind
 NAT and not know its public address, so "points elsewhere" does not stop
 a domain from being added.
@@ -140,20 +144,17 @@ A `*.example.ru` pattern covers the subdomains. The default route `*` is
 not set here: what to answer to made-up names is the configuration's
 call.
 
-**Upload a certificate** — just two files: the chain (`fullchain.pem`)
-and the key (`privkey.pem`). Which domain the pair is for is not asked:
-the names are written in the certificate itself, and a second copy typed
-by hand could only disagree with them. The node finds the served domains
-among the names on its own — a certificate for several names or with a
-wildcard lands once and serves them all. Before it is accepted, the pair
-is checked:
+**The certificate** is uploaded in its domain's card — two files, the
+chain (`fullchain.pem`) and the key (`privkey.pem`). The domain is not
+typed: it is the one whose card the button is in. A new pair replaces
+the previous one — that is what renewal is. A pair for several names or
+with a wildcard, uploaded in one card, serves all of its names. Before
+it is accepted, the pair is checked:
 
 - the key matches the certificate;
 - the term has not ended and has already begun;
-- at least one of the certificate's names is a served domain; a
-  `*.example.ru` pattern needs exactly that wildcard name. A certificate
-  for foreign names only is a mistake caught now, not a file found a year
-  later.
+- the certificate fits the card's domain; a `*.example.ru` pattern needs
+  exactly that wildcard name.
 
 A refusal comes with a clear reason, and **the previous certificate
 stays in force**, the way the previous rule set does when the file is
@@ -170,7 +171,7 @@ through.
 Since there is no renewal, an expiring certificate is the owner's errand,
 and the admin UI has to say so: **14 days** before the end of the term a
 warning appears on the overview, and the term is highlighted in the
-domains table.
+domain's card.
 
 ## The writing actions
 

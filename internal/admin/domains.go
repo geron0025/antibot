@@ -2,7 +2,6 @@ package admin
 
 import (
 	"context"
-	"crypto/x509"
 	"fmt"
 	"io"
 	"net"
@@ -14,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/geron0025/antibot/internal/domains"
 	"github.com/geron0025/antibot/internal/edgetls"
 )
 
@@ -291,6 +291,19 @@ func (s *Server) uploadCertificate(w http.ResponseWriter, r *http.Request, who s
 		return
 	}
 
+	// The form lives in the domain's card: the domain arrives in a hidden
+	// field and is never typed. It is checked all the same — a form is
+	// only a form.
+	host, err := domains.NormalizeHost(r.PostFormValue("host"))
+	if err != nil {
+		s.domainsError(w, r, err.Error())
+		return
+	}
+	if !s.serves(host) {
+		s.domainsError(w, r, fmt.Sprintf("the node does not serve %s", host))
+		return
+	}
+
 	chain, err := formFile(r, "fullchain")
 	if err != nil {
 		s.domainsError(w, r, "the certificate chain: "+err.Error())
@@ -302,62 +315,32 @@ func (s *Server) uploadCertificate(w http.ResponseWriter, r *http.Request, who s
 		return
 	}
 
-	leaf, err := edgetls.ParseLeaf(chain)
+	until, err := s.installCertificate(host, chain, key)
 	if err != nil {
-		s.domainsError(w, r, "the certificate chain: "+err.Error())
-		return
-	}
-	// The domain is taken from the certificate rather than asked for:
-	// the names are written in it, and a second copy typed by hand could
-	// only disagree. Only served names count — a certificate for foreign
-	// names alone is a mistake caught now, not a file found in a year.
-	covered := s.coveredHosts(leaf)
-	if len(covered) == 0 {
-		s.domainsError(w, r, fmt.Sprintf("the certificate is for %s — the node serves none of these; add the domain first",
-			strings.Join(edgetls.LeafNames(leaf), ", ")))
-		return
-	}
-
-	until, err := s.installCertificate(covered[0], chain, key)
-	if err != nil {
-		s.o.Log.Error("the certificate was not accepted", "hosts", strings.Join(covered, ","), "who", who, "err", err)
-		s.domainsError(w, r, err.Error())
+		s.o.Log.Error("the certificate was not accepted", "host", host, "who", who, "err", err)
+		s.domainsError(w, r, host+": "+err.Error())
 		return
 	}
 
 	s.o.Log.Info("a certificate was uploaded from the admin UI",
-		"hosts", strings.Join(covered, ","), "not_after", until.Format("2006-01-02"),
-		"who", who, "address", clientAddr(r))
+		"host", host, "not_after", until.Format("2006-01-02"), "who", who, "address", clientAddr(r))
 	http.Redirect(w, r, "/domains", http.StatusSeeOther)
 }
 
-// coveredHosts lists the served names — from either list — that the
-// certificate fits, sorted so that a renewal of the same certificate
-// lands in the same directory and replaces the previous pair.
-func (s *Server) coveredHosts(leaf *x509.Certificate) []string {
-	var served []string
-	for host := range s.o.ConfigRoutes {
-		if host != "*" {
-			served = append(served, host)
-		}
+// serves answers whether the name is on either list — the file or the
+// configuration.
+func (s *Server) serves(host string) bool {
+	if _, ok := s.o.ConfigRoutes[host]; ok && host != "*" {
+		return true
 	}
 	if s.o.Domains != nil {
 		for _, d := range s.o.Domains.List() {
-			served = append(served, d.Host)
+			if d.Host == host {
+				return true
+			}
 		}
 	}
-	sort.Strings(served)
-
-	var out []string
-	for i, host := range served {
-		if i > 0 && host == served[i-1] {
-			continue
-		}
-		if edgetls.Fits(leaf, host) {
-			out = append(out, host)
-		}
-	}
-	return out
+	return false
 }
 
 func formFile(r *http.Request, field string) ([]byte, error) {

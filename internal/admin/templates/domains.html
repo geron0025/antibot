@@ -1,58 +1,69 @@
 {{template "header" .}}
 
-<p class="dim">Which names the node serves and where their sites live.
-Domains from the configuration file are shown but changed only there;
-domains added here go to their own file and take effect at once. The
-<span class="value">DNS</span> column is a hint: a domain that does not
-point at this machine never reaches the node.</p>
+<p class="dim">Which names the node serves, where their sites live and
+which certificate each one answers with. Domains from the configuration
+file are shown but changed only there; domains added here go to their
+own file and take effect at once.</p>
 
-<table>
-  <thead>
-    <tr>
-      <th>domain</th><th>site server</th><th>source</th>
-      <th>certificate</th><th>expires</th><th>DNS</th><th></th>
-    </tr>
-  </thead>
-  <tbody>
-  {{range .Rows}}
-    <tr {{if .Shadowed}}class="disabled"{{end}}>
-      <td class="value">{{.Host}}</td>
-      <td class="value">{{.To}}</td>
-      <td class="dim">{{if .FromConfig}}configuration{{else if .Shadowed}}file · silenced by the configuration{{else}}added here{{end}}</td>
-      <td>{{with .Cert}}<span class="value" title="{{.Names}}">{{truncate .Names 60}}</span>{{else}}<span class="dim">self-signed</span>{{end}}</td>
-      <td>{{with .Cert}}{{if .Expiring}}<b>{{time .NotAfter}} · {{if lt .Days 0}}expired{{else}}{{.Days}} d left{{end}}</b>{{else}}{{time .NotAfter}}{{end}}{{else}}<span class="dim">—</span>{{end}}</td>
-      <td class="dim">{{.DNS}}</td>
-      <td class="num">
-        {{if not .FromConfig}}
-        <form method="post" action="/domains/remove">
-          <input type="hidden" name="csrf" value="{{$.CSRF}}">
-          <input type="hidden" name="host" value="{{.Host}}">
-          <button type="submit">remove</button>
-        </form>
-        {{end}}
-      </td>
-    </tr>
-  {{else}}
-    <tr><td colspan="7" class="dim">no domains yet</td></tr>
-  {{end}}
-  </tbody>
-</table>
+<section class="domains">
+{{range .Rows}}
+  <article class="card domain{{if .Shadowed}} disabled{{end}}">
+    <div class="domain-head">
+      <h2 class="value">{{.Host}}</h2>
+      <span class="dim">{{if .FromConfig}}from the configuration{{else if .Shadowed}}silenced by the configuration{{else}}added here{{end}}</span>
+      {{if not .FromConfig}}
+      <form method="post" action="/domains/remove">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <input type="hidden" name="host" value="{{.Host}}">
+        <button type="submit">remove</button>
+      </form>
+      {{end}}
+    </div>
 
-{{if .Fallback}}
-<p class="dim">Everything else — names no route knows — goes to
-<span class="value">{{.Fallback}}</span>: the default route from the
-configuration.</p>
+    <dl class="facts">
+      <dt>site server</dt><dd class="value">{{.To}}</dd>
+      <dt>DNS</dt><dd>{{.DNS}}</dd>
+    </dl>
+
+    <div class="cert{{with .Cert}}{{if .Expiring}} expiring{{end}}{{else}} none{{end}}">
+      <h3>Certificate</h3>
+      {{with .Cert}}
+      <dl class="facts">
+        <dt>names</dt><dd class="value" title="{{.Names}}">{{truncate .Names 120}}</dd>
+        <dt>valid until</dt>
+        <dd class="term">{{time .NotAfter}} · {{if lt .Days 0}}expired{{else if eq .Days 0}}expires today{{else}}{{.Days}} d left{{end}}</dd>
+      </dl>
+      {{else}}
+      <p class="term">none — the node answers with its self-signed one, and
+      the browser warns</p>
+      {{end}}
+
+      {{if $.CanUpload}}
+      <form method="post" action="/domains/certificate" enctype="multipart/form-data" class="fields">
+        <input type="hidden" name="csrf" value="{{$.CSRF}}">
+        <input type="hidden" name="host" value="{{.Host}}">
+        <label>chain · fullchain.pem
+          <input type="file" name="fullchain" required>
+        </label>
+        <label>private key · privkey.pem
+          <input type="file" name="privkey" required>
+        </label>
+        <button type="submit">{{if .Cert}}replace{{else}}upload{{end}}</button>
+      </form>
+      {{end}}
+    </div>
+  </article>
 {{end}}
 
-<section class="cards">
-  <div class="card">
+  <article class="card domain add">
     <h2>Add a domain</h2>
     <p class="dim">The name clients come with, and the site's server the
     node forwards to — <span class="value">http://203.0.113.7:8080</span>,
     or just <span class="value">127.0.0.1:3000</span> for http. Loopback
     and private addresses are fine: the site often lives on the same
     machine. A pattern like <span class="value">*.example.ru</span> covers
-    every subdomain.</p>
+    every subdomain. The certificate is uploaded in the domain's card once
+    it is added.</p>
     <form method="post" action="/domains/add" class="fields">
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <label>domain
@@ -63,31 +74,17 @@ configuration.</p>
       </label>
       <button type="submit">add</button>
     </form>
-  </div>
-
-  {{if .CanUpload}}
-  <div class="card">
-    <h2>Upload a certificate</h2>
-    <p class="dim">A ready-made pair: the chain
-    (<span class="value">fullchain.pem</span>) and the private key
-    (<span class="value">privkey.pem</span>). The domains are taken from
-    the certificate's own names. The pair is checked before it is
-    accepted — the key must match, the term must not be over, at least one
-    name must be a served domain — and starts serving at once. The node
-    does not issue or renew certificates: renewal is uploading a fresh
-    pair, or certbot next to the node.</p>
-    <form method="post" action="/domains/certificate" enctype="multipart/form-data" class="fields">
-      <input type="hidden" name="csrf" value="{{.CSRF}}">
-      <label>chain
-        <input type="file" name="fullchain" required>
-      </label>
-      <label>private key
-        <input type="file" name="privkey" required>
-      </label>
-      <button type="submit">upload</button>
-    </form>
-  </div>
-  {{end}}
+  </article>
 </section>
+
+{{if .Fallback}}
+<p class="dim">Everything else — names no route knows — goes to
+<span class="value">{{.Fallback}}</span>: the default route from the
+configuration. The DNS line in a card is a hint: a domain that does not
+point at this machine never reaches the node.</p>
+{{end}}
+
+<p class="dim">The node neither issues nor renews certificates: renewal is
+uploading a fresh pair in the domain's card, or certbot next to the node.</p>
 
 {{template "footer" .}}
