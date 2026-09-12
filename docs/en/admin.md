@@ -82,10 +82,13 @@ the clients that called themselves a known crawler.
 This is not decoration. While half the traffic has no network class, a
 rule has to be written blind — by the address and the `User-Agent`
 string, that is, by what the client says about itself. And "called itself
-Googlebot" is something the node cannot verify: anyone at all can put
-that string on themselves, and the admin UI says so plainly instead of
-pretending it recognized anybody. Telling a real crawler from an impostor
-needs verified networks — [facts.md](facts.md).
+Googlebot" is a string anyone at all can put on themselves. So every
+self-declared crawler has two columns: **from a crawler network** — the
+request came from a range the crawler's owner publishes about itself,
+which arrives with the fact set — and **not confirmed**. Without a set
+there is nothing to confirm against, and the admin UI says so plainly
+instead of pretending it recognized anybody. How to exempt verified
+crawlers from blocks with a single rule — [facts.md](facts.md).
 
 ### Events
 

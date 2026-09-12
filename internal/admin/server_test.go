@@ -143,7 +143,8 @@ func TestLoginAndPages(t *testing.T) {
 	cookies := logIn(t, s)
 
 	checks := map[string][]string{
-		"/":       {"requests", "What the node does not know", "googlebot"},
+		"/": {"requests", "What the node does not know", "googlebot",
+			"from a crawler network", "nothing to confirm a claim against"},
 		"/events": {"203.0.113.1", "block-curl", "watch-everything", "/product"},
 		"/rules":  {"block-curl", "active", "antibot rules"},
 	}

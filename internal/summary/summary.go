@@ -143,8 +143,30 @@ type Unknown struct {
 	// crawler. The node cannot verify such a claim without the bases:
 	// anyone at all can put the string "Googlebot" on themselves, and a
 	// reverse DNS lookup needs the network.
-	SelfDeclaredCrawlers []Row `json:"self_declared_crawlers"`
+	SelfDeclaredCrawlers []Crawler `json:"self_declared_crawlers"`
 }
+
+// Crawler is a line of the self-declared crawlers. Verified is how many
+// of its requests came from a network the fact set names a crawler
+// network — the ranges crawler owners publish about themselves. The rest
+// are claims nobody checked.
+//
+// The name is not matched against the network's owner: a request calling
+// itself Googlebot from Bing's ranges counts as verified. A crawler
+// network lying about which crawler it is has not been seen, and the
+// owner names in the base are not a list to match strings against.
+type Crawler struct {
+	Row
+	Verified int `json:"verified"`
+}
+
+// Unverified is what nobody checked: an impostor and a real crawler
+// outside the published ranges look the same here.
+func (c Crawler) Unverified() int { return c.Count - c.Verified }
+
+// crawlerClass is the class the fact set gives to the ranges crawler
+// owners publish about themselves.
+const crawlerClass = "crawler"
 
 // Summary is everything the admin UI shows on its overview page.
 type Summary struct {
@@ -225,6 +247,7 @@ func Build(o Options) (*Summary, error) {
 		"server_errors": newBreakdown(), "client_errors": newBreakdown(),
 	}
 	ips := map[string]struct{}{}
+	verified := map[string]int{}
 	var latency histogram
 
 	// A histogram by minutes rather than a list of times: over a day that
@@ -275,6 +298,9 @@ func Build(o Options) (*Summary, error) {
 			}
 			if name := declaredCrawler(r.UA); name != "" {
 				breakdowns["crawlers"].add(name, r.IP)
+				if r.NetClass == crawlerClass {
+					verified[name]++
+				}
 			}
 
 			if !r.Time.IsZero() {
@@ -318,7 +344,10 @@ func Build(o Options) (*Summary, error) {
 	s.Statuses = breakdowns["statuses"].top(o.Top)
 	s.ServerErrorPaths = breakdowns["server_errors"].top(o.Top)
 	s.ClientErrorPaths = breakdowns["client_errors"].top(o.Top)
-	s.Unknown.SelfDeclaredCrawlers = breakdowns["crawlers"].top(o.Top)
+	for _, row := range breakdowns["crawlers"].top(o.Top) {
+		s.Unknown.SelfDeclaredCrawlers = append(s.Unknown.SelfDeclaredCrawlers,
+			Crawler{Row: row, Verified: verified[row.Value]})
+	}
 
 	for _, b := range breakdowns {
 		if b.truncated {

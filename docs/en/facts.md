@@ -87,7 +87,40 @@ lie would cost the site its position in search results. Verifying such a
 claim needs **verified networks** (`network.protected`,
 `network.class == "crawler"`), not this comparison. That is exactly why
 the admin UI shows "called themselves crawlers" as a separate block and
-says honestly that it cannot check it.
+splits them into those from a crawler network and the unchecked; without
+a base, all of them are unchecked.
+
+### An exception for crawlers
+
+Crawlers are exempted from blocks by **one allowing rule above all
+others**, not by a clause in every block: an exception written into ten
+blocks will one day be forgotten in the eleventh ([rules.md](rules.md)).
+
+```json
+{
+  "id": "allow-search-crawlers",
+  "name": "search crawlers — past the blocks",
+  "scope": ["*"],
+  "mode": "active",
+  "priority": 1000,
+  "condition": {"all": [
+    {"field": "network.class", "op": "eq", "value": "crawler"},
+    {"field": "network.protected", "op": "eq", "value": true}
+  ]},
+  "action": {"type": "allow"}
+}
+```
+
+Two conditions, not one. The class `crawler` goes to every network from
+the lists crawler owners publish about themselves — search engines and
+the collectors of training data for models like GPTBot alike. Of them,
+`protected` is set only on search crawlers: Googlebot, Bingbot, Applebot,
+DuckDuckBot. A rule with `network.class == "crawler"` alone lets every
+named crawler past the blocks; whom to let through is the owner's call.
+
+Without a fact set a request has no network class, and the rule matches
+nobody: a self-declared Googlebot from somebody else's network never
+falls under it.
 
 ## Applying from disk
 

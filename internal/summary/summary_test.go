@@ -86,6 +86,8 @@ func TestUnknown(t *testing.T) {
 		{Time: t0, IP: "203.0.113.1", Host: "a.ru", UA: "Mozilla/5.0 (compatible; Googlebot/2.1)"},
 		{Time: t0, IP: "203.0.113.2", Host: "a.ru", UA: "curl", NetClass: "hosting", Family: "curl"},
 		{Time: t0, IP: "203.0.113.3", Host: "a.ru", UA: "GPTBot/1.0"},
+		{Time: t0, IP: "66.249.66.1", Host: "a.ru", UA: "Mozilla/5.0 (compatible; Googlebot/2.1)",
+			NetClass: "crawler", Family: "chrome"},
 	}
 	s, err := Build(Options{Dir: logDir(t, list)})
 	if err != nil {
@@ -96,19 +98,22 @@ func TestUnknown(t *testing.T) {
 		t.Errorf("without a network class %d, without a family %d; want 2 and 2",
 			s.Unknown.NoNetClass, s.Unknown.NoFamily)
 	}
-	if share := s.ShareWithoutNetClass(); share < 0.66 || share > 0.67 {
+	if share := s.ShareWithoutNetClass(); share != 0.5 {
 		t.Errorf("share without a network class %.3f", share)
 	}
 
-	// The self-declaration is counted but not verified: without the bases
-	// the node cannot tell a real Googlebot from an impostor, and the
+	// A claim is confirmed only by a crawler network from the fact set:
+	// the same Googlebot string from anywhere else stays a claim, and the
 	// admin UI must say so plainly.
-	names := map[string]int{}
+	got := map[string]Crawler{}
 	for _, row := range s.Unknown.SelfDeclaredCrawlers {
-		names[row.Value] = row.Count
+		got[row.Value] = row
 	}
-	if names["googlebot"] != 1 || names["gptbot"] != 1 {
-		t.Errorf("self-declared crawlers: %+v", s.Unknown.SelfDeclaredCrawlers)
+	if g := got["googlebot"]; g.Count != 2 || g.Verified != 1 || g.Unverified() != 1 {
+		t.Errorf("googlebot: %+v", g)
+	}
+	if g := got["gptbot"]; g.Count != 1 || g.Verified != 0 {
+		t.Errorf("gptbot: %+v", g)
 	}
 }
 

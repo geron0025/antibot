@@ -128,15 +128,22 @@
   {{with .Summary.Unknown.SelfDeclaredCrawlers}}
   <h3>Called themselves crawlers</h3>
   <p class="dim">A self-declaration is a string anyone at all can put on themselves.
-  The node cannot tell a real crawler from an impostor on its own: that takes
-  verified search-engine networks.</p>
+  A claim is confirmed only when the request came from a crawler network — the
+  ranges crawler owners publish about themselves, delivered with the fact set.
+  The rest nobody has checked: there an impostor and a real crawler look the same.</p>
+  {{if eq $.Summary.Unknown.NoNetClass $.Summary.Events}}
+  <p class="dim">No request here has a network class: without a fact set there is
+  nothing to confirm a claim against.</p>
+  {{end}}
   <table>
-    <thead><tr><th>called itself</th><th class="num">requests</th><th class="num">addresses</th></tr></thead>
+    <thead><tr><th>called itself</th><th class="num">requests</th><th class="num">from a crawler network</th><th class="num">not confirmed</th><th class="num">addresses</th></tr></thead>
     <tbody>
     {{range .}}
       <tr>
         <td><a href="/events?q={{.Value}}">{{.Value}}</a></td>
         <td class="num">{{count .Count}}</td>
+        <td class="num">{{count .Verified}}</td>
+        <td class="num">{{count .Unverified}}</td>
         <td class="num">{{count .IPs}}</td>
       </tr>
     {{end}}
