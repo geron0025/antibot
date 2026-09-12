@@ -42,6 +42,11 @@ type Request struct {
 	Headers     string `json:"hdrs,omitempty"`
 	HeadersHash string `json:"hdrs_hash,omitempty"`
 
+	// Cookie is whether the request came with a cookie — only that. The
+	// value is never read: a returning person sends one, a program with
+	// a clean context never does, and that is all a rule needs.
+	Cookie bool `json:"cookie,omitempty"`
+
 	// Conclusions drawn from the fact bases. Filled in before the rules
 	// run, so that a rule can refer to them and an event can explain the
 	// decision.
@@ -110,6 +115,8 @@ func (r *Request) Value(field string) (any, bool) {
 		return r.Headers, true
 	case "headers_hash":
 		return r.HeadersHash, true
+	case "cookie":
+		return r.Cookie, true
 	case "family":
 		return r.Family, true
 	case "ua_matches_ja4":
@@ -182,6 +189,7 @@ var kinds = map[string]Kind{
 	"h2":                KindString,
 	"headers":           KindString,
 	"headers_hash":      KindString,
+	"cookie":            KindBool,
 	"family":            KindString,
 	"ua_matches_ja4":    KindBool,
 	"network.class":     KindString,

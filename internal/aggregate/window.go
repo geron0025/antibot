@@ -1,9 +1,14 @@
 package aggregate
 
 import (
+	"encoding/json"
 	"net/netip"
+	"slices"
 	"sort"
+	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/geron0025/antibot/internal/catalog"
 	"github.com/geron0025/antibot/internal/facts"
@@ -30,6 +35,11 @@ const (
 
 	// rest marks the row the smallest ones are folded into.
 	rest = "~rest"
+
+	// maxRuleID and maxShadow bound what rule ids add to a row. An id is
+	// the owner's free text, and the rules engine does not limit it.
+	maxRuleID = 64
+	maxShadow = 16
 )
 
 // Key is what rows are grouped by. The field names are the protocol's.
@@ -41,6 +51,15 @@ type Key struct {
 	UAFamily     string `json:"ua_family"`
 	UAMatchesJA4 bool   `json:"ua_matches_ja4"`
 	Net          string `json:"net"`
+
+	// Rule is the id of the rule that decided, empty when none did;
+	// Shadow is the rules that matched in shadow mode. Both are in the
+	// key rather than counted beside it: every request of a row was then
+	// decided the same way, and what the row says about a rule — the
+	// cookies, the paths, the answers — is exact rather than a share of
+	// a mix.
+	Rule   string  `json:"rule"`
+	Shadow ruleIDs `json:"shadow"`
 }
 
 // restKey is the key of the folded row. The window stays a date and
@@ -49,6 +68,7 @@ type Key struct {
 var restKey = Key{
 	Domain: rest, JA4: rest, H2: rest, Headers: rest,
 	UAFamily: rest, UAMatchesJA4: true, Net: rest,
+	Rule: rest, Shadow: rest,
 }
 
 func (k Key) less(o Key) bool {
@@ -65,8 +85,12 @@ func (k Key) less(o Key) bool {
 		return k.UAFamily < o.UAFamily
 	case k.UAMatchesJA4 != o.UAMatchesJA4:
 		return !k.UAMatchesJA4
+	case k.Net != o.Net:
+		return k.Net < o.Net
+	case k.Rule != o.Rule:
+		return k.Rule < o.Rule
 	}
-	return k.Net < o.Net
+	return k.Shadow < o.Shadow
 }
 
 // Row is one line of the aggregate as it goes over the wire.
@@ -76,15 +100,16 @@ func (k Key) less(o Key) bool {
 type Row struct {
 	Window string `json:"window"`
 	Key
-	Requests  uint64            `json:"requests"`
-	Blocked   uint64            `json:"blocked"`
-	Shadowed  uint64            `json:"shadowed"`
-	Limited   uint64            `json:"limited"`
-	Status    map[string]uint64 `json:"status"`
-	UniqPaths uint64            `json:"uniq_paths"`
-	UniqAddrs uint64            `json:"uniq_addrs"`
-	Methods   map[string]uint64 `json:"methods"`
-	BytesOut  uint64            `json:"bytes_out"`
+	Requests   uint64            `json:"requests"`
+	WithCookie uint64            `json:"with_cookie"`
+	Blocked    uint64            `json:"blocked"`
+	Shadowed   uint64            `json:"shadowed"`
+	Limited    uint64            `json:"limited"`
+	Status     map[string]uint64 `json:"status"`
+	UniqPaths  uint64            `json:"uniq_paths"`
+	UniqAddrs  uint64            `json:"uniq_addrs"`
+	Methods    map[string]uint64 `json:"methods"`
+	BytesOut   uint64            `json:"bytes_out"`
 }
 
 // keyOf takes the key off a request. Everything that is not the key
@@ -100,6 +125,8 @@ func keyOf(r *facts.Request, served func(string) bool) Key {
 		UAFamily:     catalog.UAFamily(r.UA),
 		UAMatchesJA4: r.UAMatchesJA4,
 		Net:          prefixOf(r.IP),
+		Rule:         ruleID(r.Rule),
+		Shadow:       makeRuleIDs(r.Shadow),
 	}
 }
 
@@ -158,6 +185,67 @@ func clip(s string, n int) string {
 	return s
 }
 
+// ruleID makes a rule id fit the wire: valid UTF-8, no control
+// characters, at most maxRuleID characters. The id is the owner's text
+// and may be anything; the batch it would break is everybody's.
+func ruleID(s string) string {
+	s = strings.ToValidUTF8(s, "")
+	s = strings.Map(func(r rune) rune {
+		if unicode.IsControl(r) {
+			return -1
+		}
+		return r
+	}, s)
+	if utf8.RuneCountInString(s) > maxRuleID {
+		s = string([]rune(s)[:maxRuleID])
+	}
+	return s
+}
+
+// ruleIDs is a set of rule ids, sorted and kept as one string so that a
+// Key stays comparable and can key a map. On the wire, and in the saved
+// state, it is an array.
+type ruleIDs string
+
+// idSep cannot occur inside an id: ruleID removes control characters.
+const idSep = "\n"
+
+func makeRuleIDs(ids []string) ruleIDs {
+	if len(ids) == 0 {
+		return ""
+	}
+	clean := make([]string, 0, len(ids))
+	for _, id := range ids {
+		clean = append(clean, ruleID(id))
+	}
+	sort.Strings(clean)
+	clean = slices.Compact(clean)
+	if len(clean) > maxShadow {
+		clean = clean[:maxShadow]
+	}
+	return ruleIDs(strings.Join(clean, idSep))
+}
+
+// list is never nil: the schema wants an array, and a nil slice would
+// turn into null.
+func (s ruleIDs) list() []string {
+	if s == "" {
+		return []string{}
+	}
+	return strings.Split(string(s), idSep)
+}
+
+func (s ruleIDs) MarshalJSON() ([]byte, error) { return json.Marshal(s.list()) }
+
+func (s *ruleIDs) UnmarshalJSON(raw []byte) error {
+	var list []string
+	if err := json.Unmarshal(raw, &list); err != nil {
+		return err
+	}
+	*s = ruleIDs(strings.Join(list, idSep))
+	return nil
+}
+
 // methods are counted by name; anything else is OTHER. The method is
 // the client's string, and without a list a single row could carry a
 // thousand made-up verbs.
@@ -182,19 +270,23 @@ func statusClass(status int) string {
 
 // counts accumulates one row while its window is open.
 type counts struct {
-	Requests uint64            `json:"requests"`
-	Blocked  uint64            `json:"blocked,omitempty"`
-	Shadowed uint64            `json:"shadowed,omitempty"`
-	Limited  uint64            `json:"limited,omitempty"`
-	Status   map[string]uint64 `json:"status,omitempty"`
-	Methods  map[string]uint64 `json:"methods,omitempty"`
-	BytesOut uint64            `json:"bytes_out,omitempty"`
-	Paths    sketch            `json:"paths"`
-	Addrs    sketch            `json:"addrs"`
+	Requests   uint64            `json:"requests"`
+	WithCookie uint64            `json:"with_cookie,omitempty"`
+	Blocked    uint64            `json:"blocked,omitempty"`
+	Shadowed   uint64            `json:"shadowed,omitempty"`
+	Limited    uint64            `json:"limited,omitempty"`
+	Status     map[string]uint64 `json:"status,omitempty"`
+	Methods    map[string]uint64 `json:"methods,omitempty"`
+	BytesOut   uint64            `json:"bytes_out,omitempty"`
+	Paths      sketch            `json:"paths"`
+	Addrs      sketch            `json:"addrs"`
 }
 
 func (c *counts) add(r *facts.Request) {
 	c.Requests++
+	if r.Cookie {
+		c.WithCookie++
+	}
 	switch r.Decision {
 	case proxy.ActionBlock:
 		c.Blocked++
@@ -223,6 +315,7 @@ func (c *counts) add(r *facts.Request) {
 
 func (c *counts) merge(o *counts) {
 	c.Requests += o.Requests
+	c.WithCookie += o.WithCookie
 	c.Blocked += o.Blocked
 	c.Shadowed += o.Shadowed
 	c.Limited += o.Limited
@@ -239,17 +332,18 @@ func (c *counts) merge(o *counts) {
 
 func (c *counts) row(start time.Time, k Key) Row {
 	return Row{
-		Window:    start.UTC().Format(time.RFC3339),
-		Key:       k,
-		Requests:  c.Requests,
-		Blocked:   c.Blocked,
-		Shadowed:  c.Shadowed,
-		Limited:   c.Limited,
-		Status:    copyMap(c.Status),
-		UniqPaths: c.Paths.estimate(),
-		UniqAddrs: c.Addrs.estimate(),
-		Methods:   copyMap(c.Methods),
-		BytesOut:  c.BytesOut,
+		Window:     start.UTC().Format(time.RFC3339),
+		Key:        k,
+		Requests:   c.Requests,
+		WithCookie: c.WithCookie,
+		Blocked:    c.Blocked,
+		Shadowed:   c.Shadowed,
+		Limited:    c.Limited,
+		Status:     copyMap(c.Status),
+		UniqPaths:  c.Paths.estimate(),
+		UniqAddrs:  c.Addrs.estimate(),
+		Methods:    copyMap(c.Methods),
+		BytesOut:   c.BytesOut,
 	}
 }
 

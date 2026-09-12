@@ -204,6 +204,14 @@ func (h *Handler) collect(r *http.Request, start time.Time) facts.Request {
 	fp := headersfp.FromHTTP1Request(r)
 	req.Headers, req.HeadersHash = fp.Names, fp.Hash
 
+	// Whether a cookie came, never what it says.
+	for _, v := range r.Header.Values("Cookie") {
+		if v != "" {
+			req.Cookie = true
+			break
+		}
+	}
+
 	return req
 }
 

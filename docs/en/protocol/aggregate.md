@@ -2,6 +2,10 @@
 
 Format version: **1**.
 
+The `rule`, `shadow` and `with_cookie` fields were added on
+12 September 2026 — before any node had sent an aggregate, so the format
+version stayed the first.
+
 This document was fixed before the first line of code. The reason is
 plain: once there are many installations the format can no longer be
 changed — history in the old shape will have accumulated on the far side,
@@ -33,7 +37,9 @@ fivefold for a precision nobody uses.
 | The User-Agent string | forged freely and carries identifying tails |
 | Request paths and parameters | the contents of somebody else's site, often with identifiers inside |
 | Headers and their values | cookies, tokens and authorization live there |
+| The cookie value | only a counter of requests that came with a cookie goes out — `with_cookie` |
 | Request and response bodies | the same, and worse |
+| Rule conditions | they may hold office addresses, paths, names; only the `id` of the rule that fired goes out |
 
 What is sent is the **composition** of the headers as a hash rather than
 the headers themselves; the client's **family** rather than its string;
@@ -60,12 +66,15 @@ Rows are grouped by a key; everything that is not the key is a counter.
 | `ua_family` | string | `chrome`, `firefox`, `safari`, `curl`, `python`, `go`, `bot`, `unknown` |
 | `ua_matches_ja4` | boolean | whether the claimed client agrees with the TLS fingerprint |
 | `net` | string | the network prefix: `203.0.113.0/24`, `2001:db8::/48` |
+| `rule` | string | the `id` of the rule that decided; empty when none did; `own network` — a request from the own networks |
+| `shadow` | array of strings | the `id`s of rules in `shadow` mode that fired, alphabetically; an empty array when none did |
 
 **The counters:**
 
 | Field | Type | What |
 |---|---|---|
 | `requests` | integer | requests in total |
+| `with_cookie` | integer | of these, how many came with a cookie — presence only, the value is not read |
 | `blocked` | integer | rejected by a rule in `active` mode |
 | `shadowed` | integer | a rule in `shadow` mode fired |
 | `limited` | integer | rejected by the rate limiter |
@@ -86,9 +95,17 @@ claimed client was compared against the fingerprint base at the moment of
 the request. It cannot be computed after the fact in the cloud, because
 by then the base is already a different one.
 
-Three clarifications on what the node puts into the key and the
-counters:
+Clarifications on what the node puts into the key and the counters:
 
+- `rule` and `shadow` are in the key rather than counters beside it:
+  every request of a row was decided the same way, and what the row says
+  about a rule — cookies, paths, answers — is exact rather than a share
+  of a mix. That is what they are for: the cloud analyses the statistics
+  and tells the owner that a rule has started cutting people, and for
+  that it has to know which rule. An `id` is the owner's text, and the
+  rules engine does not limit it; it goes over the wire at most
+  64 characters long and without control characters, and `shadow` holds
+  at most 16 rules.
 - `domain` is only a domain the node serves. `Host` is sent by the
   client, and a scanner writes whatever it likes there. A name not named
   by a route, exactly or by a pattern (the default route `*` does not
@@ -106,8 +123,8 @@ counters:
 
 No more than **5000** rows in one window. Beyond that the 4999 largest
 by `requests` stay, and the rest are folded into one row whose `domain`,
-`ja4`, `h2`, `headers`, `ua_family` and `net` equal `"~rest"`, with the
-counters summed. Two key fields are not folded: `window` stays the start
+`ja4`, `h2`, `headers`, `ua_family`, `net` and `rule` equal `"~rest"` and
+whose `shadow` is `["~rest"]`, with the counters summed. Two key fields are not folded: `window` stays the start
 of the window and `ua_matches_ja4` is `true`. The schema requires a date
 and a boolean there, and `true` means the same as the node's default —
 "no grounds to believe the client is lying". The `uniq_paths` and
@@ -151,7 +168,10 @@ node itself.
       "ua_family": "chrome",
       "ua_matches_ja4": false,
       "net": "203.0.113.0/24",
+      "rule": "",
+      "shadow": ["watch-hosting-go"],
       "requests": 412,
+      "with_cookie": 0,
       "blocked": 0,
       "shadowed": 412,
       "limited": 0,

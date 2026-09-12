@@ -283,7 +283,8 @@ func TestBatchMatchesTheSchema(t *testing.T) {
 	fill(a, t0, MaxRows+2)
 	plain := at(t0.Add(time.Minute), "2001:db8::1")
 	plain.JA4, plain.H2, plain.UA, plain.Status = "", "", "", 0
-	plain.Decision = proxy.ActionBlock
+	plain.Decision, plain.Rule, plain.Cookie = proxy.ActionBlock, "block-hosting", true
+	plain.Shadow = []string{"watch-2", "watch-1"}
 	a.add(plain)
 	junk := at(t0.Add(time.Minute), "")
 	junk.Host = strings.Repeat("x", 300)

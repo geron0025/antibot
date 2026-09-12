@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/geron0025/antibot/internal/facts"
 	"github.com/geron0025/antibot/internal/proxy"
@@ -42,7 +43,7 @@ func TestNothingPersonalLeaves(t *testing.T) {
 	out := string(raw)
 	for _, secret := range []string{
 		"203.0.113.77", "Mozilla", "Chrome/128", "/account", "token=secret",
-		"session=abcdef", "authorization", "cookie",
+		"session=abcdef", "authorization", "user-agent,cookie",
 	} {
 		if strings.Contains(out, secret) {
 			t.Errorf("the aggregate carries %q:\n%s", secret, out)
@@ -108,7 +109,8 @@ func TestCounters(t *testing.T) {
 	add(func(r *facts.Request) {})
 	add(func(r *facts.Request) { r.Decision, r.Status, r.Bytes = proxy.ActionBlock, 403, 0 })
 	add(func(r *facts.Request) { r.Decision, r.Status, r.Bytes = proxy.ActionRatelimit, 429, 0 })
-	add(func(r *facts.Request) { r.Shadow = []string{"watch-1"}; r.Method = "HEAD"; r.Path = "/other" })
+	// A shadow rule would split the row: TestRulesSplitRows covers it.
+	add(func(r *facts.Request) { r.Method = "HEAD"; r.Path = "/other" })
 	add(func(r *facts.Request) { r.Method = "PROPFIND-MADE-UP"; r.IP = "203.0.113.2" })
 
 	rows := w.close()
@@ -116,7 +118,7 @@ func TestCounters(t *testing.T) {
 		t.Fatalf("%d rows, want one", len(rows))
 	}
 	got := rows[0]
-	if got.Requests != 5 || got.Blocked != 1 || got.Limited != 1 || got.Shadowed != 1 {
+	if got.Requests != 5 || got.Blocked != 1 || got.Limited != 1 || got.Shadowed != 0 {
 		t.Errorf("counters: %+v", got)
 	}
 	if got.Status["2xx"] != 3 || got.Status["4xx"] != 2 {
@@ -215,5 +217,80 @@ func TestLiveLimitBoundsMemory(t *testing.T) {
 	}
 	if len(rows) != MaxRows || sum != liveLimit+50 {
 		t.Errorf("%d rows with %d requests", len(rows), sum)
+	}
+}
+
+// The rule that decided and the shadow rules are in the key: every row
+// is decided one way, so its cookie count belongs to one rule.
+func TestRulesSplitRows(t *testing.T) {
+	w := newWindow(t0)
+	add := func(mut func(*facts.Request)) {
+		r := request("203.0.113.1", "shop.example.ru")
+		mut(&r)
+		w.add(keyOf(&r, nil), &r)
+	}
+	add(func(r *facts.Request) { r.Cookie = true })
+	add(func(r *facts.Request) { r.Decision, r.Rule, r.Status = proxy.ActionBlock, "block-hosting", 403 })
+	add(func(r *facts.Request) {
+		r.Decision, r.Rule, r.Status, r.Cookie = proxy.ActionBlock, "block-hosting", 403, true
+	})
+	add(func(r *facts.Request) { r.Shadow = []string{"watch-b", "watch-a"} })
+	add(func(r *facts.Request) { r.Shadow = []string{"watch-a", "watch-b", "watch-a"} })
+
+	rows := map[string]Row{}
+	for _, row := range w.close() {
+		shadow, _ := json.Marshal(row.Shadow)
+		rows[row.Rule+" "+string(shadow)] = row
+	}
+	if len(rows) != 3 {
+		t.Fatalf("%d rows, want 3: %+v", len(rows), rows)
+	}
+	if r := rows[" []"]; r.Requests != 1 || r.WithCookie != 1 {
+		t.Errorf("undecided: %+v", r)
+	}
+	if r := rows["block-hosting []"]; r.Requests != 2 || r.Blocked != 2 || r.WithCookie != 1 {
+		t.Errorf("block-hosting: %+v", r)
+	}
+	if r := rows[` ["watch-a","watch-b"]`]; r.Requests != 2 || r.Shadowed != 2 || r.WithCookie != 0 {
+		t.Errorf("shadow: %+v", r)
+	}
+}
+
+// A rule id is the owner's free text. It goes out clipped and without
+// control characters, and it cannot break the list it is part of.
+func TestRuleIDsAreCleaned(t *testing.T) {
+	r := request("203.0.113.1", "shop.example.ru")
+	r.Rule = strings.Repeat("я", 100) + "\xff"
+	r.Shadow = []string{"a\nb", "c"}
+	k := keyOf(&r, nil)
+	if n := utf8.RuneCountInString(k.Rule); n != maxRuleID || !utf8.ValidString(k.Rule) {
+		t.Errorf("rule of %d characters, valid %v", n, utf8.ValidString(k.Rule))
+	}
+	if raw, _ := json.Marshal(k.Shadow); string(raw) != `["ab","c"]` {
+		t.Errorf("shadow %s", raw)
+	}
+
+	// The key comes back from the saved state as it was.
+	var back Key
+	raw, _ := json.Marshal(k)
+	if err := json.Unmarshal(raw, &back); err != nil || back != k {
+		t.Errorf("state round trip: %v, %+v", err, back)
+	}
+
+	many := make([]string, 40)
+	for i := range many {
+		many[i] = fmt.Sprintf("watch-%02d", i)
+	}
+	r.Shadow = many
+	var list []string
+	raw, _ = json.Marshal(keyOf(&r, nil).Shadow)
+	json.Unmarshal(raw, &list)
+	if len(list) != maxShadow || list[0] != "watch-00" {
+		t.Errorf("shadow rules %v", list)
+	}
+
+	r.Shadow = nil
+	if raw, _ := json.Marshal(keyOf(&r, nil).Shadow); string(raw) != "[]" {
+		t.Errorf("no shadow rules is %s, want an empty array", raw)
 	}
 }

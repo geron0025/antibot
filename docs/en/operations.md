@@ -24,6 +24,7 @@ rule over history.
 | `ja3`, `ja3_hash`, `ja4`, `sni`, `alpn`, `tls`, `grease` | TLS |
 | `h2` | the HTTP/2 fingerprint |
 | `hdrs`, `hdrs_hash` | the header composition |
+| `cookie` | whether a cookie came — presence only, the value is not written |
 | `family`, `ua_ok`, `net_*` | from the fact set |
 | `decision` | `pass`, `allow`, `block`, `ratelimit` |
 | `rule` | which rule decided |

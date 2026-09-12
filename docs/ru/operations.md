@@ -24,6 +24,7 @@
 | `ja3`, `ja3_hash`, `ja4`, `sni`, `alpn`, `tls`, `grease` | TLS |
 | `h2` | отпечаток HTTP/2 |
 | `hdrs`, `hdrs_hash` | состав заголовков |
+| `cookie` | пришла ли кука — только наличие, значение не пишется |
 | `family`, `ua_ok`, `net_*` | из набора фактов |
 | `decision` | `pass`, `allow`, `block`, `ratelimit` |
 | `rule` | какое правило решило |

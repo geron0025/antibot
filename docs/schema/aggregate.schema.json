@@ -27,7 +27,7 @@
     "row": {
       "type": "object",
       "required": ["window", "domain", "ja4", "headers", "ua_family",
-                   "ua_matches_ja4", "net", "requests"],
+                   "ua_matches_ja4", "net", "rule", "shadow", "requests"],
       "additionalProperties": false,
       "properties": {
         "window": {"type": "string", "format": "date-time"},
@@ -41,7 +41,14 @@
         },
         "ua_matches_ja4": {"type": "boolean"},
         "net": {"type": "string", "maxLength": 64},
+        "rule": {"type": "string", "maxLength": 64},
+        "shadow": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {"type": "string", "maxLength": 64}
+        },
         "requests": {"$ref": "#/$defs/counter"},
+        "with_cookie": {"$ref": "#/$defs/counter"},
         "blocked": {"$ref": "#/$defs/counter"},
         "shadowed": {"$ref": "#/$defs/counter"},
         "limited": {"$ref": "#/$defs/counter"},

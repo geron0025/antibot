@@ -29,7 +29,7 @@ func TestKindsMatchValues(t *testing.T) {
 		Proto: "HTTP/2.0", UA: "curl", Referer: "https://example.ru/",
 		JA3: "ja3", JA3Hash: "hash", JA4: "t13d", SNI: "example.ru",
 		ALPN: "h2", TLSVersion: "1.3", GREASE: true, H2: "h2fp",
-		Headers: "host,ua", HeadersHash: "hash", Family: "chrome",
+		Headers: "host,ua", HeadersHash: "hash", Cookie: true, Family: "chrome",
 		UAMatchesJA4: true, NetClass: "hosting", NetOwner: "Hetzner",
 		NetCountry: "DE", NetProtected: true, NetAge: 42,
 	}

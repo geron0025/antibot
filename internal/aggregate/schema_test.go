@@ -113,7 +113,8 @@ func validate(root, s map[string]any, v any, at string) []string {
 				}
 			}
 		case "items":
-			for i, item := range v.([]any) {
+			arr, _ := v.([]any)
+			for i, item := range arr {
 				errs = append(errs, validate(root, rule.(map[string]any), item, fmt.Sprintf("%s[%d]", at, i))...)
 			}
 		default:
@@ -174,7 +175,7 @@ func TestSchemaCheckerCatches(t *testing.T) {
 		json.Unmarshal([]byte(`{"format":1,"batch":"12345678","node":"8f14e45fceea167a5a36dedd4bea2543",
 			"sent_at":"2026-09-08T17:20:00Z","rows":[{"window":"2026-09-08T17:00:00Z",
 			"domain":"a","ja4":"","headers":"","ua_family":"chrome","ua_matches_ja4":true,
-			"net":"","requests":1,"status":{"2xx":1}}]}`), &doc)
+			"net":"","rule":"","shadow":[],"requests":1,"status":{"2xx":1}}]}`), &doc)
 		return doc
 	}
 	row := func(doc map[string]any) map[string]any {
@@ -197,6 +198,16 @@ func TestSchemaCheckerCatches(t *testing.T) {
 		"missing required": func(d map[string]any) { delete(row(d), "net") },
 		"bad node":         func(d map[string]any) { d["node"] = "NODE" },
 		"wrong format":     func(d map[string]any) { d["format"] = 2.0 },
+		"missing rule":     func(d map[string]any) { delete(row(d), "rule") },
+		"long rule":        func(d map[string]any) { row(d)["rule"] = strings.Repeat("r", 65) },
+		"shadow not array": func(d map[string]any) { row(d)["shadow"] = "watch-1" },
+		"too many shadow": func(d map[string]any) {
+			list := make([]any, maxShadow+1)
+			for i := range list {
+				list[i] = "watch"
+			}
+			row(d)["shadow"] = list
+		},
 		"too many rows": func(d map[string]any) {
 			rows := make([]any, MaxRows+1)
 			for i := range rows {

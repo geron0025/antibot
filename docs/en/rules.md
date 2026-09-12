@@ -62,6 +62,7 @@ antibot rules fields
 | `grease` | bool | the client sent GREASE |
 | `h2` | string | the HTTP/2 fingerprint |
 | `headers`, `headers_hash` | string | the header composition |
+| `cookie` | bool | the request came with a cookie — presence only |
 | `family` | string | **from the fact set**: chrome, curl, go… |
 | `ua_matches_ja4` | bool | **from the fact set** |
 | `network.class` | string | **from the fact set**: hosting, isp, mobile… |
@@ -77,6 +78,13 @@ The exception is `ua_matches_ja4`: it is a bool and cannot be empty. Its
 default is `true`, "there are no grounds to say the client is lying".
 Otherwise a rule like `ua_matches_ja4 == false` would block every visitor
 on a node with no bases.
+
+`cookie` is the main sign of "this is a person": a returning visitor
+sends a cookie, a program with a clean context never does. The node
+neither reads nor writes the cookie's value. The field appeared on
+12 September 2026; a log written before the update does not have it, and
+`antibot replay` treats it as false there — a rule `cookie == false`
+shows an inflated count on old history.
 
 ### Operators
 
