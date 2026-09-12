@@ -400,6 +400,37 @@ func (s *Server) toggleRule(w http.ResponseWriter, r *http.Request, who string) 
 	http.Redirect(w, r, "/rules", http.StatusSeeOther)
 }
 
+// setRuleMode moves a rule between shadow and active. It is the step that
+// puts a rule to work: the node never takes it by itself, and neither
+// does a proposal from the cloud.
+func (s *Server) setRuleMode(w http.ResponseWriter, r *http.Request, who string) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "invalid form", http.StatusBadRequest)
+		return
+	}
+	if !s.checkCSRF(r) {
+		http.Error(w, "the request did not come from this page", http.StatusForbidden)
+		return
+	}
+	if s.o.Rules == nil {
+		http.Error(w, "the rules are not connected", http.StatusNotFound)
+		return
+	}
+
+	id := r.PostFormValue("id")
+	mode := r.PostFormValue("mode")
+
+	if err := s.o.Rules.SetMode(id, mode); err != nil {
+		s.o.Log.Error("the rule's mode was not changed", "rule", id, "mode", mode, "who", who, "err", err)
+		http.Redirect(w, r, "/rules?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		return
+	}
+
+	s.o.Log.Info("a rule's mode was changed from the admin UI",
+		"rule", id, "mode", mode, "who", who, "address", clientAddr(r))
+	http.Redirect(w, r, "/rules", http.StatusSeeOther)
+}
+
 // --- helpers ---
 
 func (s *Server) common(user, section string, period time.Duration, message string) pageCommon {

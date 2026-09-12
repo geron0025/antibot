@@ -210,14 +210,16 @@ antibot rules list                      # в порядке применения
 antibot rules add < rule.json           # с проверкой до записи
 antibot rules enable ID
 antibot rules disable ID                # выключить, не удаляя
+antibot rules mode ID active            # из shadow в active
+antibot rules mode ID shadow            # и обратно
 antibot rules remove ID
 antibot rules check                     # проверить файл, ничего не меняя
 antibot rules fields                    # поля и операторы
 ```
 
 `enable` и `disable` переключают только `enabled`, режим они не трогают.
-Перевод из `shadow` в `active` — правка `mode` в самом `rules.json`:
-отдельной команды для этого нет.
+Режим переключает `mode` — той же проверкой и той же атомарной записью.
+То же делает кнопка на странице правил в админке ([admin.md](admin.md)).
 
 Правку удобно сначала сделать в черновике и прогнать его по истории, а
 в рабочий файл положить уже проверенное:

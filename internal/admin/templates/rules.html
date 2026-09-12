@@ -4,8 +4,9 @@
 
 <p class="dim">In the order of application: the first rule that fires in
 <code>active</code> mode wins. Observations (<code>shadow</code>) do not stop the
-walk. A rule can be enabled and disabled here; conditions are composed and
-edited with <code>antibot rules</code>.</p>
+walk. A rule can be enabled and disabled here, and moved between
+<code>shadow</code> and <code>active</code>; conditions are composed and edited
+with <code>antibot rules</code>.</p>
 
 <table>
   <thead>
@@ -23,7 +24,20 @@ edited with <code>antibot rules</code>.</p>
         <a href="/events?rule={{.Rule.ID}}">{{.Rule.ID}}</a>
         {{if .Rule.Name}}<div class="dim">{{.Rule.Name}}</div>{{end}}
       </td>
-      <td>{{.Rule.Mode}}</td>
+      <td>
+        {{.Rule.Mode}}
+        <form method="post" action="/rules/mode">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <input type="hidden" name="id" value="{{.Rule.ID}}">
+          {{if eq .Rule.Mode "active"}}
+          <input type="hidden" name="mode" value="shadow">
+          <button type="submit">back to shadow</button>
+          {{else}}
+          <input type="hidden" name="mode" value="active">
+          <button type="submit">to active</button>
+          {{end}}
+        </form>
+      </td>
       <td>{{.Rule.Action.Type}}</td>
       <td class="value">{{range .Rule.Scope}}{{.}} {{end}}</td>
       <td class="num">{{if .Enabled}}{{.Matched}}{{else}}<span class="dim">disabled</span>{{end}}</td>

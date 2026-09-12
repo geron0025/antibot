@@ -112,8 +112,9 @@ times it fired over the period and from how many addresses; the numbers
 come from the log rather than from in-memory counters, because after a
 restart the counters reset while the log stays.
 
-The enable/disable button is the only thing that can be done to a rule
-here.
+Two things can be done to a rule here: enable or disable it, and move it
+from `shadow` to `active` and back. The count of firings next to it —
+in shadow too — is what the move is based on.
 
 ### Domains
 
@@ -178,8 +179,9 @@ domain's row.
 
 ## The writing actions
 
-There are four and no others: enable or disable a rule, add a domain,
-remove a domain, upload a certificate.
+There are five and no others: enable or disable a rule, move it between
+`shadow` and `active`, add a domain, remove a domain, upload a
+certificate.
 
 ### A rule: enable and disable
 
@@ -201,6 +203,24 @@ log: a change of protection does not happen anonymously.
 level=INFO msg="a rule was toggled from the admin UI"
   rule=block-hosting enabled=false who=owner address=127.0.0.1
 ```
+
+### A rule: from `shadow` to `active`
+
+A rule is born in `shadow`: it only marks events and cuts nobody off.
+Moving it to `active` is the step after which it starts deciding, and a
+human takes it after looking at whom it touches — the same page shows how
+many times it fired in shadow over the period. The same button brings a
+rule back to `shadow` if at work it touched the wrong people. The write
+path is the same as `antibot rules mode` and the toggle; the node's log
+says who moved what.
+
+```
+level=INFO msg="a rule's mode was changed from the admin UI"
+  rule=block-hosting mode=active who=owner address=127.0.0.1
+```
+
+A proposal from the cloud lands in `shadow` and never takes this step by
+itself.
 
 ### Domains and certificates
 
@@ -243,7 +263,7 @@ reread on the fly, like the rules.
   logged in with;
 - **`X-Robots-Tag: noindex`** — the admin UI shows the events of somebody
   else's site, it has no business in search results;
-- **the write paths are listed**: `POST /rules/toggle`, `/domains/add`,
+- **the write paths are listed**: `POST /rules/toggle`, `/rules/mode`, `/domains/add`,
   `/domains/remove`, `/domains/certificate`. Any method other than GET is
   not handled on the pages themselves;
 - **an upload is capped at a megabyte** — two PEM files with room to
@@ -281,4 +301,4 @@ second after startup, having managed to accept requests.
 
 Accepting rule proposals from the update service will become one more
 writing action when it appears; the rule will land in `shadow`, and
-enabling it will still be a human's job.
+moving it to `active` will still be a human's job — with the same button.

@@ -304,6 +304,44 @@ func TestToggle(t *testing.T) {
 	}
 }
 
+// Moving between shadow and active goes through the same write: a shadow
+// rule only marks the event, an active one decides.
+func TestSetMode(t *testing.T) {
+	path := tempFile(t, sampleFile)
+	s, err := Open(path, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := s.SetMode("block-hosting", Shadow); err != nil {
+		t.Fatal(err)
+	}
+	r := facts.Request{Host: "example.ru", NetClass: "hosting"}
+	if d := s.Decide(&r); d.Action != proxy.ActionPass || len(r.Shadow) != 1 {
+		t.Errorf("a shadow rule decided: %+v, shadow %v", d, r.Shadow)
+	}
+
+	if err := s.SetMode("block-hosting", Active); err != nil {
+		t.Fatal(err)
+	}
+	r2 := facts.Request{Host: "example.ru", NetClass: "hosting"}
+	if d := s.Decide(&r2); d.Action != proxy.ActionBlock {
+		t.Errorf("an active rule does not decide: %+v", d)
+	}
+
+	list, err := Read(path)
+	if err != nil || len(list) != 1 || list[0].Mode != Active {
+		t.Errorf("the file says %+v, %v", list, err)
+	}
+
+	if err := s.SetMode("block-hosting", "loud"); err == nil {
+		t.Error("a made-up mode passed")
+	}
+	if err := s.SetMode("no such rule", Active); err == nil {
+		t.Error("a non-existent rule passed silently")
+	}
+}
+
 // The file may have been edited by hand while the admin UI was open:
 // writing over a stale snapshot would silently undo somebody else's
 // changes.

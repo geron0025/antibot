@@ -126,9 +126,9 @@ right away.
    `antibot admin passwd NAME`, then [admin.md](admin.md).
 2. A day later write your first rule — in `shadow` mode, always — and
    replay it over the accumulated log: [rules.md](rules.md).
-3. Once you see whom it touches, move it to `active`: change `mode` in
-   `rules.json` and validate the file with `antibot rules check`. The
-   node rereads it by itself, without a restart.
+3. Once you see whom it touches, move it to `active` — with the button on
+   the rules page of the admin UI or with `antibot rules mode ID active`.
+   The node applies it at once, without a restart.
 
 In that order. An antibot whose work is invisible never gets put into
 blocking mode — and rightly so.

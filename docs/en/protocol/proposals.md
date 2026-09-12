@@ -194,8 +194,9 @@ The owner presses the button in the admin UI. The node:
 
 After that the rule lives like any other: the owner watches it in
 `shadow`, runs `antibot replay` and moves it to `active` **themselves**,
-by editing `mode` in `rules.json`; the node rereads the file without a
-restart. Moving to `active` is not part of this channel.
+with the button on the rules page or `antibot rules mode`; the node
+applies it without a restart. Moving to `active` is not part of this
+channel.
 
 ### Declining
 

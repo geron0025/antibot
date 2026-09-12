@@ -36,6 +36,8 @@ func rulesCommand(args []string, log *slog.Logger) error {
 		return rulesToggle(args[1:], true, log)
 	case "disable":
 		return rulesToggle(args[1:], false, log)
+	case "mode":
+		return rulesMode(args[1:], log)
 	case "remove":
 		return rulesRemove(args[1:], log)
 	case "check":
@@ -55,12 +57,14 @@ func rulesUsage() {
   add [-config FILE] [-file FILE] add a rule from JSON (from stdin by default)
   enable ID [-config FILE]        enable a rule
   disable ID [-config FILE]       disable a rule
+  mode ID shadow|active [-config FILE]
+                                  move a rule between shadow and active
   remove ID [-config FILE]        delete a rule
   check [-config FILE]            validate the rules file, changing nothing
   fields                          list the fields available to conditions
 
 A rule is added in shadow mode — first look at whom it touches:
-antibot replay -rules ... Moving it to active is an edit of mode.
+antibot replay -rules ... Then: antibot rules mode ID active.
 `)
 }
 
@@ -205,6 +209,29 @@ func rulesToggle(args []string, enable bool, log *slog.Logger) error {
 		state = "disabled"
 	}
 	fmt.Printf("the rule %s is %s\n", id, state)
+	return nil
+}
+
+func rulesMode(args []string, log *slog.Logger) error {
+	if len(args) < 2 {
+		return fmt.Errorf("usage: antibot rules mode ID %s|%s", rules.Shadow, rules.Active)
+	}
+	id, mode := args[0], args[1]
+
+	flags := flag.NewFlagSet("rules mode", flag.ExitOnError)
+	file, err := rulesFilePath(flags, args[2:])
+	if err != nil {
+		return err
+	}
+
+	store, err := rules.Open(file, nil, log)
+	if err != nil {
+		return err
+	}
+	if err := store.SetMode(id, mode); err != nil {
+		return err
+	}
+	fmt.Printf("the rule %s is in %s\n", id, mode)
 	return nil
 }
 

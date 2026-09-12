@@ -378,6 +378,57 @@ func TestTogglingWithoutALoginAndWithoutAToken(t *testing.T) {
 	}
 }
 
+// Moving a rule to shadow and back to active: the same file write, the
+// same token check, and a made-up mode is refused with a message.
+func TestMovingARuleBetweenShadowAndActive(t *testing.T) {
+	s, dir := newServer(t)
+	cookies := logIn(t, s)
+	setMode := func(mode, csrf string) int {
+		form := url.Values{"id": {"block-curl"}, "mode": {mode}}
+		if csrf != "" {
+			form.Set("csrf", csrf)
+		}
+		req := httptest.NewRequest("POST", "/rules/mode", strings.NewReader(form.Encode()))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		for _, c := range cookies {
+			req.AddCookie(c)
+		}
+		resp := httptest.NewRecorder()
+		s.Handler().ServeHTTP(resp, req)
+		return resp.Code
+	}
+	modeInFile := func() string {
+		list, err := rules.Read(filepath.Join(dir, "rules.json"))
+		if err != nil || len(list) != 1 {
+			t.Fatalf("rules %+v, %v", list, err)
+		}
+		return list[0].Mode
+	}
+
+	if code := setMode(rules.Shadow, tokenFrom(cookies)); code != http.StatusSeeOther {
+		t.Fatalf("to shadow returned %d", code)
+	}
+	if got := modeInFile(); got != rules.Shadow {
+		t.Fatalf("the file says %q", got)
+	}
+	if code := setMode(rules.Active, tokenFrom(cookies)); code != http.StatusSeeOther {
+		t.Fatalf("to active returned %d", code)
+	}
+	if got := modeInFile(); got != rules.Active {
+		t.Fatalf("the file says %q", got)
+	}
+
+	if code := setMode(rules.Shadow, ""); code != http.StatusForbidden {
+		t.Errorf("without a token the mode change returned %d, want 403", code)
+	}
+	if code := setMode("loud", tokenFrom(cookies)); code != http.StatusSeeOther {
+		t.Errorf("a made-up mode returned %d", code)
+	}
+	if got := modeInFile(); got != rules.Active {
+		t.Errorf("after refusals the file says %q", got)
+	}
+}
+
 // A non-existent rule yields a message, not silence and not a panic.
 func TestTogglingANonExistentRule(t *testing.T) {
 	s, _ := newServer(t)

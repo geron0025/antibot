@@ -238,6 +238,7 @@ func (s *Server) Handler() http.Handler {
 	// the same validation and the same atomic replacement as the
 	// commands, and lands in the node's log with a name and an address.
 	mux.Handle("POST /rules/toggle", s.requireLogin(s.toggleRule))
+	mux.Handle("POST /rules/mode", s.requireLogin(s.setRuleMode))
 	mux.Handle("POST /domains/add", s.requireLogin(s.addDomain))
 	mux.Handle("POST /domains/remove", s.requireLogin(s.removeDomain))
 	mux.Handle("POST /domains/certificate", s.requireLogin(s.uploadCertificate))

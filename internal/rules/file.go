@@ -237,12 +237,30 @@ func (s *Store) Path() string { return s.path }
 
 // Toggle enables or disables a rule.
 //
-// The only change to the rules available from outside the command line:
-// the admin UI is allowed to enable and disable what has already been
-// written, but not to compose anything new. It goes through the same
-// write and the same validation as `antibot rules` — there is no second
-// path to rules.json.
+// Toggle and SetMode are the changes to the rules available from outside
+// the command line: the admin UI may enable, disable and move between
+// shadow and active what has already been written, but not compose
+// anything new. Both go through the same write and the same validation
+// as `antibot rules` — there is no second path to rules.json.
 func (s *Store) Toggle(id string, enable bool) error {
+	return s.change(id, func(r *Rule) {
+		value := enable
+		r.Enabled = &value
+	})
+}
+
+// SetMode moves a rule between shadow and active. A rule is born in
+// shadow; this is the step a human takes after looking at whom it
+// touches — and the step a proposal from the cloud never takes.
+func (s *Store) SetMode(id, mode string) error {
+	if mode != Shadow && mode != Active {
+		return fmt.Errorf("mode %q: it is %s or %s", mode, Shadow, Active)
+	}
+	return s.change(id, func(r *Rule) { r.Mode = mode })
+}
+
+// change edits one rule and writes the file.
+func (s *Store) change(id string, edit func(*Rule)) error {
 	// The file is read anew rather than taken from the in-memory
 	// snapshot: it may have been edited by hand, and writing over a stale
 	// snapshot would silently undo somebody else's changes.
@@ -254,8 +272,7 @@ func (s *Store) Toggle(id string, enable bool) error {
 	found := false
 	for i := range list {
 		if list[i].ID == id {
-			value := enable
-			list[i].Enabled = &value
+			edit(&list[i])
 			found = true
 		}
 	}

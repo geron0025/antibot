@@ -215,14 +215,17 @@ antibot rules list                      # in the order of application
 antibot rules add < rule.json           # validated before the write
 antibot rules enable ID
 antibot rules disable ID                # switch off without deleting
+antibot rules mode ID active            # from shadow to active
+antibot rules mode ID shadow            # and back
 antibot rules remove ID
 antibot rules check                     # validate the file, change nothing
 antibot rules fields                    # fields and operators
 ```
 
 `enable` and `disable` switch only `enabled`; they do not touch the mode.
-Moving a rule from `shadow` to `active` is an edit of `mode` in
-`rules.json` itself: there is no separate command for it.
+The mode is switched by `mode` — with the same validation and the same
+atomic write. The button on the rules page of the admin UI does the same
+([admin.md](admin.md)).
 
 It is convenient to make the edit in a draft first, replay the draft over
 history, and put into the live file only what has been checked:
