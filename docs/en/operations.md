@@ -171,8 +171,18 @@ and the unsent batches.
 
 ```bash
 docker pull ghcr.io/geron0025/antibot:latest
-docker restart antibot
+docker rm -f antibot
+# and the same docker run command as at installation — install.md
 ```
+
+`docker restart` will not do here: it starts the same container with the
+image the container was created from, and the downloaded version is not
+applied. The container is recreated — with the command from
+[install.md](install.md), or with `docker compose up -d` if the node runs
+under compose.
+
+`latest` follows the newest release. To pin a version, use the release
+tag: `ghcr.io/geron0025/antibot:v0.2.0`; `0.2.0` and `0.2` exist too.
 
 A restart logs everybody out of the admin UI (the sessions live in
 memory) and resets the rate limiter's counters. That is deliberate.

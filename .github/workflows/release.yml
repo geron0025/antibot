@@ -56,11 +56,15 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # {{version}} drops the "v" of the git tag. The image is also tagged
+      # with the release's own name, so that the address copied from the
+      # release page — :v0.2.0 — exists.
       - id: meta
         uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
+            type=semver,pattern=v{{version}}
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
