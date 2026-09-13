@@ -185,6 +185,35 @@ two share their code.
 If the event log was not read, the answer is a `500` rather than rules
 with zeros: a program would read the zeros as "never fired".
 
+## Alerts — `GET /api/v1/alerts`
+
+What the admin UI's "Alerts" page shows: every trigger with the
+thresholds in force and what is firing — and the messages since the
+start with what became of each delivery. For the owner's monitoring this
+can replace the delivery command: it asks for itself. A `read` token.
+With the alerts off (`alerts.enabled: false`) — a `404`.
+
+```json
+{
+  "triggers": [
+    {"kind": "site_down", "title": "the site does not answer",
+     "when": "a 5xx of the site in 50% of at least 20 requests that reached it, over 5m",
+     "firing": [{"id": "site_down", "text": "the site answers with errors: …",
+                 "since": "2026-09-13T12:05:00Z", "clearing": false}]}
+  ],
+  "history": [
+    {"id": "site_down", "kind": "site_down", "state": "firing", "text": "…",
+     "host": "web-1", "time": "2026-09-13T12:05:00Z",
+     "delivery": "handed to the command in 412ms"}
+  ]
+}
+```
+
+`clearing: true` — the condition is gone, and the node waits a whole
+window before saying "back to normal". The history lives in memory and
+starts anew with a restart. What is checked and when a message comes —
+[alerts.md](alerts.md).
+
 ## Replaying a draft — `POST /api/v1/replay`
 
 What `antibot replay` does, for one rule: the draft is run over the log
@@ -308,6 +337,7 @@ The machine-readable schemas of the answers lie next to the protocol's:
 [api-rules](../schema/api-rules.schema.json) — with `change`, the answer
 to a change of a rule, in it too,
 [api-replay](../schema/api-replay.schema.json),
+[api-alerts](../schema/api-alerts.schema.json),
 [api-error](../schema/api-error.schema.json). The
 `TestAPIAnswersMatchTheSchemas` test checks the node's real answers
 against them, so the schema and the code do not drift apart. A field the

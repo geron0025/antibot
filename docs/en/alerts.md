@@ -180,4 +180,5 @@ level=ERROR msg="the alert command failed" alert=site_down state=firing err="exi
   firing, and the failed one is visible in the log and on the page;
 - **a history on disk**: the page's history lives in memory and starts
   anew with a restart; every message is in the node's log;
-- alerts in the [API](api.md) — not yet.
+- a channel of their own for monitoring: it asks for itself —
+  [`GET /api/v1/alerts`](api.md) returns what the "Alerts" page shows.

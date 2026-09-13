@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/geron0025/antibot/internal/alerts"
 	"github.com/geron0025/antibot/internal/facts"
 	"github.com/geron0025/antibot/internal/replay"
 	"github.com/geron0025/antibot/internal/rules"
@@ -47,6 +48,7 @@ func (s *Server) apiRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/summary", s.requireToken(ScopeRead, s.apiSummary))
 	mux.Handle("GET /api/v1/events", s.requireToken(ScopeRead, s.apiEvents))
 	mux.Handle("GET /api/v1/rules", s.requireToken(ScopeRead, s.apiRules))
+	mux.Handle("GET /api/v1/alerts", s.requireToken(ScopeRead, s.apiAlerts))
 
 	// A replay writes nothing, so reading is enough for it: a monitoring
 	// system may ask whom a draft would touch without being able to put
@@ -223,6 +225,60 @@ func (s *Server) apiRules(w http.ResponseWriter, r *http.Request, _ *Token) {
 	apiRespond(w, http.StatusOK, apiRulesAnswer{
 		From: now.Add(-period).UTC(), To: now.UTC(), Events: events, Rules: rows,
 	})
+}
+
+// --- alerts ---
+
+type apiAlertFiring struct {
+	ID       string    `json:"id"`
+	Text     string    `json:"text"`
+	Since    time.Time `json:"since"`
+	Clearing bool      `json:"clearing"`
+}
+
+type apiAlertTrigger struct {
+	Kind   string           `json:"kind"`
+	Title  string           `json:"title"`
+	When   string           `json:"when"`
+	Firing []apiAlertFiring `json:"firing"`
+}
+
+type apiAlertMessage struct {
+	alerts.Alert
+	Delivery string `json:"delivery"`
+}
+
+type apiAlertsAnswer struct {
+	Triggers []apiAlertTrigger `json:"triggers"`
+	History  []apiAlertMessage `json:"history"`
+}
+
+// apiAlerts is the alerts page for a program: every trigger with its
+// thresholds and what fires now, and the messages since the start with
+// what became of each delivery. A monitoring system that asks this does
+// not need the node's command at all.
+func (s *Server) apiAlerts(w http.ResponseWriter, r *http.Request, _ *Token) {
+	if s.o.Alerts == nil {
+		apiFail(w, http.StatusNotFound, "the alerts are off: alerts.enabled is false")
+		return
+	}
+	firing := s.o.Alerts.Firing()
+	answer := apiAlertsAnswer{Triggers: []apiAlertTrigger{}, History: []apiAlertMessage{}}
+	for _, t := range s.o.Alerts.Triggers() {
+		trigger := apiAlertTrigger{Kind: t.Kind, Title: t.Title, When: t.When, Firing: []apiAlertFiring{}}
+		for _, f := range firing {
+			if f.Kind == t.Kind {
+				trigger.Firing = append(trigger.Firing, apiAlertFiring{
+					ID: f.ID, Text: f.Text, Since: f.Since.UTC(), Clearing: f.Clearing})
+			}
+		}
+		answer.Triggers = append(answer.Triggers, trigger)
+	}
+	for _, e := range s.o.Alerts.History() {
+		e.Alert.Time = e.Alert.Time.UTC()
+		answer.History = append(answer.History, apiAlertMessage{Alert: e.Alert, Delivery: e.Delivery})
+	}
+	apiRespond(w, http.StatusOK, answer)
 }
 
 // --- replaying a draft ---

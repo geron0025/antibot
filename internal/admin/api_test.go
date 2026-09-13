@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/geron0025/antibot/internal/alerts"
 	"github.com/geron0025/antibot/internal/facts"
 	"github.com/geron0025/antibot/internal/schemacheck"
 )
@@ -324,6 +325,54 @@ func TestAPIWritesRules(t *testing.T) {
 	if !strings.Contains(list, "block-curl") || !strings.Contains(list, "block-wget") ||
 		strings.Contains(list, "watch-python") {
 		t.Fatalf("after the changes: %s", list)
+	}
+}
+
+// The alerts page for a program: every trigger, what fires now, and the
+// messages with their delivery — all as the schema says.
+func TestAPIAlerts(t *testing.T) {
+	s, read, _ := newAPIServer(t)
+	if rec := call(t, s, "GET", "/api/v1/alerts", read, ""); rec.Code != http.StatusNotFound {
+		t.Fatalf("with the alerts off: %d %s", rec.Code, rec.Body)
+	}
+
+	s.o.Alerts = alerts.New(alerts.Options{
+		Window: 5 * time.Minute, SiteErrorShare: 0.5, SiteMinRequests: 20, SpikeFactor: 5,
+		SpikeMinRequests: 500, SpikeMinBlocked: 200, RuleMinMatches: 50, CertDays: 14,
+		Timeout: time.Second,
+	})
+	now := time.Now()
+	for i := 0; i < 30; i++ {
+		s.o.Alerts.Write(facts.Request{Time: now.Add(-2 * time.Minute), Decision: "pass", Status: 502})
+	}
+	s.o.Alerts.Check(now)
+
+	rec := call(t, s, "GET", "/api/v1/alerts", read, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	if errs := schemacheck.Validate(schema(t, "api-alerts"), decode(t, rec)); len(errs) > 0 {
+		t.Fatalf("%v\n%s", errs, rec.Body)
+	}
+	var answer struct {
+		Triggers []struct {
+			Kind   string `json:"kind"`
+			Firing []struct {
+				ID string `json:"id"`
+			} `json:"firing"`
+		} `json:"triggers"`
+		History []struct {
+			State    string `json:"state"`
+			Delivery string `json:"delivery"`
+		} `json:"history"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &answer)
+	if len(answer.Triggers) != 9 || answer.Triggers[0].Kind != alerts.SiteDown ||
+		len(answer.Triggers[0].Firing) != 1 || answer.Triggers[0].Firing[0].ID != alerts.SiteDown {
+		t.Fatalf("%s", rec.Body)
+	}
+	if len(answer.History) != 1 || answer.History[0].State != alerts.Firing {
+		t.Fatalf("%s", rec.Body)
 	}
 }
 

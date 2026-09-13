@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antibot.dev/schema/api-alerts/1",
+  "title": "Оповещения ноды: GET /api/v1/alerts",
+  "type": "object",
+  "required": ["triggers", "history"],
+  "additionalProperties": false,
+  "properties": {
+    "triggers": {
+      "description": "Каждый триггер с порогами, которые действуют сейчас, и тем, что горит.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["kind", "title", "when", "firing"],
+        "additionalProperties": false,
+        "properties": {
+          "kind": {"$ref": "#/$defs/kind"},
+          "title": {"type": "string", "minLength": 1},
+          "when": {"type": "string", "minLength": 1},
+          "firing": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["id", "text", "since", "clearing"],
+              "additionalProperties": false,
+              "properties": {
+                "id": {"type": "string", "minLength": 1},
+                "text": {"type": "string"},
+                "since": {"type": "string", "format": "date-time"},
+                "clearing": {"description": "условие ушло, нода ждёт окно, прежде чем сказать «прошло»", "type": "boolean"}
+              }
+            }
+          }
+        }
+      }
+    },
+    "history": {
+      "description": "Сообщения с начала работы ноды, новые сверху; то же, что получает команда, и чем кончилась доставка.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "kind", "state", "text", "host", "time", "delivery"],
+        "additionalProperties": false,
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "kind": {"$ref": "#/$defs/kind"},
+          "state": {"enum": ["firing", "resolved", "test"]},
+          "text": {"type": "string"},
+          "host": {"type": "string"},
+          "time": {"type": "string", "format": "date-time"},
+          "delivery": {"type": "string"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "kind": {
+      "enum": ["site_down", "rule_spike", "requests_spike", "blocked_spike", "cert_expiring",
+               "events_dropped", "disk_low", "facts_stale", "outbox_stuck", "test"]
+    }
+  }
+}

@@ -177,6 +177,35 @@ UTF-8, ошибка — `{"error": "…"}` с причиной словами.
 Если журнал событий не прочитался, ответ — `500`, а не правила с нулями:
 программа прочитала бы нули как «не сработало ни разу».
 
+## Оповещения — `GET /api/v1/alerts`
+
+То, что показывает страница «Alerts» админки: каждый триггер с порогами,
+которые действуют сейчас, что горит — и сообщения с начала работы с тем,
+чем кончилась доставка. Мониторингу владельца это может заменить команду
+доставки: он спрашивает сам. Токен `read`. Оповещения выключены
+(`alerts.enabled: false`) — `404`.
+
+```json
+{
+  "triggers": [
+    {"kind": "site_down", "title": "the site does not answer",
+     "when": "a 5xx of the site in 50% of at least 20 requests that reached it, over 5m",
+     "firing": [{"id": "site_down", "text": "the site answers with errors: …",
+                 "since": "2026-09-13T12:05:00Z", "clearing": false}]}
+  ],
+  "history": [
+    {"id": "site_down", "kind": "site_down", "state": "firing", "text": "…",
+     "host": "web-1", "time": "2026-09-13T12:05:00Z",
+     "delivery": "handed to the command in 412ms"}
+  ]
+}
+```
+
+`clearing: true` — условие ушло, и нода ждёт целое окно, прежде чем
+сказать «прошло». История живёт в памяти и начинается заново с
+перезапуском. Что проверяется и когда приходит сообщение —
+[alerts.md](alerts.md).
+
 ## Прогон черновика — `POST /api/v1/replay`
 
 То же, что `antibot replay`, для одного правила: черновик прогоняется по
@@ -295,6 +324,7 @@ level=INFO msg="a rule's mode was changed through the API"
 [api-rules](../schema/api-rules.schema.json) — там же `change`, ответ на
 изменение правила,
 [api-replay](../schema/api-replay.schema.json),
+[api-alerts](../schema/api-alerts.schema.json),
 [api-error](../schema/api-error.schema.json). Тест
 `TestAPIAnswersMatchTheSchemas` сверяет с ними настоящие ответы ноды, так
 что схема и код не расходятся. Лишнее поле схема не пропускает.
