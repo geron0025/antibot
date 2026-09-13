@@ -246,6 +246,27 @@ func TestLogOutIsInTheAccountMenu(t *testing.T) {
 	}
 }
 
+// On a phone the menu folds into a burger: the same links, the current
+// page marked, and its name next to the icon.
+func TestTheMenuFoldsIntoABurger(t *testing.T) {
+	s, _ := newServer(t)
+	cookies := logIn(t, s)
+
+	body, _ := io.ReadAll(get(t, s, "/rules", cookies).Body)
+	page := string(body)
+	start := strings.Index(page, `<details class="burger">`)
+	if start < 0 {
+		t.Fatal("no burger in the header")
+	}
+	burger := page[start : start+strings.Index(page[start:], "</details>")]
+	for _, want := range []string{"<span>Rules</span>", `href="/"`, `href="/events"`,
+		`href="/rules" class="current"`, `href="/domains"`, `href="/settings"`} {
+		if !strings.Contains(burger, want) {
+			t.Errorf("the burger has no %q", want)
+		}
+	}
+}
+
 // Password guessing must hit a limit.
 func TestGuessingHitsTheLimit(t *testing.T) {
 	s, _ := newServer(t)

@@ -9,14 +9,14 @@
 <body>
 <header>
   <div class="inner">
-    <nav>
-      <a href="/" {{if eq .Section "overview"}}class="current"{{end}}>Overview</a>
-      <a href="/events" {{if eq .Section "events"}}class="current"{{end}}>Events</a>
-      <a href="/rules" {{if eq .Section "rules"}}class="current"{{end}}>Rules</a>
-      <a href="/domains" {{if eq .Section "domains"}}class="current"{{end}}>Domains</a>
-      {{if .APITokens}}<a href="/tokens" {{if eq .Section "tokens"}}class="current"{{end}}>API tokens</a>{{end}}
-      <a href="/settings" {{if eq .Section "settings"}}class="current"{{end}}>Settings</a>
-    </nav>
+    <details class="burger">
+      <summary aria-label="Menu" title="Menu">
+        <svg class="burger-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+        <span>{{title .Section}}</span>
+      </summary>
+      <nav class="drop burger-menu" aria-label="Menu">{{template "nav-links" .}}</nav>
+    </details>
+    <nav>{{template "nav-links" .}}</nav>
     <div class="right">
       {{with .Bell}}
       <details class="bell{{if .Firing}} firing{{end}}{{if eq $.Section "alerts"}} current{{end}}">
@@ -79,6 +79,15 @@
 </footer>
 </body>
 </html>{{end}}
+
+{{define "nav-links"}}
+      <a href="/" {{if eq .Section "overview"}}class="current"{{end}}>Overview</a>
+      <a href="/events" {{if eq .Section "events"}}class="current"{{end}}>Events</a>
+      <a href="/rules" {{if eq .Section "rules"}}class="current"{{end}}>Rules</a>
+      <a href="/domains" {{if eq .Section "domains"}}class="current"{{end}}>Domains</a>
+      {{if .APITokens}}<a href="/tokens" {{if eq .Section "tokens"}}class="current"{{end}}>API tokens</a>{{end}}
+      <a href="/settings" {{if eq .Section "settings"}}class="current"{{end}}>Settings</a>
+{{end}}
 
 {{define "period-picker"}}
 <div class="periods">

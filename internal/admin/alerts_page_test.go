@@ -122,11 +122,17 @@ func TestTheBell(t *testing.T) {
 		if !strings.Contains(page, bell) || !strings.Contains(page, "Nothing is firing") {
 			t.Errorf("%s: no quiet bell", path)
 		}
-		// The bell is the way to the alerts page; the menu has no
-		// second one.
-		nav := page[strings.Index(page, "<nav>"):strings.Index(page, "</nav>")]
-		if strings.Contains(nav, "/alerts") {
-			t.Errorf("%s: the menu duplicates the bell", path)
+		// The bell is the way to the alerts page; neither the menu nor its
+		// burger has a second one.
+		for _, open := range []string{"<nav>", `<nav class="drop burger-menu"`} {
+			start := strings.Index(page, open)
+			if start < 0 {
+				t.Fatalf("%s: no %s", path, open)
+			}
+			nav := page[start : start+strings.Index(page[start:], "</nav>")]
+			if strings.Contains(nav, "/alerts") {
+				t.Errorf("%s: %s duplicates the bell", path, open)
+			}
 		}
 	}
 

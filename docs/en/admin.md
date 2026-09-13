@@ -240,7 +240,9 @@ triggers in red, and on a click — what is firing, since when and why,
 the five latest messages and a link here. This page has no menu item of
 its own — the way to it is the bell, and here the bell is highlighted
 like the current item. It is a `<details>`: it opens
-without a line of JavaScript, like the rest of the admin UI. What
+without a line of JavaScript, like the rest of the admin UI. On a narrow
+screen the menu's items fold into a "burger" on the left — a `<details>`
+too: otherwise they would push the bell and the name off the edge. What
 is checked and how a message comes — [alerts.md](alerts.md).
 
 ### Settings
