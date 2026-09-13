@@ -2,8 +2,9 @@
 
 Shows events, statistics, rules and domains. It can change a few things,
 and all of them are listed: enable or disable an already written rule,
-add or remove a domain, upload a ready-made certificate, issue and revoke
-an [API](api.md) token, set the [alerts](alerts.md) command.
+add or remove a domain, upload a ready-made certificate for a site or for
+the admin UI itself, issue and revoke an [API](api.md) token, set the
+[alerts](alerts.md) command.
 
 It exists because an antibot whose work is invisible never gets put into
 blocking mode: a human first looks at whom the node is about to cut off,
@@ -45,6 +46,7 @@ the documentation says.
 | `/domains` | domains, their sites' addresses, certificates and terms |
 | `/alerts` | alerts: the triggers and their thresholds, what is firing now, the messages, the delivery command |
 | `/tokens` | API tokens: issuing, terms, the last use, revoking |
+| `/settings` | settings: the admin UI's own certificate — names, term, files, replacing |
 | `/login` | the login |
 
 ### Overview
@@ -241,12 +243,42 @@ like the current item. It is a `<details>`: it opens
 without a line of JavaScript, like the rest of the admin UI. What
 is checked and how a message comes — [alerts.md](alerts.md).
 
+### Settings
+
+For now there is one thing here — **the admin UI's own certificate**, the
+one it answers the browser with; the sites' certificates live on the
+domains page. It shows the names, who issued it (a self-signed one is
+called so), the term, the files and where they come from: named in
+`config.yaml` or added here. If the certificate does not cover the name
+the page was opened with, the page says so: the browser complains about
+the same.
+
+The page does not edit `config.yaml` — it takes a ready pair, the way a
+domain's row does:
+
+- **the pair is named in `config.yaml`** (`admin_ui.certificate` and
+  `key`) — the new one lands in the place of the previous one and serves
+  at once, without a restart;
+- **there is no pair** — the admin UI works over HTTP, and on loopback
+  behind `ssh -L` that is fine. The pair lands in `admin_ui.uploaded_dir`
+  and serves **from the next start**: a listener already up cannot be
+  switched to HTTPS on the fly. If `config.yaml` later names a pair of its
+  own, it wins;
+- **the files are certbot's links** — there is no replacing: certbot
+  renews, and the admin UI takes the renewed pair up within 30 seconds.
+  Replacing a link with a file would cut the renewal off without a word.
+
+The check is the same as for a site's certificate, except for the name:
+the key matches, the term has begun and has not ended. The name is not
+checked: the admin UI is opened by whatever name, and which one is right
+only its owner knows.
+
 ## The writing actions
 
-There are nine and no others: enable or disable a rule, move it between
-`shadow` and `active`, add a domain, remove a domain, upload a
-certificate, issue an API token, revoke an API token, change the alerts
-command, send a test alert.
+There are ten and no others: enable or disable a rule, move it between
+`shadow` and `active`, add a domain, remove a domain, upload a site's
+certificate, replace the admin UI's certificate, issue an API token,
+revoke an API token, change the alerts command, send a test alert.
 
 ### A rule: enable and disable
 
@@ -352,6 +384,23 @@ level=WARN msg="the alert command was changed from the admin UI"
 The **"send a test message"** button runs the command with a test
 message and shows what came of it.
 
+### The admin UI's certificate
+
+**Replacing it asks for the password once more**, like issuing a token:
+whoever holds the key of the admin UI's certificate reads its traffic,
+and a stolen session must not be enough to put the thief's key there.
+The pair is checked before it is written; both of its parts are first
+written next to their place and only then moved into it — a failure in
+the middle of the write leaves the previous pair whole. If the node
+cannot write next to the files named in `config.yaml` — a read-only
+directory — the refusal says so: replace the files on the machine, and
+the admin UI takes them up within 30 seconds.
+
+```
+level=WARN msg="the admin UI certificate was replaced from the admin UI"
+  names=admin.example.ru not_after=2026-12-10 who=owner address=127.0.0.1
+```
+
 ## The borders
 
 - **a login is mandatory**, the password is stored as a
@@ -372,8 +421,8 @@ message and shows what came of it.
 - **`X-Robots-Tag: noindex`** — the admin UI shows the events of somebody
   else's site, it has no business in search results;
 - **the write paths are listed**: `POST /rules/toggle`, `/rules/mode`, `/domains/add`,
-  `/domains/remove`, `/domains/certificate`, `/tokens/issue`,
-  `/tokens/revoke`, `/alerts/command`, `/alerts/test`. Any method other
+  `/domains/remove`, `/domains/certificate`, `/settings/certificate`,
+  `/tokens/issue`, `/tokens/revoke`, `/alerts/command`, `/alerts/test`. Any method other
   than GET is not handled on the pages themselves;
 - **the API on the same address, through another door**: under
   `/api/v1/` only a token in a header lets in, the API does not take the
@@ -397,6 +446,10 @@ admin_ui:
   redirect_from: ":8089"
 ```
 
+A pair can also be added on the Settings page while the admin UI listens
+on loopback: from the next start it works over HTTPS, and then the
+address can be opened to the outside.
+
 Without a certificate the node **will not start** — it does not "warn",
 it refuses to bring the listeners up at all. The check runs before the
 ports are taken: the admin UI on `0.0.0.0` used to bring the node down a
@@ -413,7 +466,8 @@ seconds.
 
 - a rule editor — conditions are composed with a command or arrive ready
   through the [API](api.md);
-- editing the settings — including the `upstreams` of `config.yaml`;
+- editing the settings — including the `upstreams` of `config.yaml`; the
+  Settings page only takes a ready pair for the admin UI itself;
 - issuing and renewing certificates — only uploading ready-made ones;
 - creating accounts — only `antibot admin passwd`. Changing a password
   through the admin UI would mean that whoever stole a session takes the

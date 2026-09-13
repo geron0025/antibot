@@ -22,7 +22,7 @@ own file and take effect at once.</p>
       <dl class="facts">
         <dt>certificate</dt><dd class="value" title="{{.Names}}">{{truncate .Names 120}}</dd>
         <dt>valid until</dt>
-        <dd class="term">{{time .NotAfter}} · {{if lt .Days 0}}expired{{else if eq .Days 0}}expires today{{else}}{{.Days}} d left{{end}}</dd>
+        <dd class="term">{{date .NotAfter}} · {{if lt .Days 0}}expired{{else if eq .Days 0}}expires today{{else}}{{.Days}} d left{{end}}</dd>
       </dl>
       {{else}}
       <p class="term">No certificate — the node answers with its self-signed

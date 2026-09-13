@@ -15,6 +15,7 @@
       <a href="/rules" {{if eq .Section "rules"}}class="current"{{end}}>Rules</a>
       <a href="/domains" {{if eq .Section "domains"}}class="current"{{end}}>Domains</a>
       {{if .APITokens}}<a href="/tokens" {{if eq .Section "tokens"}}class="current"{{end}}>API tokens</a>{{end}}
+      <a href="/settings" {{if eq .Section "settings"}}class="current"{{end}}>Settings</a>
     </nav>
     <div class="right">
       {{with .Bell}}

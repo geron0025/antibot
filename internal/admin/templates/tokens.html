@@ -29,7 +29,7 @@ address.</p>
       <td><code>{{.Prefix}}…</code></td>
       <td>{{.Scope}}</td>
       <td>{{time .CreatedAt}}</td>
-      <td>{{time .ExpiresAt}}{{if eq .Status "live"}} · {{.DaysLeft}} d left{{end}}</td>
+      <td>{{date .ExpiresAt}}{{if eq .Status "live"}} · {{.DaysLeft}} d left{{end}}</td>
       <td>{{time .Used}}</td>
       <td>{{.Status}}</td>
       <td class="num">

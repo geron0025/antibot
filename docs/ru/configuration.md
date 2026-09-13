@@ -188,6 +188,7 @@ admin_ui:
   users_file: "/var/lib/antibot/admin.json"
   tokens_file: "/var/lib/antibot/api-tokens.json"
   session_ttl: 12h
+  uploaded_dir: "/var/lib/antibot/admin-ui"
   # certificate: "/etc/letsencrypt/live/admin.example.ru/fullchain.pem"
   # key: "/etc/letsencrypt/live/admin.example.ru/privkey.pem"
   # redirect_from: ":8089"
@@ -198,6 +199,7 @@ admin_ui:
 | `enabled` | `true` | поднимать ли админку |
 | `listen` | `127.0.0.1:8090` | адрес |
 | `certificate`, `key` | пусто | задаются **вместе** |
+| `uploaded_dir` | `/var/lib/antibot/admin-ui` | куда ложится пара, добавленная на странице Settings, когда `certificate` и `key` пусты; работает со следующего запуска. Пусто — добавлять нельзя |
 | `redirect_from` | пусто | адрес, где HTTP отвечает кодом 308 |
 | `users_file` | `/var/lib/antibot/admin.json` | учётки |
 | `tokens_file` | `/var/lib/antibot/api-tokens.json` | токены [API](api.md), хешами; пусто — API выключен |
@@ -206,8 +208,9 @@ admin_ui:
 **Не-loopback адрес без сертификата — отказ при запуске.** Не
 предупреждение: пароль уходил бы по сети открытым текстом, а это не
 неудобство, а выданный доступ. Хотите открыть админку наружу — сначала
-задайте сертификат. Он перечитывается на лету, не чаще раза в 30 секунд:
-продлённый certbot'ом берётся без перезапуска.
+задайте сертификат или добавьте пару на странице Settings. Он
+перечитывается на лету, не чаще раза в 30 секунд: продлённый certbot'ом
+берётся без перезапуска.
 
 `redirect_from` работает только вместе с сертификатом. Код 308, а не 301:
 301 разрешает браузеру сменить метод на GET, и отправленная форма входа

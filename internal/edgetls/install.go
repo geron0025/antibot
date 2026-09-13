@@ -24,50 +24,70 @@ func Install(dir, host string, chain, key []byte) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("there is nowhere to put uploaded certificates: tls.uploaded_dir is empty")
 	}
 
-	pair, err := tls.X509KeyPair(chain, key)
+	leaf, err := Validate(chain, key, time.Now())
 	if err != nil {
-		return time.Time{}, fmt.Errorf("the pair was not accepted: %w", err)
+		return time.Time{}, err
 	}
-	leaf := pair.Leaf
-	if leaf == nil {
-		leaf, err = x509.ParseCertificate(pair.Certificate[0])
-		if err != nil {
-			return time.Time{}, fmt.Errorf("the certificate was not parsed: %w", err)
-		}
-	}
-
 	if !Fits(leaf, host) {
 		return time.Time{}, fmt.Errorf("the certificate does not fit %s: it is for %s",
 			host, strings.Join(LeafNames(leaf), ", "))
 	}
 
-	now := time.Now()
-	if now.After(leaf.NotAfter) {
-		return time.Time{}, fmt.Errorf("the certificate expired on %s", leaf.NotAfter.Format("02.01.2006"))
-	}
-	if now.Before(leaf.NotBefore) {
-		return time.Time{}, fmt.Errorf("the certificate is not valid until %s", leaf.NotBefore.Format("02.01.2006"))
-	}
-
 	// "*" cannot be a directory name everywhere, and the scanner takes
 	// the names from the certificate anyway.
 	sub := filepath.Join(dir, strings.Replace(host, "*.", "_wildcard.", 1))
-	if err := os.MkdirAll(sub, 0o750); err != nil {
-		return time.Time{}, fmt.Errorf("certificate directory: %w", err)
-	}
-
-	// The key goes first and the certificate second: the scanner treats
-	// an inconsistent pair as "being replaced" and keeps the previous
-	// one, so no order breaks anything — but a readable certificate with
-	// a missing key would be the state left behind by a failure between
-	// the two writes.
-	if err := replaceFile(filepath.Join(sub, "privkey.pem"), key, 0o600); err != nil {
-		return time.Time{}, err
-	}
-	if err := replaceFile(filepath.Join(sub, "fullchain.pem"), chain, 0o644); err != nil {
+	if err := writePair(filepath.Join(sub, "fullchain.pem"), filepath.Join(sub, "privkey.pem"), chain, key); err != nil {
 		return time.Time{}, err
 	}
 	return leaf.NotAfter, nil
+}
+
+// InstallPair validates a pair and writes it over the files named — the
+// admin UI's own certificate, whose place config.yaml names. No name is
+// checked: the admin UI is reached by whatever name its owner gave it.
+//
+// A file that is a link is refused: certbot keeps its files as links into
+// its archive, and replacing a link with a file would cut the renewal off
+// without a word.
+func InstallPair(certFile, keyFile string, chain, key []byte) (*x509.Certificate, error) {
+	leaf, err := Validate(chain, key, time.Now())
+	if err != nil {
+		return nil, err
+	}
+	for _, path := range []string{certFile, keyFile} {
+		if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
+			return nil, fmt.Errorf("%s is a link, the way certbot keeps its files: renew it with certbot, not here", path)
+		}
+	}
+	if err := writePair(certFile, keyFile, chain, key); err != nil {
+		return nil, err
+	}
+	return leaf, nil
+}
+
+// Validate checks a pair the way every upload is checked: the key matches
+// the certificate, and the term has begun and has not ended. Names are
+// the caller's business: whose they must be depends on what the pair is
+// for.
+func Validate(chain, key []byte, now time.Time) (*x509.Certificate, error) {
+	pair, err := tls.X509KeyPair(chain, key)
+	if err != nil {
+		return nil, fmt.Errorf("the pair was not accepted: %w", err)
+	}
+	leaf := pair.Leaf
+	if leaf == nil {
+		leaf, err = x509.ParseCertificate(pair.Certificate[0])
+		if err != nil {
+			return nil, fmt.Errorf("the certificate was not parsed: %w", err)
+		}
+	}
+	if now.After(leaf.NotAfter) {
+		return nil, fmt.Errorf("the certificate expired on %s", leaf.NotAfter.Format("02.01.2006"))
+	}
+	if now.Before(leaf.NotBefore) {
+		return nil, fmt.Errorf("the certificate is not valid until %s", leaf.NotBefore.Format("02.01.2006"))
+	}
+	return leaf, nil
 }
 
 // Fits answers whether the certificate serves the host. A
@@ -99,29 +119,59 @@ func LeafNames(leaf *x509.Certificate) []string {
 	return out
 }
 
-// replaceFile writes atomically: a temporary file, sync, rename.
-func replaceFile(path string, contents []byte, mode os.FileMode) error {
-	dir := filepath.Dir(path)
-	tmp, err := os.CreateTemp(dir, ".upload-*")
+// writePair writes both files of a pair next to where they go first and
+// only then renames them into place, the key before the certificate: a
+// failure while writing leaves the previous pair whole, and the window in
+// which the two files disagree is two renames long. A reader treats a
+// pair that disagrees as "being replaced" and keeps the previous one.
+func writePair(certFile, keyFile string, chain, key []byte) error {
+	for _, path := range []string{certFile, keyFile} {
+		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
+			return fmt.Errorf("certificate directory: %w", err)
+		}
+	}
+	keyTmp, err := writeTemp(keyFile, key, 0o600)
 	if err != nil {
 		return err
 	}
-	name := tmp.Name()
-	defer os.Remove(name)
+	defer os.Remove(keyTmp)
+	certTmp, err := writeTemp(certFile, chain, 0o644)
+	if err != nil {
+		return err
+	}
+	defer os.Remove(certTmp)
 
+	if err := os.Rename(keyTmp, keyFile); err != nil {
+		return err
+	}
+	return os.Rename(certTmp, certFile)
+}
+
+// writeTemp writes the contents into a temporary file next to path,
+// synced and with its mode set, and returns the temporary file's name.
+func writeTemp(path string, contents []byte, mode os.FileMode) (string, error) {
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".upload-*")
+	if err != nil {
+		return "", err
+	}
+	name := tmp.Name()
 	if _, err := tmp.Write(contents); err != nil {
 		tmp.Close()
-		return err
+		os.Remove(name)
+		return "", err
 	}
 	if err := tmp.Sync(); err != nil {
 		tmp.Close()
-		return err
+		os.Remove(name)
+		return "", err
 	}
 	if err := tmp.Close(); err != nil {
-		return err
+		os.Remove(name)
+		return "", err
 	}
 	if err := os.Chmod(name, mode); err != nil {
-		return err
+		os.Remove(name)
+		return "", err
 	}
-	return os.Rename(name, path)
+	return name, nil
 }

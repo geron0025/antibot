@@ -55,6 +55,12 @@ type Options struct {
 	// agrees to work only on loopback.
 	Cert, Key string
 
+	// CertDir is where a pair added on the settings page lands when Cert
+	// and Key are empty; it serves from the next start. With Cert and Key
+	// set, the settings page replaces those very files. An empty CertDir
+	// turns adding off.
+	CertDir string
+
 	Users    *Users
 	Sessions *Sessions
 
@@ -279,6 +285,12 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /domains/remove", s.requireLogin(s.removeDomain))
 	mux.Handle("POST /domains/certificate", s.requireLogin(s.uploadCertificate))
 
+	// The admin UI's own certificate. Replacing it asks for the password
+	// once more: whoever holds its key reads the admin UI's traffic, and a
+	// stolen session must not be enough to put the thief's key there.
+	mux.Handle("GET /settings", s.requireLogin(s.settingsPage))
+	mux.Handle("POST /settings/certificate", s.requireLogin(s.uploadAdminCertificate))
+
 	// The alert command runs on the node's machine, so changing it asks
 	// for the password once more, like issuing a token.
 	if s.o.Alerts != nil {
@@ -374,6 +386,15 @@ func formatTime(t time.Time) string {
 		return "—"
 	}
 	return t.Local().Format("02.01 15:04:05")
+}
+
+// formatDate is for terms — a certificate's, a token's: they run into
+// other years, and "15.12" alone does not say which.
+func formatDate(t time.Time) string {
+	if t.IsZero() {
+		return "—"
+	}
+	return t.Local().Format("02.01.2006")
 }
 
 func lower(s string) string { return strings.ToLower(s) }

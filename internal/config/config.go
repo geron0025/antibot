@@ -133,6 +133,12 @@ type Admin struct {
 	Certificate string `yaml:"certificate"`
 	Key         string `yaml:"key"`
 
+	// UploadedDir is where a pair added on the settings page lands when
+	// certificate and key are empty; the node serves it from the next
+	// start. A pair named above is replaced in place instead. Empty turns
+	// adding off.
+	UploadedDir string `yaml:"uploaded_dir"`
+
 	// UsersFile is a separate file rather than these settings: the
 	// configuration is often mounted read-only, while a password is
 	// changed without restarting the node.
@@ -202,11 +208,12 @@ func Defaults() Config {
 			KeepDays: 14, Queue: 4096,
 		},
 		Admin: Admin{
-			Enabled:    true,
-			Listen:     "127.0.0.1:8090",
-			UsersFile:  "/var/lib/antibot/admin.json",
-			TokensFile: "/var/lib/antibot/api-tokens.json",
-			SessionTTL: Duration(12 * time.Hour),
+			Enabled:     true,
+			Listen:      "127.0.0.1:8090",
+			UploadedDir: "/var/lib/antibot/admin-ui",
+			UsersFile:   "/var/lib/antibot/admin.json",
+			TokensFile:  "/var/lib/antibot/api-tokens.json",
+			SessionTTL:  Duration(12 * time.Hour),
 		},
 		Rules: Rules{
 			File:           "/var/lib/antibot/rules.json",

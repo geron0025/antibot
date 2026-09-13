@@ -196,6 +196,7 @@ admin_ui:
   users_file: "/var/lib/antibot/admin.json"
   tokens_file: "/var/lib/antibot/api-tokens.json"
   session_ttl: 12h
+  uploaded_dir: "/var/lib/antibot/admin-ui"
   # certificate: "/etc/letsencrypt/live/admin.example.ru/fullchain.pem"
   # key: "/etc/letsencrypt/live/admin.example.ru/privkey.pem"
   # redirect_from: ":8089"
@@ -206,6 +207,7 @@ admin_ui:
 | `enabled` | `true` | whether to bring the admin UI up |
 | `listen` | `127.0.0.1:8090` | the address |
 | `certificate`, `key` | empty | set **together** |
+| `uploaded_dir` | `/var/lib/antibot/admin-ui` | where a pair added on the Settings page lands when `certificate` and `key` are empty; it serves from the next start. Empty turns adding off |
 | `redirect_from` | empty | an address where HTTP answers with 308 |
 | `users_file` | `/var/lib/antibot/admin.json` | the accounts |
 | `tokens_file` | `/var/lib/antibot/api-tokens.json` | the [API](api.md)'s tokens, as hashes; empty turns the API off |
@@ -214,9 +216,9 @@ admin_ui:
 **A non-loopback address without a certificate is a refusal at startup.**
 Not a warning: the password would travel the network in clear text, and
 that is not an inconvenience but access already granted. If you want the
-admin UI exposed, set a certificate first. It is reread on the fly, at
-most once every 30 seconds: one renewed by certbot is taken up without a
-restart.
+admin UI exposed, set a certificate first, or add a pair on the Settings
+page. It is reread on the fly, at most once every 30 seconds: one renewed
+by certbot is taken up without a restart.
 
 `redirect_from` works only together with a certificate. Code 308 and not
 301: 301 allows the browser to change the method to GET, and a submitted

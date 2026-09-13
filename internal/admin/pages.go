@@ -27,6 +27,7 @@ func parseTemplates() (*template.Template, error) {
 	funcs := template.FuncMap{
 		"share":    share,
 		"time":     formatTime,
+		"date":     formatDate,
 		"truncate": truncate,
 		"lower":    lower,
 		"count":    thousands,
@@ -44,6 +45,8 @@ func parseTemplates() (*template.Template, error) {
 				return "API tokens"
 			case "alerts":
 				return "Alerts"
+			case "settings":
+				return "Settings"
 			default:
 				return "Overview"
 			}

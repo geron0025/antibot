@@ -234,6 +234,14 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 				}
 				return state
 			}
+			// A pair added on the settings page serves when config.yaml
+			// names none; when it names one, config.yaml wins.
+			adminCert, adminKey := cfg.Admin.Certificate, cfg.Admin.Key
+			if adminCert == "" {
+				if adminCert, adminKey = admin.UploadedPair(cfg.Admin.UploadedDir); adminCert != "" {
+					log.Info("the admin UI serves the pair added on its settings page", "certificate", adminCert)
+				}
+			}
 			adminUI, err = admin.New(admin.Options{
 				Cloud:              cloudState,
 				Tokens:             tokens,
@@ -242,8 +250,9 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 				ConfigAlertCommand: cfg.Alerts.Command,
 				Addr:               cfg.Admin.Listen,
 				HTTPAddr:           cfg.Admin.RedirectFrom,
-				Cert:               cfg.Admin.Certificate,
-				Key:                cfg.Admin.Key,
+				Cert:               adminCert,
+				Key:                adminKey,
+				CertDir:            cfg.Admin.UploadedDir,
 				Users:              users,
 				Sessions:           admin.NewSessions(cfg.Admin.SessionTTL.Duration()),
 				Attempts:           windows,

@@ -2,6 +2,7 @@ package admin
 
 import (
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"log/slog"
 	"os"
@@ -67,6 +68,31 @@ func (c *certificate) get(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 		c.reloadLocked(now, false)
 	}
 	return c.current, nil
+}
+
+// reload takes the files up at once: whoever has just replaced the pair
+// opens the page again in the next breath, not after the interval.
+func (c *certificate) reload() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.reloadLocked(time.Now(), false)
+}
+
+// leaf is the certificate in force, for the settings page.
+func (c *certificate) leaf() *x509.Certificate {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.current == nil {
+		return nil
+	}
+	if c.current.Leaf != nil {
+		return c.current.Leaf
+	}
+	leaf, err := x509.ParseCertificate(c.current.Certificate[0])
+	if err != nil {
+		return nil
+	}
+	return leaf
 }
 
 func (c *certificate) reloadLocked(now time.Time, first bool) error {

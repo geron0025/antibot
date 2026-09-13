@@ -1,0 +1,70 @@
+{{template "header" .}}
+
+<p class="dim">The certificate this admin UI answers with — not the sites':
+theirs live on the <a href="/domains">domains page</a>. The node neither
+issues nor renews certificates: it takes a ready pair, checks it and puts it
+in place. Nothing in <code>config.yaml</code> is changed here.</p>
+
+<section class="card">
+  <h2>The admin UI's certificate</h2>
+
+  {{if eq .Mode "replace"}}
+  {{with .Cert}}
+  <table>
+    <tbody>
+      <tr><th>names</th><td class="value">{{range $i, $n := .Names}}{{if $i}}, {{end}}{{$n}}{{end}}</td></tr>
+      <tr><th>issued by</th><td>{{if .SelfSigned}}itself — a self-signed certificate, the browser warns{{else}}{{.Issuer}}{{end}}</td></tr>
+      <tr><th>valid until</th><td>{{date .NotAfter}} · {{if lt .DaysLeft 0}}expired{{else}}{{.DaysLeft}} d left{{end}}</td></tr>
+      <tr><th>files</th><td><code>{{$.CertFile}}</code>, <code>{{$.KeyFile}}</code>
+        <div class="dim">{{if $.FromConfig}}named in config.yaml{{else}}added on this page{{end}}</div></td></tr>
+    </tbody>
+  </table>
+  {{if not $.Covers}}
+  <section class="warning">
+    <p>It does not cover <span class="value">{{$.Host}}</span>, the name this page
+    was opened with: the browser warns about it.</p>
+  </section>
+  {{end}}
+  {{end}}
+  {{else if eq .Mode "add"}}
+  <p>The admin UI works without a certificate, over plain HTTP — fine on
+  loopback, behind <code>ssh -L</code>. A pair uploaded here lands in
+  <code>{{.CertFile}}</code> and serves from the next start of the node: the
+  listener that is already up cannot switch to HTTPS on the fly.</p>
+  {{with .Pending}}
+  <section class="warning">
+    <p>A pair for <span class="value">{{range $i, $n := .Names}}{{if $i}}, {{end}}{{$n}}{{end}}</span>,
+    valid until {{date .NotAfter}}, waits for the next start of the node.</p>
+  </section>
+  {{end}}
+  {{else}}
+  <p class="dim">No certificate, and <code>admin_ui.uploaded_dir</code> is
+  empty: the pair is set in config.yaml only.</p>
+  {{end}}
+
+  {{if .Linked}}
+  <p class="dim">The files are links — this is how certbot keeps its own.
+  Renew with certbot: the admin UI takes the renewed pair up within 30
+  seconds. Replacing a link here would cut certbot's renewal off.</p>
+  {{else if .Mode}}
+  <form method="post" action="/settings/certificate" enctype="multipart/form-data" class="fields">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>chain · fullchain.pem
+      <input type="file" name="fullchain" required>
+    </label>
+    <label>private key · privkey.pem
+      <input type="file" name="privkey" required>
+    </label>
+    <label>your password
+      <input type="password" name="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit">{{if eq .Mode "replace"}}replace{{else}}add{{end}}</button>
+  </form>
+  <p class="dim">Before it is accepted the pair is checked: the key matches
+  the certificate, the term has begun and has not ended. On a refusal the
+  previous pair stays in force. Your password is asked once more: whoever
+  holds this certificate's key can read the admin UI's traffic.</p>
+  {{end}}
+</section>
+
+{{template "footer" .}}
