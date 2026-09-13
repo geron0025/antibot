@@ -163,6 +163,8 @@ the timeout.
 
 - the "Alerts" page: every trigger with its thresholds and state, the
   messages since the start and what became of each delivery;
+- the bell in the admin UI's header, on every page: the number firing,
+  and on a click — what is firing and the latest messages;
 - the overview: the firing triggers, as a warning at the top;
 - the node's log:
 

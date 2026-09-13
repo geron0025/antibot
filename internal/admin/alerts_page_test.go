@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/geron0025/antibot/internal/alerts"
+	"github.com/geron0025/antibot/internal/facts"
 )
 
 // newAlertsServer is the test admin UI with triggers and a command file
@@ -102,6 +103,42 @@ func TestAlertsPage(t *testing.T) {
 
 	if rec := alertsPost(t, s, cookies, "/alerts/test", url.Values{"csrf": {"forged"}}); rec.Code != http.StatusForbidden {
 		t.Fatalf("a forged form: %d", rec.Code)
+	}
+}
+
+// The bell is in the header of every page: quiet while nothing fires, a
+// count and the trigger once something does, and the latest messages.
+func TestTheBell(t *testing.T) {
+	s, _ := newAlertsServer(t, "")
+	cookies := logIn(t, s)
+
+	for _, path := range []string{"/", "/rules", "/events", "/alerts"} {
+		body, _ := io.ReadAll(get(t, s, path, cookies).Body)
+		if !strings.Contains(string(body), `class="bell"`) || !strings.Contains(string(body), "Nothing is firing") {
+			t.Errorf("%s: no quiet bell", path)
+		}
+	}
+
+	now := time.Now()
+	for i := 0; i < 30; i++ {
+		s.o.Alerts.Write(facts.Request{Time: now.Add(-2 * time.Minute), Decision: "pass", Status: 502})
+	}
+	s.o.Alerts.Check(now)
+
+	body, _ := io.ReadAll(get(t, s, "/rules", cookies).Body)
+	page := string(body)
+	for _, want := range []string{`class="bell firing"`, `class="bell-count">1<`, "site_down", "Latest messages",
+		"the site answers with errors"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the bell does not show %q", want)
+		}
+	}
+
+	// No alerts, no bell.
+	s.o.Alerts = nil
+	body, _ = io.ReadAll(get(t, s, "/", cookies).Body)
+	if strings.Contains(string(body), `class="bell`) {
+		t.Error("a bell without alerts")
 	}
 }
 

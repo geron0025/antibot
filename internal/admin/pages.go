@@ -77,6 +77,30 @@ type pageCommon struct {
 
 	// AlertsOn shows the alerts page in the menu.
 	AlertsOn bool
+
+	// Bell is what the bell in the header carries; nil without alerts.
+	Bell *bellData
+}
+
+// bellData is the bell in the header of every page: what fires now and
+// the latest messages. Two reads of memory and no disk, so it is cheap to
+// build for every page — and a trigger firing while a human reads the
+// rules must not wait for them to open the overview.
+type bellData struct {
+	Firing []alerts.Status
+	Recent []alerts.Entry
+}
+
+// bellRecent is how many of the latest messages the bell lists; the rest
+// are on the alerts page.
+const bellRecent = 5
+
+func (s *Server) bell() *bellData {
+	recent := s.o.Alerts.History()
+	if len(recent) > bellRecent {
+		recent = recent[:bellRecent]
+	}
+	return &bellData{Firing: s.o.Alerts.Firing(), Recent: recent}
 }
 
 func (s *Server) render(w http.ResponseWriter, name string, data any) {
@@ -504,6 +528,9 @@ func (s *Server) common(user, section string, period time.Duration, message stri
 		User: user, Version: s.o.Version, Section: section, Error: message,
 		APITokens: s.o.Tokens != nil,
 		AlertsOn:  s.o.Alerts != nil,
+	}
+	if s.o.Alerts != nil {
+		c.Bell = s.bell()
 	}
 	if period > 0 {
 		c.Period = shortPeriod(period)

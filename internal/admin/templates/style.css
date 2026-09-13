@@ -62,6 +62,27 @@ header .inner {
 
 header nav { display: flex; gap: 16px; }
 header .right { display: flex; align-items: center; gap: 12px; }
+
+/* The bell: a <details>, so it opens without a line of JavaScript. */
+.bell { position: relative; }
+.bell summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 4px;
+  padding: 4px 6px; border-radius: 6px; color: var(--dim); }
+.bell summary::-webkit-details-marker { display: none; }
+.bell summary:hover, .bell[open] summary { background: var(--hover); color: var(--text); }
+.bell.firing summary { color: var(--red); }
+.bell-icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; }
+.bell-count { background: var(--red); color: var(--card); border-radius: 9px; min-width: 18px;
+  padding: 0 5px; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }
+.bell-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 10; width: min(360px, 90vw);
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 0;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .12); }
+.bell-menu h3 { font-size: 12px; color: var(--dim); margin: 6px 12px 4px; font-weight: 600; }
+.bell-menu p { margin: 6px 12px; }
+.bell-item { display: block; padding: 6px 12px; color: var(--text); }
+.bell-item:hover { background: var(--hover); text-decoration: none; }
+.bell-text { display: block; font-size: 12px; margin-top: 2px; }
+.bell-all { display: block; padding: 8px 12px 4px; border-top: 1px solid var(--border); margin-top: 6px; font-size: 12px; }
 header form { margin: 0; }
 
 a { color: var(--blue); text-decoration: none; }

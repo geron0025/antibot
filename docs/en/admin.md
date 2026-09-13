@@ -231,7 +231,12 @@ The page is shown only when `admin_ui.tokens_file` is set.
 Every trigger with the thresholds in force and its state: fine, or firing
 since such a time and why. Below — the delivery command and the messages
 since the start: what was said and what became of the delivery. The
-firing triggers show on the overview too, as a warning at the top. What
+firing triggers show on the overview too, as a warning at the top.
+
+**The bell** in the header is on every page: the number of firing
+triggers in red, and on a click — what is firing, since when and why,
+the five latest messages and a link here. It is a `<details>`: it opens
+without a line of JavaScript, like the rest of the admin UI. What
 is checked and how a message comes — [alerts.md](alerts.md).
 
 ## The writing actions
