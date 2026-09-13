@@ -24,6 +24,7 @@ package admin
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"html/template"
@@ -85,6 +86,10 @@ type Options struct {
 	AlertCommand       *alerts.CommandFile
 	ConfigAlertCommand string
 
+	// Cloud reports the link to the cloud for the overview; nil leaves
+	// the block out.
+	Cloud func() CloudState
+
 	Version string
 	Log     *slog.Logger
 }
@@ -93,6 +98,7 @@ type Options struct {
 type Server struct {
 	o         Options
 	templates *template.Template
+	cert      *certificate
 
 	// Replaceable in tests: the domains page must not depend on the DNS
 	// and the interfaces of the machine the tests run on.
@@ -136,11 +142,19 @@ func New(o Options) (*Server, error) {
 		return nil, fmt.Errorf("admin_ui.redirect_from is set and there is no certificate: nowhere to redirect to")
 	}
 
+	var cert *certificate
+	if withTLS {
+		var err error
+		if cert, err = loadCertificate(o.Cert, o.Key, o.Log); err != nil {
+			return nil, err
+		}
+	}
+
 	templates, err := parseTemplates()
 	if err != nil {
 		return nil, err
 	}
-	return &Server{o: o, templates: templates}, nil
+	return &Server{o: o, templates: templates, cert: cert}, nil
 }
 
 // notLoopback answers whether the address faces outwards. An unparsed
@@ -187,7 +201,10 @@ func (s *Server) Serve(ctx context.Context) error {
 
 	var err error
 	if withTLS {
-		err = srv.ListenAndServeTLS(s.o.Cert, s.o.Key)
+		// The pair comes from the reloader rather than from the files
+		// named here: a renewed certificate is taken up on the fly.
+		srv.TLSConfig = &tls.Config{GetCertificate: s.cert.get, MinVersion: tls.VersionTLS12}
+		err = srv.ListenAndServeTLS("", "")
 	} else {
 		err = srv.ListenAndServe()
 	}
@@ -245,7 +262,9 @@ func (s *Server) Handler() http.Handler {
 
 	mux.Handle("GET /{$}", s.requireLogin(s.overviewPage))
 	mux.Handle("GET /events", s.requireLogin(s.eventsPage))
+	mux.Handle("GET /events/export", s.requireLogin(s.exportEvents))
 	mux.Handle("GET /rules", s.requireLogin(s.rulesPage))
+	mux.Handle("GET /rule", s.requireLogin(s.rulePage))
 	mux.Handle("GET /domains", s.requireLogin(s.domainsPage))
 
 	// The writing actions, all of them. Composing a rule here is

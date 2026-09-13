@@ -188,11 +188,17 @@ func (a *Aggregator) Write(r facts.Request) {
 type Status struct {
 	Dropped int64 `json:"dropped"`
 	Outbox  int   `json:"outbox"`
+
+	// LastSent is when the cloud last accepted a batch; LastProblem is
+	// how the last attempt failed, empty once one goes through.
+	LastSent    time.Time `json:"last_sent"`
+	LastProblem string    `json:"last_problem,omitempty"`
 }
 
 func (a *Aggregator) Status() Status {
 	ids, _ := a.outbox.list()
-	return Status{Dropped: a.Dropped.Load(), Outbox: len(ids)}
+	sent, problem := a.sender.state()
+	return Status{Dropped: a.Dropped.Load(), Outbox: len(ids), LastSent: sent, LastProblem: problem}
 }
 
 // Run counts, closes, packs and sends until the context ends, then

@@ -4,12 +4,14 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"log/slog"
 	"math/rand"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -53,6 +55,13 @@ type sender struct {
 
 	// failures counts consecutive failed attempts, for the backoff.
 	failures int
+
+	// The last attempt, for the admin UI's overview: "sending works" and
+	// "sending has failed for a day" look alike unless somebody reads
+	// the log.
+	mu       sync.Mutex
+	lastSent time.Time
+	problem  string
 
 	// wake is poked when a new batch lands in the outbox.
 	wake chan struct{}
@@ -155,6 +164,7 @@ func (s *sender) post(ctx context.Context, id string, body []byte) outcome {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, s.url, bytes.NewReader(body))
 	if err != nil {
 		s.log.Error("the aggregate address is invalid", "url", s.url, "err", err)
+		s.note(false, "the aggregate address is invalid: "+err.Error())
 		return retry
 	}
 	req.Header.Set("Authorization", "Bearer "+s.token)
@@ -168,6 +178,7 @@ func (s *sender) post(ctx context.Context, id string, body []byte) outcome {
 	resp, err := s.client.Do(req)
 	if err != nil {
 		s.log.Warn("the aggregate was not sent, will retry", "batch", id, "err", err)
+		s.note(false, "the cloud was not reached: "+err.Error())
 		return retry
 	}
 	defer resp.Body.Close()
@@ -176,6 +187,7 @@ func (s *sender) post(ctx context.Context, id string, body []byte) outcome {
 	switch code := resp.StatusCode; {
 	case code >= 200 && code < 300:
 		s.log.Debug("the aggregate was accepted", "batch", id)
+		s.note(true, "")
 		return accepted
 
 	case code == http.StatusBadRequest || code == http.StatusRequestEntityTooLarge:
@@ -184,16 +196,36 @@ func (s *sender) post(ctx context.Context, id string, body []byte) outcome {
 		// everything behind it.
 		s.log.Error("the cloud refused the aggregate format; the batch is dropped, not retried",
 			"batch", id, "status", code, "answer", strings.TrimSpace(string(answer)))
+		s.note(false, fmt.Sprintf("the cloud refused a batch's format (%d); the batch was dropped", code))
 		return rejected
 
 	case code == http.StatusUnauthorized || code == http.StatusForbidden:
 		s.log.Error("the cloud did not accept the token; sending sleeps for an hour",
 			"status", code)
+		s.note(false, fmt.Sprintf("the cloud did not accept the token (%d); sending sleeps for an hour", code))
 		return unauthorized
 
 	default:
 		s.log.Warn("the cloud did not take the aggregate, will retry",
 			"batch", id, "status", code)
+		s.note(false, fmt.Sprintf("the cloud did not take a batch (%d); it will be retried", code))
 		return retry
 	}
+}
+
+// note remembers how the last attempt went: when a batch was last
+// accepted, and what went wrong since, if anything.
+func (s *sender) note(sent bool, problem string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if sent {
+		s.lastSent = time.Now()
+	}
+	s.problem = problem
+}
+
+func (s *sender) state() (time.Time, string) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.lastSent, s.problem
 }

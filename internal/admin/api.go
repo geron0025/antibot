@@ -158,10 +158,7 @@ type apiEventsAnswer struct {
 // page back in time.
 func (s *Server) apiEvents(w http.ResponseWriter, r *http.Request, _ *Token) {
 	q := r.URL.Query()
-	f := summary.Filter{
-		Host: q.Get("host"), Decision: q.Get("decision"), Rule: q.Get("rule"),
-		IP: q.Get("ip"), JA4: q.Get("ja4"), Search: q.Get("q"), Status: q.Get("status"),
-	}
+	f := eventsFilter(q)
 	if before := q.Get("before"); before != "" {
 		t, err := time.Parse(time.RFC3339Nano, before)
 		if err != nil {

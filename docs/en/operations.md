@@ -71,7 +71,11 @@ With a cloud token `/stats` gains two more counters:
 `aggregate_dropped` — events that did not make it into the aggregate
 because the queue was full, and `aggregate_outbox` — batches the cloud
 has not accepted yet. Without a token they are absent altogether: a zero
-would claim that the sending works and has nothing to report.
+would claim that the sending works and has nothing to report. Once the
+cloud has accepted a batch, `aggregate_last_sent` is next to them, and
+while the last attempt has failed — `aggregate_problem`, in words: the
+token was refused, the cloud was unreachable. The same shows on the
+admin UI's overview, in the cloud block.
 
 The port is not published outwards.
 

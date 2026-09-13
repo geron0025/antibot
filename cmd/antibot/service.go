@@ -43,6 +43,12 @@ func serveService(ctx context.Context, addr string, log *events.Log, agg *aggreg
 			st := agg.Status()
 			stats["aggregate_dropped"] = st.Dropped
 			stats["aggregate_outbox"] = st.Outbox
+			if !st.LastSent.IsZero() {
+				stats["aggregate_last_sent"] = st.LastSent.UTC().Format(time.RFC3339)
+			}
+			if st.LastProblem != "" {
+				stats["aggregate_problem"] = st.LastProblem
+			}
 		}
 		json.NewEncoder(w).Encode(stats)
 	})

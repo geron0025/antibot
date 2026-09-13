@@ -214,7 +214,9 @@ admin_ui:
 **A non-loopback address without a certificate is a refusal at startup.**
 Not a warning: the password would travel the network in clear text, and
 that is not an inconvenience but access already granted. If you want the
-admin UI exposed, set a certificate first.
+admin UI exposed, set a certificate first. It is reread on the fly, at
+most once every 30 seconds: one renewed by certbot is taken up without a
+restart.
 
 `redirect_from` works only together with a certificate. Code 308 and not
 301: 301 allows the browser to change the method to GET, and a submitted

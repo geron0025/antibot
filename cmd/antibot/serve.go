@@ -221,7 +221,21 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 					return err
 				}
 			}
+			fetching := cfg.Facts.Enabled && cfg.Facts.URL != "" && cfg.Cloud.Token != ""
+			cloudState := func() admin.CloudState {
+				set := factStore.Current()
+				state := admin.CloudState{
+					Token: cfg.Cloud.Token != "", Fetching: fetching,
+					FactsVersion: set.Version(), FactsBuilt: set.CreatedAt(),
+				}
+				if agg != nil {
+					st := agg.Status()
+					state.Outbox, state.LastSent, state.LastProblem = st.Outbox, st.LastSent, st.LastProblem
+				}
+				return state
+			}
 			adminUI, err = admin.New(admin.Options{
+				Cloud:              cloudState,
 				Tokens:             tokens,
 				Alerts:             watcher,
 				AlertCommand:       alertCommand,

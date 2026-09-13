@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 
 	"github.com/geron0025/antibot/internal/alerts"
@@ -208,6 +209,8 @@ type overviewData struct {
 	// out: the warning above already says the same in its own words.
 	Firing []alerts.Status
 
+	Cloud *CloudState
+
 	ServerErrors int
 	Answers      donutChart
 	Series       *columnsChart
@@ -270,6 +273,10 @@ func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request, user strin
 			}
 		}
 	}
+	if s.o.Cloud != nil {
+		state := s.o.Cloud()
+		data.Cloud = &state
+	}
 	s.render(w, "overview.html", data)
 }
 
@@ -281,17 +288,27 @@ type eventsData struct {
 	Events []facts.Request
 	Filter summary.Filter
 	Limit  int
+
+	// Export is the download of the same filters over the last day.
+	Export string
+}
+
+// eventsFilter reads the events filters from a query: the page, its
+// download and the API take the same ones.
+func eventsFilter(q url.Values) summary.Filter {
+	return summary.Filter{
+		Host: q.Get("host"), Decision: q.Get("decision"), Rule: q.Get("rule"),
+		IP: q.Get("ip"), JA4: q.Get("ja4"), Search: q.Get("q"), Status: q.Get("status"),
+	}
 }
 
 func (s *Server) eventsPage(w http.ResponseWriter, r *http.Request, user string) {
-	f := summary.Filter{
-		Host:     r.URL.Query().Get("host"),
-		Decision: r.URL.Query().Get("decision"),
-		Rule:     r.URL.Query().Get("rule"),
-		IP:       r.URL.Query().Get("ip"),
-		JA4:      r.URL.Query().Get("ja4"),
-		Search:   r.URL.Query().Get("q"),
-		Status:   r.URL.Query().Get("status"),
+	f := eventsFilter(r.URL.Query())
+	export := url.Values{"period": {"24h"}}
+	for key, value := range r.URL.Query() {
+		if key != "period" && len(value) > 0 && value[0] != "" {
+			export.Set(key, value[0])
+		}
 	}
 	limit := 200
 
@@ -307,6 +324,7 @@ func (s *Server) eventsPage(w http.ResponseWriter, r *http.Request, user string)
 		Events:     list,
 		Filter:     f,
 		Limit:      limit,
+		Export:     "/events/export?" + export.Encode(),
 	})
 }
 
@@ -419,7 +437,7 @@ func (s *Server) toggleRule(w http.ResponseWriter, r *http.Request, who string) 
 
 	if err := s.o.Rules.Toggle(id, enable); err != nil {
 		s.o.Log.Error("the rule was not toggled", "rule", id, "who", who, "err", err)
-		http.Redirect(w, r, "/rules?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, withError(backTo(r), err.Error()), http.StatusSeeOther)
 		return
 	}
 
@@ -427,7 +445,25 @@ func (s *Server) toggleRule(w http.ResponseWriter, r *http.Request, who string) 
 	// must not happen anonymously.
 	s.o.Log.Info("a rule was toggled from the admin UI",
 		"rule", id, "enabled", enable, "who", who, "address", clientAddr(r))
-	http.Redirect(w, r, "/rules", http.StatusSeeOther)
+	http.Redirect(w, r, backTo(r), http.StatusSeeOther)
+}
+
+// backTo is where a rule's form returns: the rule's own page when it was
+// sent from there, the list otherwise. The form names a rule, never an
+// address, so the field cannot become a redirect anywhere else.
+func backTo(r *http.Request) string {
+	if id := r.PostFormValue("back"); id != "" {
+		return "/rule?id=" + url.QueryEscape(id)
+	}
+	return "/rules"
+}
+
+func withError(to, message string) string {
+	sep := "?"
+	if strings.Contains(to, "?") {
+		sep = "&"
+	}
+	return to + sep + "error=" + url.QueryEscape(message)
 }
 
 // setRuleMode moves a rule between shadow and active. It is the step that
@@ -452,13 +488,13 @@ func (s *Server) setRuleMode(w http.ResponseWriter, r *http.Request, who string)
 
 	if err := s.o.Rules.SetMode(id, mode); err != nil {
 		s.o.Log.Error("the rule's mode was not changed", "rule", id, "mode", mode, "who", who, "err", err)
-		http.Redirect(w, r, "/rules?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, withError(backTo(r), err.Error()), http.StatusSeeOther)
 		return
 	}
 
 	s.o.Log.Info("a rule's mode was changed from the admin UI",
 		"rule", id, "mode", mode, "who", who, "address", clientAddr(r))
-	http.Redirect(w, r, "/rules", http.StatusSeeOther)
+	http.Redirect(w, r, backTo(r), http.StatusSeeOther)
 }
 
 // --- helpers ---

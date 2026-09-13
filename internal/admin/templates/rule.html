@@ -1,0 +1,81 @@
+{{template "header" .}}
+
+{{template "period-picker" .}}
+
+<section class="card">
+  <h1 class="value">{{.Rule.ID}}</h1>
+  {{if .Rule.Name}}<p>{{.Rule.Name}}</p>{{end}}
+  <dl class="facts">
+    <dt>mode</dt><dd>{{.Rule.Mode}}</dd>
+    <dt>state</dt><dd>{{if .Enabled}}enabled{{else}}disabled{{end}}</dd>
+    <dt>action</dt><dd>{{.Rule.Action.Type}}{{with .Rule.Action.Status}} · answers {{.}}{{end}}{{with .Rule.Action.Limit}} · {{.}} per {{$.Rule.Action.Window}}{{end}}</dd>
+    <dt>priority</dt><dd>{{.Rule.Priority}}</dd>
+    <dt>scope</dt><dd class="value">{{range .Rule.Scope}}{{.}} {{end}}</dd>
+  </dl>
+  <div class="fields">
+    <form method="post" action="/rules/mode">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="id" value="{{.Rule.ID}}">
+      <input type="hidden" name="back" value="{{.Rule.ID}}">
+      {{if eq .Rule.Mode "active"}}
+      <input type="hidden" name="mode" value="shadow">
+      <button type="submit">back to shadow</button>
+      {{else}}
+      <input type="hidden" name="mode" value="active">
+      <button type="submit">to active</button>
+      {{end}}
+    </form>
+    <form method="post" action="/rules/toggle">
+      <input type="hidden" name="csrf" value="{{.CSRF}}">
+      <input type="hidden" name="id" value="{{.Rule.ID}}">
+      <input type="hidden" name="back" value="{{.Rule.ID}}">
+      <input type="hidden" name="enable" value="{{if .Enabled}}no{{else}}yes{{end}}">
+      <button type="submit">{{if .Enabled}}disable{{else}}enable{{end}}</button>
+    </form>
+  </div>
+  <details>
+    <summary>As it lies in rules.json</summary>
+    <pre class="value">{{.JSON}}</pre>
+  </details>
+</section>
+
+<section class="tiles">
+  <div class="tile">
+    <span class="big-number">{{count .Summary.Events}}</span>
+    <span class="caption">requests it {{if eq .Rule.Mode "shadow"}}marked in shadow{{else}}decided or marked{{end}} · {{share .Summary.Events .Summary.Total}} of all</span>
+  </div>
+  <div class="tile"><span class="big-number">{{count .Summary.IPCount}}</span><span class="caption">addresses</span></div>
+  <div class="tile"><span class="big-number">{{count .Summary.HostCount}}</span><span class="caption">hosts</span></div>
+  <div class="tile">
+    <span class="big-number">{{share .Summary.Unknown.NoNetClass .Summary.Events}}</span>
+    <span class="caption">without a network class</span>
+  </div>
+</section>
+
+<p class="dim">Whom it touched is in the breakdowns below. A rule that
+touches a noticeable share of the requests almost certainly touches people
+too — that much traffic is never all bots; go through the addresses and
+fingerprints by hand before moving it to <code>active</code>. For a shadow
+rule the answers are what the site gave, that is, whom the rule would have
+cut off.</p>
+
+<div class="card">
+  <h2>Over time</h2>
+  {{with .Series}}{{template "columns" .}}{{else}}<p class="dim">It did not fire over the period.</p>{{end}}
+</div>
+
+<section class="two-columns">
+  <div>{{template "breakdown" (breakdown "Address" "ip" .Summary.IPs "rule" .Rule.ID)}}</div>
+  <div>{{template "breakdown" (breakdown "JA4 fingerprint" "ja4" .Summary.JA4 "rule" .Rule.ID)}}</div>
+  <div>{{template "breakdown" (breakdown "User-Agent" "q" .Summary.UA "rule" .Rule.ID)}}</div>
+  <div>{{template "breakdown" (breakdown "Path" "q" .Summary.Paths "rule" .Rule.ID)}}</div>
+  <div>{{template "breakdown" (breakdown "Host" "host" .Summary.Hosts "rule" .Rule.ID)}}</div>
+  <div>{{template "breakdown" (breakdown "Site answer code" "status" .Summary.Statuses "rule" .Rule.ID)}}</div>
+</section>
+
+<h2>The latest it touched</h2>
+{{template "events-table" .Events}}
+<p class="dim"><a href="/events?rule={{.Rule.ID}}">All its events</a> ·
+<a href="/events/export?rule={{.Rule.ID}}&amp;period={{.ExportPeriod}}">download them for the period</a> as NDJSON.</p>
+
+{{template "footer" .}}

@@ -21,7 +21,7 @@ with <code>antibot rules</code>.</p>
     <tr {{if not .Enabled}}class="disabled"{{end}}>
       <td class="num">{{.Rule.Priority}}</td>
       <td>
-        <a href="/events?rule={{.Rule.ID}}">{{.Rule.ID}}</a>
+        <a href="/rule?id={{.Rule.ID}}">{{.Rule.ID}}</a>
         {{if .Rule.Name}}<div class="dim">{{.Rule.Name}}</div>{{end}}
       </td>
       <td>

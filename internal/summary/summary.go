@@ -87,6 +87,10 @@ type Options struct {
 	// Buckets is how many intervals to split the period into for the time
 	// series.
 	Buckets int
+
+	// Filter keeps only the events it matches: the page of one rule counts
+	// only the requests that rule touched. Nil counts everything.
+	Filter *Filter
 }
 
 func (o *Options) applyDefaults() {
@@ -172,7 +176,12 @@ const crawlerClass = "crawler"
 type Summary struct {
 	From, To time.Time `json:"-"`
 
-	Events    int   `json:"events"`
+	Events int `json:"events"`
+
+	// Total is how many events the period held before the filter: the
+	// share a rule's matches make of all the traffic.
+	Total int `json:"-"`
+
 	Read      int   `json:"read"`
 	Broken    int   `json:"broken"`
 	IPCount   int   `json:"ip_count"`
@@ -259,6 +268,10 @@ func Build(o Options) (*Summary, error) {
 
 	result, err := events.Read(events.Filter{Dir: o.Dir, From: o.From, To: o.To},
 		func(r facts.Request) error {
+			s.Total++
+			if o.Filter != nil && !o.Filter.matches(&r) {
+				return nil
+			}
 			s.Events++
 			s.Decisions[decisionOr(r.Decision)]++
 			s.Bytes += r.Bytes
@@ -556,6 +569,10 @@ type Filter struct {
 	// pages go back in time from the last event of the previous page.
 	Before time.Time
 }
+
+// Matches says whether an event passes the filter — for the export, which
+// streams the log rather than collecting it.
+func (f *Filter) Matches(r *facts.Request) bool { return f.matches(r) }
 
 func (f *Filter) matches(r *facts.Request) bool {
 	if !f.Before.IsZero() && !r.Time.Before(f.Before) {

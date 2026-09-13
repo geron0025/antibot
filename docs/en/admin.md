@@ -39,7 +39,9 @@ the documentation says.
 |---|---|
 | `/` | overview: how many requests, who was not let through, what the node does not know |
 | `/events` | events with filters |
+| `/events/export` | a download of the events with the same filters, as the log's lines |
 | `/rules` | rules in the order of application, with how often they fired |
+| `/rule?id=…` | one rule: its firings over time, whom it touched, the latest events |
 | `/domains` | domains, their sites' addresses, certificates and terms |
 | `/alerts` | alerts: the triggers and their thresholds, what is firing now, the messages, the delivery command |
 | `/tokens` | API tokens: issuing, terms, the last use, revoking |
@@ -93,6 +95,13 @@ there is nothing to confirm against, and the admin UI says so plainly
 instead of pretending it recognized anybody. How to exempt verified
 crawlers from blocks with a single rule — [facts.md](facts.md).
 
+The **cloud** block says what leaves the node. Without `cloud.token` —
+plainly: the node talks to nobody, nothing leaves it. With a token — the
+version and date of the fact set, how many aggregate batches wait to be
+sent, when the cloud last accepted one and how the last failed attempt
+went: the token was refused, the cloud was unreachable. Before, this
+showed only on the service port and with `antibot aggregate status`.
+
 ### Events
 
 The filters combine with "and": host, address, rule, `ja4`, decision,
@@ -107,6 +116,14 @@ than what was counted.
 A click on an address, a rule or a fingerprint is a filter by it: going
 through them one by one starts here.
 
+**The download** is a link above the table: every event matching the
+same filters over the last day, as the log's own lines (NDJSON), oldest
+first. The span is changed with the `period` parameter, up to 90 days;
+more than 500 thousand lines are not handed out at once — the whole log
+lies on the node's disk. The events carry the visitors' addresses, so
+every download is a line in the node's log: who, how many lines, with
+which filters and from where.
+
 ### Rules
 
 In the **order of application**, not the order of the file: a human looks
@@ -118,6 +135,24 @@ restart the counters reset while the log stays.
 Two things can be done to a rule here: enable or disable it, and move it
 from `shadow` to `active` and back. The count of firings next to it —
 in shadow too — is what the move is based on.
+
+### One rule
+
+A click on a rule opens its page. The number on the rules page says how
+many; this one says **who**: the addresses, fingerprints, `User-Agent`s,
+paths, hosts and the site's answer codes the rule fired on over the
+period, a chart over time and the latest events it touched. For a rule
+in shadow the answer codes are what the visitors got, that is, whom it
+would have cut off. The share of all the traffic is right there: a rule
+touching a noticeable share of the requests almost certainly touches
+people too.
+
+The page also has the rule as written in `rules.json` and the same two
+buttons: after them the human comes back to the rule's page rather than
+to the list. A click on a breakdown row opens the events with that value
+**and this rule**. The rule is named in the address as a parameter
+(`/rule?id=…`) rather than a piece of the path: an `id` is the owner's
+text, and it may hold a `/`.
 
 ### Domains
 
@@ -358,7 +393,14 @@ admin_ui:
 Without a certificate the node **will not start** — it does not "warn",
 it refuses to bring the listeners up at all. The check runs before the
 ports are taken: the admin UI on `0.0.0.0` used to bring the node down a
-second after startup, having managed to accept requests.
+second after startup, having managed to accept requests. A pair that does
+not load stops the start before the ports are taken too.
+
+The admin UI's certificate is **reread on the fly**, at most once every
+30 seconds: one renewed by certbot is taken up without a restart. A pair
+that does not load — certbot caught between writing the chain and the
+key — keeps the previous one in force, and the node tries again in 30
+seconds.
 
 ## What the admin UI does not have
 
@@ -369,7 +411,8 @@ second after startup, having managed to accept requests.
 - creating accounts — only `antibot admin passwd`. Changing a password
   through the admin UI would mean that whoever stole a session takes the
   access for good;
-- exporting events and a page for a single rule — simply not written yet.
+- editing a rule in place — it is replaced by deleting and adding, with
+  the command or through the [API](api.md).
 
 Accepting rule proposals from the update service will become one more
 writing action when it appears; the rule will land in `shadow`, and
