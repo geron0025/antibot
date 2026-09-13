@@ -97,9 +97,24 @@ header .right { display: flex; align-items: center; gap: 12px; }
   display: flex; flex-direction: column; gap: 0; }
 .burger-menu a { padding: 8px 14px; }
 .burger-menu a:hover { background: var(--hover); text-decoration: none; }
+/* A table wider than the screen scrolls inside itself, and the page stays
+   put: on a phone the events table is three screens wide. Breakdowns are
+   not wrapped — their fixed layout fits and cuts long values short. */
+.scroll { overflow-x: auto; }
+
 @media (max-width: 720px) {
   header nav:not(.burger-menu) { display: none; }
   .burger { display: block; }
+
+  /* The bell's list is wider than what lies left of the bell: on a phone
+     it spans the screen under the header. */
+  header .inner { position: relative; }
+  .bell { position: static; }
+  .bell-menu { left: 16px; right: 16px; width: auto; }
+
+  th, td { padding: 5px 8px; }
+  .fields label { max-width: 100%; }
+  .fields textarea { width: 100%; }
 }
 .bell.current summary { color: var(--text); background: var(--hover); }
 .bell.firing summary { color: var(--red); }

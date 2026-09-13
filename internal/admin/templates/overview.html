@@ -83,7 +83,7 @@
   <p class="dim">While the network has no class and the fingerprint has no name,
   a rule has to be written blind: by the address and the <code>User-Agent</code>
   string, that is, by what the client says about itself.</p>
-  <table>
+  <div class="scroll"><table>
     <tbody>
       <tr>
         <td>requests without a network class</td>
@@ -96,7 +96,7 @@
         <td class="num dim">{{share .Summary.Unknown.NoFamily .Summary.Events}}</td>
       </tr>
     </tbody>
-  </table>
+  </table></div>
 
   {{with .Summary.Unknown.SelfDeclaredCrawlers}}
   <h3>Called themselves crawlers</h3>
@@ -108,7 +108,7 @@
   <p class="dim">No request here has a network class: without a fact set there is
   nothing to confirm a claim against.</p>
   {{end}}
-  <table>
+  <div class="scroll"><table>
     <thead><tr><th>called itself</th><th class="num">requests</th><th class="num">from a crawler network</th><th class="num">not confirmed</th><th class="num">addresses</th></tr></thead>
     <tbody>
     {{range .}}
@@ -121,7 +121,7 @@
       </tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
   {{end}}
 
   <p class="dim">The network class, its owner and the fingerprint family arrive
@@ -133,7 +133,7 @@
 <section class="card">
   <h2>The cloud</h2>
   {{if .Token}}
-  <table>
+  <div class="scroll"><table>
     <tbody>
       <tr>
         <td>fact set</td>
@@ -147,7 +147,7 @@
           {{with .LastProblem}}<div class="warning">{{.}}</div>{{end}}</td>
       </tr>
     </tbody>
-  </table>
+  </table></div>
   <p class="dim">What leaves the node and what never does is written down in
   the documentation, protocol/aggregate.md: counts by five-minute windows, no
   addresses, no paths, no cookies.</p>

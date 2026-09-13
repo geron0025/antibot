@@ -267,6 +267,41 @@ func TestTheMenuFoldsIntoABurger(t *testing.T) {
 	}
 }
 
+// A table wider than a phone scrolls inside itself: every table but the
+// breakdowns and the legend sits in a scroll box, or the whole page would
+// slide sideways.
+func TestWideTablesScrollInsideThemselves(t *testing.T) {
+	s, _ := newServer(t)
+	cookies := logIn(t, s)
+
+	for _, path := range []string{"/", "/events", "/rules", "/rule?id=block-curl", "/settings"} {
+		body, _ := io.ReadAll(get(t, s, path, cookies).Body)
+		page := string(body)
+		tables := 0
+		for at := strings.Index(page, "<table"); at >= 0; at = next(page, at) {
+			tag := page[at : at+strings.Index(page[at:], ">")]
+			if strings.Contains(tag, "breakdown") || strings.Contains(tag, "legend") {
+				continue
+			}
+			tables++
+			if !strings.HasSuffix(strings.TrimSpace(page[:at]), `<div class="scroll">`) {
+				t.Errorf("%s: %s is not in a scroll box", path, tag)
+			}
+		}
+		if tables == 0 && path != "/settings" {
+			t.Errorf("%s: no table checked", path)
+		}
+	}
+}
+
+func next(page string, at int) int {
+	i := strings.Index(page[at+1:], "<table")
+	if i < 0 {
+		return -1
+	}
+	return at + 1 + i
+}
+
 // Password guessing must hit a limit.
 func TestGuessingHitsTheLimit(t *testing.T) {
 	s, _ := newServer(t)

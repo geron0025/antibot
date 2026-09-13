@@ -139,19 +139,19 @@
 </svg>
 <details>
   <summary>As a table</summary>
-  <table>
+  <div class="scroll"><table>
     <thead><tr><th>from</th>{{range .Classes}}<th class="num">{{.}}</th>{{end}}<th class="num">total</th></tr></thead>
     <tbody>
     {{range .Rows}}
       <tr><td class="num">{{.Time}}</td>{{range .Counts}}<td class="num">{{count .}}</td>{{end}}<td class="num">{{count .Total}}</td></tr>
     {{end}}
     </tbody>
-  </table>
+  </table></div>
 </details>
 {{end}}
 
 {{define "events-table"}}
-<table class="events">
+<div class="scroll"><table class="events">
   <thead>
     <tr>
       <th>time</th><th>address</th><th>host</th><th>path</th>
@@ -177,5 +177,5 @@
     <tr><td colspan="8" class="dim">no events</td></tr>
   {{end}}
   </tbody>
-</table>
+</table></div>
 {{end}}

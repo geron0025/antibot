@@ -8,7 +8,7 @@ goes to your command below.</p>
 
 {{if .TestResult}}<div class="warning">The test message: {{.TestResult}}</div>{{end}}
 
-<table>
+<div class="scroll"><table>
   <thead><tr><th>trigger</th><th>fires when</th><th>now</th></tr></thead>
   <tbody>
   {{range .Rows}}
@@ -24,7 +24,7 @@ goes to your command below.</p>
     </tr>
   {{end}}
   </tbody>
-</table>
+</table></div>
 
 <section class="card add-domain">
   <h2>Delivery</h2>
@@ -66,7 +66,7 @@ goes to your command below.</p>
 </section>
 
 <h2>Messages since the start</h2>
-<table>
+<div class="scroll"><table>
   <thead><tr><th>time</th><th>trigger</th><th>state</th><th>message</th><th>delivery</th></tr></thead>
   <tbody>
   {{range .History}}
@@ -81,7 +81,7 @@ goes to your command below.</p>
     <tr><td colspan="5" class="dim">nothing since the start</td></tr>
   {{end}}
   </tbody>
-</table>
+</table></div>
 <p class="dim">The history lives in the node's memory and starts anew with
 every restart; every message is in the node's log as well.</p>
 

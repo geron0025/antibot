@@ -10,7 +10,7 @@ in place. Nothing in <code>config.yaml</code> is changed here.</p>
 
   {{if eq .Mode "replace"}}
   {{with .Cert}}
-  <table>
+  <div class="scroll"><table>
     <tbody>
       <tr><th>names</th><td class="value">{{range $i, $n := .Names}}{{if $i}}, {{end}}{{$n}}{{end}}</td></tr>
       <tr><th>issued by</th><td>{{if .SelfSigned}}itself — a self-signed certificate, the browser warns{{else}}{{.Issuer}}{{end}}</td></tr>
@@ -18,7 +18,7 @@ in place. Nothing in <code>config.yaml</code> is changed here.</p>
       <tr><th>files</th><td><code>{{$.CertFile}}</code>, <code>{{$.KeyFile}}</code>
         <div class="dim">{{if $.FromConfig}}named in config.yaml{{else}}added on this page{{end}}</div></td></tr>
     </tbody>
-  </table>
+  </table></div>
   {{if not $.Covers}}
   <section class="warning">
     <p>It does not cover <span class="value">{{$.Host}}</span>, the name this page
