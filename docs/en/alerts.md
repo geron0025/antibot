@@ -36,7 +36,14 @@ UI's "Alerts" page shows every trigger with the thresholds in force.
 - **One message when a trigger fires, and one — "back to normal" — when
   things have stayed fine for a whole window.** A flapping trigger does
   not send a message a minute, and while a trigger is firing it does not
-  repeat itself.
+  repeat itself. So "back to normal" comes one or two windows after the
+  last error: first it leaves the window, then things stay fine for
+  another window.
+- **"Back to normal" says what is over, how long it lasted and how long
+  it has been quiet,** and repeats the text the trigger fired with:
+  `back to normal: the site does not answer lasted 5m, all clear for the
+  last 5m. When it fired: …`. The numbers at the end are those of the
+  moment it fired, not of the last minute of the trouble.
 - **"Many times more than usual"** is measured against the average of
   the hour before. Not against the same hour yesterday: yesterday is lost
   on a restart, and a raid is a sharp jump, while a site's morning rise

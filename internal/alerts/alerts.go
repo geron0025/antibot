@@ -164,6 +164,9 @@ type Watcher struct {
 
 type state struct {
 	kind, text string
+	// first is the text the trigger fired with, the one "back to normal"
+	// recalls; text follows the latest check, for the page and the bell.
+	first      string
 	since      time.Time
 	clearSince time.Time
 }
@@ -427,7 +430,7 @@ func (w *Watcher) transition(now time.Time, found map[string]finding) {
 			st.text, st.clearSince = f.text, time.Time{}
 			continue
 		}
-		w.states[id] = &state{kind: f.kind, text: f.text, since: now}
+		w.states[id] = &state{kind: f.kind, text: f.text, first: f.text, since: now}
 		out = append(out, w.recordLocked(Alert{
 			ID: id, Kind: f.kind, State: Firing, Text: f.text, Host: w.host, Time: now,
 		}))
@@ -453,7 +456,7 @@ func (w *Watcher) transition(now time.Time, found map[string]finding) {
 		delete(w.states, id)
 		out = append(out, w.recordLocked(Alert{
 			ID: id, Kind: st.kind, State: Resolved, Host: w.host, Time: now,
-			Text: fmt.Sprintf("back to normal after %s: %s", span(now.Sub(st.since)), st.text),
+			Text: w.resolvedText(st, now),
 		}))
 	}
 	w.stateMu.Unlock()
@@ -579,6 +582,21 @@ func (w *Watcher) Triggers() []Trigger {
 			"no new set for %s while the node fetches them", span(o.FactsMaxAge))},
 		{OutboxStuck, "aggregates do not leave", fmt.Sprintf("%d batches waiting to be sent", o.OutboxMax)},
 	}
+}
+
+// resolvedText says what is over, how long it lasted and how long it has
+// been clear, and recalls the text the trigger fired with. The latest
+// text is not used: it is worded as the present, and by the end it mixes
+// the trouble with the calm after it.
+func (w *Watcher) resolvedText(st *state, now time.Time) string {
+	title := st.kind
+	for _, t := range w.Triggers() {
+		if t.Kind == st.kind {
+			title = t.Title
+		}
+	}
+	return fmt.Sprintf("back to normal: %s lasted %s, all clear for the last %s. When it fired: %s",
+		title, span(st.clearSince.Sub(st.since)), span(now.Sub(st.clearSince)), st.first)
 }
 
 func span(d time.Duration) string {

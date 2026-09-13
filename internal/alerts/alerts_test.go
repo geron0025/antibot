@@ -73,11 +73,25 @@ func TestSiteDownFiresOnceAndResolvesOnce(t *testing.T) {
 		t.Fatalf("messages: %s", got)
 	}
 	h := w.History()
-	if !h[0].Time.Equal(at(13)) || !strings.Contains(h[0].Text, "back to normal") {
-		t.Fatalf("resolved %v: %s", h[0].Time, h[0].Text)
+	if !h[0].Time.Equal(at(13)) {
+		t.Fatalf("resolved at %v", h[0].Time)
 	}
 	if !strings.Contains(h[1].Text, "50 of 50 requests") {
 		t.Fatalf("firing: %s", h[1].Text)
+	}
+
+	// Firing from minute 5, the condition gone at 8, quiet until 13. The
+	// message recalls what it fired with, not the last minute of the
+	// trouble: that one reads as the present and says "30 of 50".
+	resolved := h[0].Text
+	for _, want := range []string{"back to normal: the site does not answer lasted 3m",
+		"all clear for the last 5m", "When it fired: the site answers with errors: 50 of 50 requests"} {
+		if !strings.Contains(resolved, want) {
+			t.Errorf("the resolved message has no %q: %s", want, resolved)
+		}
+	}
+	if strings.Contains(resolved, "30 of 50") {
+		t.Errorf("the resolved message repeats the last minute of the trouble: %s", resolved)
 	}
 }
 
