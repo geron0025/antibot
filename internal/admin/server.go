@@ -18,7 +18,8 @@
 //
 // On the same address, under /api/v1/, lives the node's API — the same
 // numbers for a program, behind a token issued on the tokens page or with
-// `antibot api-token`.
+// `antibot api-token`. The API takes a ready rule, the way `antibot rules
+// add` does: one more door to the same write path, not an editor.
 package admin
 
 import (

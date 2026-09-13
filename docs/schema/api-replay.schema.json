@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antibot.dev/schema/api-replay/1",
+  "title": "Прогон черновика правила по журналу: POST /api/v1/replay",
+  "type": "object",
+  "required": ["from", "to", "events", "ips", "decisions", "divergences", "rule"],
+  "additionalProperties": false,
+  "properties": {
+    "from": {"type": "string", "format": "date-time"},
+    "to": {"type": "string", "format": "date-time"},
+    "events": {"type": "integer", "minimum": 0},
+    "ips": {"type": "integer", "minimum": 0},
+    "decisions": {
+      "description": "сколько запросов получило бы каждое решение с черновиком в наборе",
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "divergences": {
+      "description": "сколько запросов получило бы не то решение, что записано в событии",
+      "type": "object",
+      "additionalProperties": {"type": "integer", "minimum": 0}
+    },
+    "rule": {
+      "type": "object",
+      "required": ["id", "mode", "action", "matched", "ips", "hosts", "uas", "share", "samples"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "mode": {"enum": ["shadow", "active"]},
+        "action": {"enum": ["block", "ratelimit", "allow"]},
+        "matched": {"type": "integer", "minimum": 0},
+        "ips": {"type": "integer", "minimum": 0},
+        "hosts": {"type": "integer", "minimum": 0},
+        "uas": {"type": "integer", "minimum": 0},
+        "share": {"description": "доля запросов периода, от 0 до 1", "type": "number", "minimum": 0},
+        "samples": {
+          "description": "события, на которых черновик сработал, — те же строки журнала, что в api-events",
+          "type": "array",
+          "items": {"type": "object"}
+        }
+      }
+    }
+  }
+}

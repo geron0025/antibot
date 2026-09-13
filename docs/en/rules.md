@@ -247,10 +247,12 @@ The file is replaced whole and atomically; the node notices the change
 and rereads the set without a restart. **A broken rule discards the whole
 set**, and the previous one stays in force.
 
-Rules are changed with a command or by editing the file. The
-enable/disable button in the admin UI goes **through the same write and
-the same validation** as the command: inside the node the rules file has
-no second writer.
+Rules are changed with a command, by editing the file, or by the
+owner's program through the [API](api.md) — with a token the owner
+issues on the node itself. The admin UI's buttons and the API go
+**through the same write and the same validation** as the command:
+inside the node the rules file has no second writer.
 
-There is no way to enable a rule from the outside, and there will not be
-one.
+There is no way to enable a rule from the outside — from the cloud, or
+for anyone but the node's owner — and there will not be one. An API
+token is never handed to the cloud and never kept there.

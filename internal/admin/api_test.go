@@ -248,3 +248,125 @@ func TestTokensPage(t *testing.T) {
 		t.Fatal("the page shows the value a second time")
 	}
 }
+
+// A read token reads and a write token writes; every change goes through
+// rules.Store, answers with the rule as it now is, and tells the caller's
+// mistake from the node's trouble.
+func TestAPIWritesRules(t *testing.T) {
+	s, read, write := newAPIServer(t)
+	rulesSchema := schema(t, "api-rules")
+	change := rulesSchema["$defs"].(map[string]any)["change"].(map[string]any)
+	errorSchema := schema(t, "api-error")
+
+	draft := `{"id":"watch-python","scope":["*"],"mode":"shadow","priority":10,
+		"condition":{"field":"ua","op":"contains","value":"python"},"action":{"type":"block"}}`
+
+	if rec := call(t, s, "POST", "/api/v1/rules", read, draft); rec.Code != http.StatusForbidden {
+		t.Fatalf("a read token added a rule: %d", rec.Code)
+	}
+	rec := call(t, s, "POST", "/api/v1/rules", write, draft)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("add: %d %s", rec.Code, rec.Body)
+	}
+	if errs := schemacheck.ValidateAt(rulesSchema, change, decode(t, rec), "$"); len(errs) > 0 {
+		t.Fatal(errs)
+	}
+
+	for name, c := range map[string]struct {
+		method, path, body string
+		code               int
+	}{
+		"the same id again":          {"POST", "/api/v1/rules", draft, 409},
+		"a typo in a field":          {"POST", "/api/v1/rules", strings.Replace(draft, `"priority"`, `"priorty"`, 1), 400},
+		"a field rules do not know":  {"POST", "/api/v1/rules", strings.Replace(draft, `"ua"`, `"useragent"`, 1), 400},
+		"not JSON":                   {"POST", "/api/v1/rules", "{", 400},
+		"two values":                 {"POST", "/api/v1/rules", draft + draft, 400},
+		"a mode that does not exist": {"POST", "/api/v1/rules/watch-python/mode", `{"mode":"loud"}`, 400},
+		"a rule that is not there":   {"POST", "/api/v1/rules/nothing/enable", "", 404},
+		"deleting what is not there": {"DELETE", "/api/v1/rules/nothing", "", 404},
+	} {
+		rec := call(t, s, c.method, c.path, write, c.body)
+		if rec.Code != c.code {
+			t.Errorf("%s: %d, want %d: %s", name, rec.Code, c.code, rec.Body)
+			continue
+		}
+		if errs := schemacheck.Validate(errorSchema, decode(t, rec)); len(errs) > 0 {
+			t.Errorf("%s: %v", name, errs)
+		}
+	}
+
+	for _, step := range []struct{ path, body, want string }{
+		{"/api/v1/rules/watch-python/disable", "", `"enabled":false`},
+		{"/api/v1/rules/watch-python/enable", "", `"enabled":true`},
+		{"/api/v1/rules/watch-python/mode", `{"mode":"active"}`, `"mode":"active"`},
+	} {
+		rec := call(t, s, "POST", step.path, write, step.body)
+		if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), step.want) {
+			t.Errorf("%s: %d %s", step.path, rec.Code, rec.Body)
+		}
+	}
+	if n := len(s.o.Rules.Set().Effective()); n != 2 {
+		t.Fatalf("%d rules in force", n)
+	}
+
+	// Straight into active is allowed, and said out loud.
+	active := strings.NewReplacer(`"watch-python"`, `"block-wget"`, `"shadow"`, `"active"`,
+		`"python"`, `"Wget"`).Replace(draft)
+	rec = call(t, s, "POST", "/api/v1/rules", write, active)
+	if rec.Code != http.StatusCreated || !strings.Contains(rec.Body.String(), `"warning"`) {
+		t.Fatalf("straight into active: %d %s", rec.Code, rec.Body)
+	}
+
+	if rec := call(t, s, "DELETE", "/api/v1/rules/watch-python", write, ""); rec.Code != http.StatusNoContent {
+		t.Fatalf("delete: %d %s", rec.Code, rec.Body)
+	}
+	list := call(t, s, "GET", "/api/v1/rules", read, "").Body.String()
+	if !strings.Contains(list, "block-curl") || !strings.Contains(list, "block-wget") ||
+		strings.Contains(list, "watch-python") {
+		t.Fatalf("after the changes: %s", list)
+	}
+}
+
+// A draft runs over the log together with the rules in force, and nothing
+// is written: the answer says whom it would touch.
+func TestAPIReplay(t *testing.T) {
+	s, read, _ := newAPIServer(t)
+	body := `{"rule":{"id":"block-googlebot-lookalikes","scope":["*"],"mode":"active","priority":200,
+		"condition":{"field":"ua","op":"contains","value":"Googlebot"},"action":{"type":"block"}},
+		"period":"1h","examples":1}`
+
+	rec := call(t, s, "POST", "/api/v1/replay", read, body)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	if errs := schemacheck.Validate(schema(t, "api-replay"), decode(t, rec)); len(errs) > 0 {
+		t.Fatalf("%v\n%s", errs, rec.Body)
+	}
+	var answer struct {
+		Events      int            `json:"events"`
+		Divergences map[string]int `json:"divergences"`
+		Rule        struct {
+			Matched int             `json:"matched"`
+			Samples []facts.Request `json:"samples"`
+		} `json:"rule"`
+	}
+	json.Unmarshal(rec.Body.Bytes(), &answer)
+	if answer.Events != 2 || answer.Rule.Matched != 1 || len(answer.Rule.Samples) != 1 ||
+		answer.Rule.Samples[0].IP != "203.0.113.1" || len(answer.Divergences) == 0 {
+		t.Fatalf("%s", rec.Body)
+	}
+	if n := len(s.o.Rules.Set().All()); n != 1 {
+		t.Fatalf("the replay wrote the draft: %d rules", n)
+	}
+
+	for name, bad := range map[string]string{
+		"a field rules do not know": strings.Replace(body, `"ua"`, `"useragent"`, 1),
+		"no draft":                  `{"period":"1h"}`,
+		"too many examples":         strings.Replace(body, `"examples":1`, `"examples":500`, 1),
+		"a period it cannot read":   strings.Replace(body, `"1h"`, `"an hour"`, 1),
+	} {
+		if rec := call(t, s, "POST", "/api/v1/replay", read, bad); rec.Code != http.StatusBadRequest {
+			t.Errorf("%s: %d %s", name, rec.Code, rec.Body)
+		}
+	}
+}

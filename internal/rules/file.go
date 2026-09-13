@@ -45,7 +45,29 @@ type Store struct {
 	modTime time.Time
 	size    int64
 	existed bool
+
+	// edits serializes read-modify-write: two changes arriving at once —
+	// two API calls from one CI job — must not both start from the same
+	// file and lose one of them.
+	edits sync.Mutex
 }
+
+// InvalidError is a rule or a set the engine refuses: the caller's
+// mistake, not the node's trouble.
+type InvalidError struct{ Err error }
+
+func (e *InvalidError) Error() string { return e.Err.Error() }
+func (e *InvalidError) Unwrap() error { return e.Err }
+
+// NoRuleError names the rule that is not there.
+type NoRuleError struct{ ID string }
+
+func (e *NoRuleError) Error() string { return fmt.Sprintf("there is no rule %q", e.ID) }
+
+// RuleExistsError names the rule that is already there.
+type RuleExistsError struct{ ID string }
+
+func (e *RuleExistsError) Error() string { return fmt.Sprintf("the rule %q already exists", e.ID) }
 
 // Open reads the rules file. An absent file is not an error: a node
 // without rules works and proxies, and that is its ordinary state right
@@ -181,7 +203,7 @@ func (s *Store) Write(rules []Rule) error {
 	// A check before the write: do not let a set be written that the node
 	// itself would later refuse to read.
 	if _, err := Build(rules, s.limiter); err != nil {
-		return err
+		return &InvalidError{Err: err}
 	}
 
 	contents, err := json.MarshalIndent(File{Version: FormatVersion, Rules: rules}, "", "  ")
@@ -235,13 +257,58 @@ func (s *Store) Write(rules []Rule) error {
 // Path is the path to the rules file.
 func (s *Store) Path() string { return s.path }
 
+// Add appends a ready rule. The command and the API call it; the admin UI
+// never does — composing is not its job.
+//
+// Every change to the rules goes through these few methods, whoever asks:
+// the file is read anew, the change is checked on its own and as part of
+// the set, and the file is replaced atomically. There is no second path
+// to rules.json.
+func (s *Store) Add(r Rule) error {
+	if _, err := r.Compile(); err != nil {
+		return &InvalidError{Err: err}
+	}
+	s.edits.Lock()
+	defer s.edits.Unlock()
+
+	list, err := Read(s.path)
+	if err != nil {
+		return err
+	}
+	for _, existing := range list {
+		if existing.ID == r.ID {
+			return &RuleExistsError{ID: r.ID}
+		}
+	}
+	return s.Write(append(list, r))
+}
+
+// Remove deletes a rule.
+func (s *Store) Remove(id string) error {
+	s.edits.Lock()
+	defer s.edits.Unlock()
+
+	list, err := Read(s.path)
+	if err != nil {
+		return err
+	}
+	left := make([]Rule, 0, len(list))
+	for _, r := range list {
+		if r.ID != id {
+			left = append(left, r)
+		}
+	}
+	if len(left) == len(list) {
+		return &NoRuleError{ID: id}
+	}
+	return s.Write(left)
+}
+
 // Toggle enables or disables a rule.
 //
-// Toggle and SetMode are the changes to the rules available from outside
-// the command line: the admin UI may enable, disable and move between
-// shadow and active what has already been written, but not compose
-// anything new. Both go through the same write and the same validation
-// as `antibot rules` — there is no second path to rules.json.
+// Toggle and SetMode are what the admin UI may do to a rule: enable,
+// disable and move between shadow and active what has already been
+// written, but not compose anything new.
 func (s *Store) Toggle(id string, enable bool) error {
 	return s.change(id, func(r *Rule) {
 		value := enable
@@ -254,13 +321,16 @@ func (s *Store) Toggle(id string, enable bool) error {
 // touches — and the step a proposal from the cloud never takes.
 func (s *Store) SetMode(id, mode string) error {
 	if mode != Shadow && mode != Active {
-		return fmt.Errorf("mode %q: it is %s or %s", mode, Shadow, Active)
+		return &InvalidError{Err: fmt.Errorf("mode %q: it is %s or %s", mode, Shadow, Active)}
 	}
 	return s.change(id, func(r *Rule) { r.Mode = mode })
 }
 
 // change edits one rule and writes the file.
 func (s *Store) change(id string, edit func(*Rule)) error {
+	s.edits.Lock()
+	defer s.edits.Unlock()
+
 	// The file is read anew rather than taken from the in-memory
 	// snapshot: it may have been edited by hand, and writing over a stale
 	// snapshot would silently undo somebody else's changes.
@@ -277,7 +347,7 @@ func (s *Store) change(id string, edit func(*Rule)) error {
 		}
 	}
 	if !found {
-		return fmt.Errorf("there is no rule %q", id)
+		return &NoRuleError{ID: id}
 	}
 	return s.Write(list)
 }

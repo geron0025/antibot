@@ -16,11 +16,12 @@ import (
 	"github.com/geron0025/antibot/internal/rules"
 )
 
-// rulesCommand is the only way to change the rules on a node.
+// rulesCommand changes the rules on a node.
 //
-// There is no admin UI on the node that edits rules: a rule is the reason
-// a client does not reach the site, and the path to changing it must be a
-// single one, visible in the shell history.
+// The admin UI and the API reach the same file through the same
+// rules.Store methods: a rule is the reason a client does not reach the
+// site, and there must be one path to changing it, whichever door the
+// change comes through.
 func rulesCommand(args []string, log *slog.Logger) error {
 	if len(args) == 0 {
 		rulesUsage()
@@ -159,29 +160,24 @@ func rulesAdd(args []string, log *slog.Logger) error {
 	if err := decoder.Decode(&added); err != nil {
 		return fmt.Errorf("rule: %w", err)
 	}
-	// A check before the write: an invalid rule must not reach a file the
-	// node would then refuse to read as a whole.
-	if _, err := added.Compile(); err != nil {
-		return err
-	}
 	if added.Mode == rules.Active {
 		fmt.Fprintf(os.Stderr,
 			"the rule %q is being added straight into active — it is worth looking at a replay over history first\n",
 			added.ID)
 	}
 
-	list, err := rules.Read(file)
+	// The rule is checked on its own and as part of the set before the
+	// write: an invalid one must not reach a file the node would then
+	// refuse to read as a whole.
+	store, err := rules.Open(file, nil, log)
 	if err != nil {
 		return err
 	}
-	for _, r := range list {
-		if r.ID == added.ID {
-			return fmt.Errorf("the rule %q already exists", added.ID)
-		}
+	if err := store.Add(added); err != nil {
+		return err
 	}
-
-	return writeRules(file, append(list, added), log,
-		fmt.Sprintf("the rule %s was added", added.ID))
+	fmt.Printf("the rule %s was added\n", added.ID)
+	return nil
 }
 
 func rulesToggle(args []string, enable bool, log *slog.Logger) error {
@@ -247,20 +243,15 @@ func rulesRemove(args []string, log *slog.Logger) error {
 		return err
 	}
 
-	list, err := rules.Read(file)
+	store, err := rules.Open(file, nil, log)
 	if err != nil {
 		return err
 	}
-	left := make([]rules.Rule, 0, len(list))
-	for _, r := range list {
-		if r.ID != id {
-			left = append(left, r)
-		}
+	if err := store.Remove(id); err != nil {
+		return err
 	}
-	if len(left) == len(list) {
-		return fmt.Errorf("there is no rule %q", id)
-	}
-	return writeRules(file, left, log, fmt.Sprintf("the rule %s was deleted", id))
+	fmt.Printf("the rule %s was deleted\n", id)
+	return nil
 }
 
 func rulesCheck(args []string) error {
@@ -291,18 +282,4 @@ func rulesFields() error {
 		fmt.Fprintf(t, "%s\t%s\t%s\n", field, kind, strings.Join(rules.Operators(kind), ", "))
 	}
 	return t.Flush()
-}
-
-// writeRules puts the set on disk atomically and through the same
-// validation the node uses when reading.
-func writeRules(file string, list []rules.Rule, log *slog.Logger, message string) error {
-	store, err := rules.Open(file, nil, log)
-	if err != nil {
-		return err
-	}
-	if err := store.Write(list); err != nil {
-		return err
-	}
-	fmt.Println(message)
-	return nil
 }

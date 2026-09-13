@@ -332,7 +332,8 @@ second after startup, having managed to accept requests.
 
 ## What the admin UI does not have
 
-- a rule editor — conditions are composed with a command;
+- a rule editor — conditions are composed with a command or arrive ready
+  through the [API](api.md);
 - editing the settings — including the `upstreams` of `config.yaml`;
 - issuing and renewing certificates — only uploading ready-made ones;
 - creating accounts — only `antibot admin passwd`. Changing a password

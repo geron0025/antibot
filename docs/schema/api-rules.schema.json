@@ -26,6 +26,16 @@
     }
   },
   "$defs": {
+    "change": {
+      "description": "Ответ на добавление, включение, выключение и смену режима через API: правило, каким оно стало в силе.",
+      "type": "object",
+      "required": ["rule"],
+      "additionalProperties": false,
+      "properties": {
+        "rule": {"$ref": "#/$defs/rule"},
+        "warning": {"type": "string"}
+      }
+    },
     "rule": {
       "description": "Правило, как оно лежит в rules.json. Условие — дерево all/any/not, описано в rules.md.",
       "type": "object",

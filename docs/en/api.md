@@ -26,9 +26,10 @@ stderr. The admin UI's "API tokens" page can do the same; there an issue
 asks for the password once more, because a token outlives a session by
 months ([admin.md](admin.md)).
 
-- **Scope**: `read` — the summary, the events, the rules; `write` —
-  changing the rules as well. A monitoring token should only read: it
-  must not be able to switch the protection off.
+- **Scope**: `read` — the summary, the events, the rules and replaying a
+  draft over history, which writes nothing; `write` — changing the rules
+  as well. A monitoring token should only read: it must not be able to
+  switch the protection off.
 - **Term** — from 1 to 365 days, 90 by default. There is no token without
   an end: "for now" on such a token lasts years.
 - **Kept as a hash** — SHA-256 in `admin_ui.tokens_file`, mode `0600`. The
@@ -67,11 +68,13 @@ words.
 
 | Code | What |
 |---|---|
-| `200` | the answer |
+| `200`, `201`, `204` | the answer; `201` — a rule was added, `204` — deleted, no body |
 | `400` | a parameter was not read. A default is not substituted quietly: a program must learn that it asked for something other than it got |
 | `401` | no token, or it is unknown, revoked or expired; with a `WWW-Authenticate` header |
 | `403` | the token may only read |
-| `404` | there is no such address in the API |
+| `404` | there is no such address in the API, or no such rule |
+| `409` | a rule with this `id` already exists |
+| `413` | the body is larger than a megabyte |
 | `429` | too many refused tokens from this address — twenty per five minutes |
 | `500` | the event log was not read; the reason is in the answer and in the node's log |
 | `503` | the node did not read the tokens file |
@@ -182,12 +185,129 @@ two share their code.
 If the event log was not read, the answer is a `500` rather than rules
 with zeros: a program would read the zeros as "never fired".
 
+## Replaying a draft — `POST /api/v1/replay`
+
+What `antibot replay` does, for one rule: the draft is run over the log
+together with the rules in force — a draft with the `id` of a rule in
+force takes its place — and the answer says whom it would touch.
+**Nothing is written**, so a `read` token is enough. The replay has a
+rate limiter of its own: the count starts anew by the events' time
+rather than continuing somebody else's.
+
+```json
+{
+  "rule": {"id": "block-hosting", "scope": ["*"], "mode": "active", "priority": 100,
+           "condition": {"field": "network.class", "op": "eq", "value": "hosting"},
+           "action": {"type": "block"}},
+  "period": "24h",
+  "examples": 5
+}
+```
+
+`period` — `24h` by default, up to `2160h`; `examples` — how many of the
+events the draft fired on to return for going through by eye: from 0 to
+50, 5 by default.
+
+```json
+{
+  "from": "2026-09-12T12:00:00Z",
+  "to": "2026-09-13T12:00:00Z",
+  "events": 18422,
+  "ips": 3120,
+  "decisions": {"pass": 17710, "block": 712},
+  "divergences": {"pass→block": 180},
+  "rule": {"id": "block-hosting", "mode": "active", "action": "block",
+           "matched": 712, "ips": 61, "hosts": 2, "uas": 14, "share": 0.0386,
+           "samples": []}
+}
+```
+
+- `divergences` — how many requests would get a decision other than the
+  one recorded in the event. That is what a replay is for: "how many
+  live people will the new rule cut off" is answered only this way;
+- a draft in `shadow` changes no decisions — to see whom it would cut
+  off, replay it with `"mode": "active"`: the replay switches nothing on
+  either way;
+- a `share` above `0.01` is a reason to go through the examples by hand:
+  that much traffic is never all bots.
+
+## Writing rules
+
+A `write` token. The same methods as `antibot rules`: the rule is checked
+on its own and as part of the set, the file is reread before the edit —
+it may have been changed by hand — and replaced atomically, and the
+change takes effect at once. Every change lands in the node's log with
+the token's name.
+
+| Request | What |
+|---|---|
+| `POST /api/v1/rules` | add a ready rule; the body is a rule as in `rules.json` |
+| `POST /api/v1/rules/{id}/enable` | enable |
+| `POST /api/v1/rules/{id}/disable` | disable |
+| `POST /api/v1/rules/{id}/mode` | move: the body is `{"mode": "active"}` or `{"mode": "shadow"}` |
+| `DELETE /api/v1/rules/{id}` | delete; the answer is a `204` without a body |
+
+```json
+{
+  "id": "watch-hosting-without-cookie",
+  "scope": ["shop.example.ru"],
+  "mode": "shadow",
+  "priority": 50,
+  "condition": {"all": [
+    {"field": "network.class", "op": "eq", "value": "hosting"},
+    {"field": "cookie", "op": "eq", "value": false}
+  ]},
+  "action": {"type": "block"}
+}
+```
+
+```bash
+curl -fsS -H "Authorization: Bearer $TOKEN" --data @watch-hosting.json \
+  http://127.0.0.1:8090/api/v1/rules
+curl -fsS -H "Authorization: Bearer $TOKEN" --data '{"mode": "active"}' \
+  http://127.0.0.1:8090/api/v1/rules/watch-hosting-without-cookie/mode
+```
+
+The answer is the rule as it now is in force: `{"rule": {…}}`, a `201`
+for an addition and a `200` for the rest. A program sees the result, not
+its own request echoed back.
+
+An extra field in the body is an error, as in `rules.json`: a typo in a
+field name must not quietly turn into an intention left out. A `400` —
+the rule did not parse or the engine does not take it: an unknown
+condition field, an operator not for the field's type, a mode that does
+not exist.
+
+**Straight into `active`** is allowed, as with the command, but the
+answer carries a `warning` and the node's log a `WARN` line: a rule that
+never spent time in shadow was never seen at work. The calmer path is to
+add it in `shadow`, replay it, look at its firings in shadow, and move
+it.
+
+Changes at the same moment do not lose each other: reading and writing
+the rules file go under one lock, and two CI requests in a row both end
+up in the file.
+
+```
+level=INFO msg="a rule was added through the API"
+  rule=watch-hosting-without-cookie mode=shadow token=ci address=127.0.0.1
+level=INFO msg="a rule's mode was changed through the API"
+  rule=watch-hosting-without-cookie mode=active token=ci address=127.0.0.1
+```
+
+There is no editing a rule in place: to replace it, delete it and add it
+anew. An editor that assembles a condition piece by piece is needed
+neither by the cloud nor by programs — what they need is a way to lay a
+ready rule under the same check.
+
 ## The schemas
 
 The machine-readable schemas of the answers lie next to the protocol's:
 [api-summary](../schema/api-summary.schema.json),
 [api-events](../schema/api-events.schema.json),
-[api-rules](../schema/api-rules.schema.json),
+[api-rules](../schema/api-rules.schema.json) — with `change`, the answer
+to a change of a rule, in it too,
+[api-replay](../schema/api-replay.schema.json),
 [api-error](../schema/api-error.schema.json). The
 `TestAPIAnswersMatchTheSchemas` test checks the node's real answers
 against them, so the schema and the code do not drift apart. A field the
@@ -203,6 +323,8 @@ schema does not describe does not pass.
   settle in proxy logs and in the shell history;
 - **the session cookie does nothing in the API, and a token does nothing
   in the admin UI's forms**;
+- **only a `write` token changes the rules**; a `read` one reads and
+  replays drafts but cannot switch the protection off;
 - the same headers as the pages: `Cache-Control: no-store`,
   `X-Robots-Tag: noindex`;
 - **the API is the node's local surface**, not part of the exchange with
@@ -211,7 +333,5 @@ schema does not describe does not pass.
 
 ## What it does not have yet
 
-- **writing rules** — adding a ready one, enabling and disabling, moving
-  to `active`, deleting, replaying a draft over history. That is the next
-  step; until it, a `write` token can do what a `read` one can;
-- domains and certificates — later, under a scope of their own.
+- domains and certificates — later, under a scope of their own;
+- exporting the whole log — the events pages go a thousand at a time.

@@ -19,9 +19,11 @@ var docPages = []string{
 	"../../docs/ru/rules.md",
 	"../../docs/ru/facts.md",
 	"../../docs/ru/protocol/proposals.md",
+	"../../docs/ru/api.md",
 	"../../docs/en/rules.md",
 	"../../docs/en/facts.md",
 	"../../docs/en/protocol/proposals.md",
+	"../../docs/en/api.md",
 }
 
 var jsonBlock = regexp.MustCompile("(?s)```json\n(.*?)```")

@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/geron0025/antibot/internal/facts"
+	"github.com/geron0025/antibot/internal/replay"
+	"github.com/geron0025/antibot/internal/rules"
 	"github.com/geron0025/antibot/internal/summary"
 )
 
@@ -32,12 +34,33 @@ const (
 	apiMaxRows       = 1000
 	apiDefaultEvents = 100
 	apiMaxPeriod     = 90 * 24 * time.Hour
+
+	// A rule with long lists is kilobytes; a megabyte is room to spare
+	// and not a way to fill the node's memory.
+	apiBodyLimit = 1 << 20
+
+	apiDefaultExamples = 5
+	apiMaxExamples     = 50
 )
 
 func (s *Server) apiRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/summary", s.requireToken(ScopeRead, s.apiSummary))
 	mux.Handle("GET /api/v1/events", s.requireToken(ScopeRead, s.apiEvents))
 	mux.Handle("GET /api/v1/rules", s.requireToken(ScopeRead, s.apiRules))
+
+	// A replay writes nothing, so reading is enough for it: a monitoring
+	// system may ask whom a draft would touch without being able to put
+	// the draft to work.
+	mux.Handle("POST /api/v1/replay", s.requireToken(ScopeRead, s.apiReplay))
+
+	// The writes, all of them. The same rules.Store methods as `antibot
+	// rules` — the same checks, the same atomic replacement — and every
+	// change lands in the node's log with the token's name.
+	mux.Handle("POST /api/v1/rules", s.requireToken(ScopeWrite, s.apiAddRule))
+	mux.Handle("POST /api/v1/rules/{id}/enable", s.requireToken(ScopeWrite, s.apiToggleRule(true)))
+	mux.Handle("POST /api/v1/rules/{id}/disable", s.requireToken(ScopeWrite, s.apiToggleRule(false)))
+	mux.Handle("POST /api/v1/rules/{id}/mode", s.requireToken(ScopeWrite, s.apiSetRuleMode))
+	mux.Handle("DELETE /api/v1/rules/{id}", s.requireToken(ScopeWrite, s.apiRemoveRule))
 
 	// Anything else under /api/ answers in JSON: a program that got the
 	// address wrong must not receive the login page a browser would.
@@ -205,13 +228,260 @@ func (s *Server) apiRules(w http.ResponseWriter, r *http.Request, _ *Token) {
 	})
 }
 
+// --- replaying a draft ---
+
+type apiReplayRequest struct {
+	Rule     *rules.Rule `json:"rule"`
+	Period   string      `json:"period"`
+	Examples *int        `json:"examples"`
+}
+
+type apiReplayRule struct {
+	ID      string          `json:"id"`
+	Mode    string          `json:"mode"`
+	Action  string          `json:"action"`
+	Matched int             `json:"matched"`
+	IPs     int             `json:"ips"`
+	Hosts   int             `json:"hosts"`
+	UAs     int             `json:"uas"`
+	Share   float64         `json:"share"`
+	Samples []facts.Request `json:"samples"`
+}
+
+type apiReplayAnswer struct {
+	From        time.Time      `json:"from"`
+	To          time.Time      `json:"to"`
+	Events      int            `json:"events"`
+	IPs         int            `json:"ips"`
+	Decisions   map[string]int `json:"decisions"`
+	Divergences map[string]int `json:"divergences"`
+	Rule        apiReplayRule  `json:"rule"`
+}
+
+// apiReplay runs a draft over the log together with the rules in force —
+// a draft with the id of a rule in force takes its place — and answers
+// whom it would touch. Nothing is written: this is `antibot replay` for
+// one rule, with the same engine and a limiter of its own.
+func (s *Server) apiReplay(w http.ResponseWriter, r *http.Request, _ *Token) {
+	if s.o.Rules == nil {
+		apiFail(w, http.StatusNotFound, "the rules are not connected")
+		return
+	}
+	var req apiReplayRequest
+	if code, err := readBody(w, r, &req); err != nil {
+		apiFail(w, code, err.Error())
+		return
+	}
+	if req.Rule == nil {
+		apiFail(w, http.StatusBadRequest, `a draft is needed: {"rule": {…}}`)
+		return
+	}
+	period, err := parsePeriod(req.Period)
+	if err != nil {
+		apiFail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	examples := apiDefaultExamples
+	if req.Examples != nil {
+		examples = *req.Examples
+		if examples < 0 || examples > apiMaxExamples {
+			apiFail(w, http.StatusBadRequest, fmt.Sprintf("examples: from 0 to %d", apiMaxExamples))
+			return
+		}
+	}
+
+	draft := *req.Rule
+	var list []rules.Rule
+	for _, rule := range s.o.Rules.Set().All() {
+		if rule.ID != draft.ID {
+			list = append(list, rule)
+		}
+	}
+	set, err := rules.Build(append(list, draft), rules.NewWindows())
+	if err != nil {
+		apiFail(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	now := time.Now()
+	result, err := replay.Run(replay.Options{
+		Dir: s.o.EventsDir, From: now.Add(-period), To: now, Samples: examples,
+	}, set)
+	if err != nil {
+		s.apiInternal(w, "the API replay did not run", err)
+		return
+	}
+
+	answer := apiReplayAnswer{
+		From: now.Add(-period).UTC(), To: now.UTC(), Events: result.Events, IPs: result.IPs,
+		Decisions: result.Decisions, Divergences: result.Divergences,
+		Rule: apiReplayRule{ID: draft.ID, Mode: draft.Mode, Action: draft.Action.Type,
+			Share: result.Share(draft.ID), Samples: []facts.Request{}},
+	}
+	if stats, ok := result.Rules[draft.ID]; ok {
+		answer.Rule.Matched, answer.Rule.IPs = stats.Matched, stats.IPs
+		answer.Rule.Hosts, answer.Rule.UAs = stats.Hosts, stats.UAs
+		if stats.Samples != nil {
+			answer.Rule.Samples = stats.Samples
+		}
+	}
+	apiRespond(w, http.StatusOK, answer)
+}
+
+// --- writing ---
+
+type apiRuleAnswer struct {
+	Rule    rules.Rule `json:"rule"`
+	Warning string     `json:"warning,omitempty"`
+}
+
+// apiAddRule adds a ready rule, like `antibot rules add`: checked on its
+// own and within the set, written atomically, in force at once.
+func (s *Server) apiAddRule(w http.ResponseWriter, r *http.Request, tok *Token) {
+	if s.o.Rules == nil {
+		apiFail(w, http.StatusNotFound, "the rules are not connected")
+		return
+	}
+	var rule rules.Rule
+	if code, err := readBody(w, r, &rule); err != nil {
+		apiFail(w, code, err.Error())
+		return
+	}
+	if err := s.o.Rules.Add(rule); err != nil {
+		s.apiRuleFail(w, r, "the rule was not added through the API", rule.ID, tok, err)
+		return
+	}
+
+	warning := ""
+	if rule.Mode == rules.Active {
+		// Allowed, as with the command, and said out loud: a rule added
+		// straight into active was never looked at in shadow.
+		warning = "the rule went straight into active; a replay over history first would have shown whom it touches"
+		s.o.Log.Warn("a rule was added straight into active through the API",
+			"rule", rule.ID, "token", tok.Name, "address", clientAddr(r))
+	} else {
+		s.o.Log.Info("a rule was added through the API",
+			"rule", rule.ID, "mode", rule.Mode, "token", tok.Name, "address", clientAddr(r))
+	}
+	s.apiRule(w, http.StatusCreated, rule.ID, warning)
+}
+
+func (s *Server) apiToggleRule(enable bool) func(http.ResponseWriter, *http.Request, *Token) {
+	return func(w http.ResponseWriter, r *http.Request, tok *Token) {
+		if s.o.Rules == nil {
+			apiFail(w, http.StatusNotFound, "the rules are not connected")
+			return
+		}
+		id := r.PathValue("id")
+		if err := s.o.Rules.Toggle(id, enable); err != nil {
+			s.apiRuleFail(w, r, "the rule was not toggled through the API", id, tok, err)
+			return
+		}
+		s.o.Log.Info("a rule was toggled through the API",
+			"rule", id, "enabled", enable, "token", tok.Name, "address", clientAddr(r))
+		s.apiRule(w, http.StatusOK, id, "")
+	}
+}
+
+// apiSetRuleMode puts a rule to work or back into shadow. A proposal from
+// the cloud never takes this step; the owner's own program may.
+func (s *Server) apiSetRuleMode(w http.ResponseWriter, r *http.Request, tok *Token) {
+	if s.o.Rules == nil {
+		apiFail(w, http.StatusNotFound, "the rules are not connected")
+		return
+	}
+	var body struct {
+		Mode string `json:"mode"`
+	}
+	if code, err := readBody(w, r, &body); err != nil {
+		apiFail(w, code, err.Error())
+		return
+	}
+	id := r.PathValue("id")
+	if err := s.o.Rules.SetMode(id, body.Mode); err != nil {
+		s.apiRuleFail(w, r, "the rule's mode was not changed through the API", id, tok, err)
+		return
+	}
+	s.o.Log.Info("a rule's mode was changed through the API",
+		"rule", id, "mode", body.Mode, "token", tok.Name, "address", clientAddr(r))
+	s.apiRule(w, http.StatusOK, id, "")
+}
+
+func (s *Server) apiRemoveRule(w http.ResponseWriter, r *http.Request, tok *Token) {
+	if s.o.Rules == nil {
+		apiFail(w, http.StatusNotFound, "the rules are not connected")
+		return
+	}
+	id := r.PathValue("id")
+	if err := s.o.Rules.Remove(id); err != nil {
+		s.apiRuleFail(w, r, "the rule was not deleted through the API", id, tok, err)
+		return
+	}
+	s.o.Log.Info("a rule was deleted through the API",
+		"rule", id, "token", tok.Name, "address", clientAddr(r))
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// apiRule answers with the rule as it now is in force: a program that
+// changed it sees the result, not its own request echoed back.
+func (s *Server) apiRule(w http.ResponseWriter, code int, id, warning string) {
+	for _, rule := range s.o.Rules.Set().All() {
+		if rule.ID == id {
+			apiRespond(w, code, apiRuleAnswer{Rule: rule, Warning: warning})
+			return
+		}
+	}
+	apiFail(w, http.StatusInternalServerError, "the rule was written and is not in force: "+id)
+}
+
+// apiRuleFail tells the caller's mistake from the node's trouble: the
+// first is theirs to fix, the second goes to the node's log.
+func (s *Server) apiRuleFail(w http.ResponseWriter, r *http.Request, what, id string, tok *Token, err error) {
+	var invalid *rules.InvalidError
+	var missing *rules.NoRuleError
+	var exists *rules.RuleExistsError
+	switch {
+	case errors.As(err, &invalid):
+		apiFail(w, http.StatusBadRequest, err.Error())
+	case errors.As(err, &missing):
+		apiFail(w, http.StatusNotFound, err.Error())
+	case errors.As(err, &exists):
+		apiFail(w, http.StatusConflict, err.Error())
+	default:
+		s.o.Log.Error(what, "rule", id, "token", tok.Name, "address", clientAddr(r), "err", err)
+		apiFail(w, http.StatusInternalServerError, err.Error())
+	}
+}
+
+// readBody decodes a JSON body strictly: a typo in a field name is an
+// error rather than a silently dropped intention, as in rules.json itself.
+func readBody(w http.ResponseWriter, r *http.Request, v any) (int, error) {
+	r.Body = http.MaxBytesReader(w, r.Body, apiBodyLimit)
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
+		var tooBig *http.MaxBytesError
+		if errors.As(err, &tooBig) {
+			return http.StatusRequestEntityTooLarge, fmt.Errorf("the body is larger than %d bytes", apiBodyLimit)
+		}
+		return http.StatusBadRequest, fmt.Errorf("the body: %w", err)
+	}
+	if dec.More() {
+		return http.StatusBadRequest, errors.New("the body holds more than one JSON value")
+	}
+	return 0, nil
+}
+
 // --- helpers ---
 
 // apiPeriod reads ?period=24h. Unlike the pages, a period the API cannot
 // read is a 400 rather than the default: a program must learn that it
 // asked for something else than it got.
 func apiPeriod(r *http.Request) (time.Duration, error) {
-	raw := r.URL.Query().Get("period")
+	return parsePeriod(r.URL.Query().Get("period"))
+}
+
+func parsePeriod(raw string) (time.Duration, error) {
 	if raw == "" {
 		return 24 * time.Hour, nil
 	}
