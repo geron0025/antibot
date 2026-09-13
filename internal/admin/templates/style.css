@@ -65,8 +65,10 @@ header .right { display: flex; align-items: center; gap: 12px; }
 
 /* The bell: a <details>, so it opens without a line of JavaScript. */
 .bell { position: relative; }
+/* margin: 0 undoes the general "details summary" offset below, which is
+   for the "As a table" toggles and pushed the bell off the header line. */
 .bell summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 4px;
-  padding: 4px 6px; border-radius: 6px; color: var(--dim); }
+  margin: 0; padding: 4px 6px; border-radius: 6px; color: var(--dim); }
 .bell summary::-webkit-details-marker { display: none; }
 .bell summary:hover, .bell[open] summary { background: var(--hover); color: var(--text); }
 .bell.current summary { color: var(--text); background: var(--hover); }
