@@ -168,14 +168,50 @@ configuration:
 
 The subscription token goes in the `Authorization: Bearer <token>`
 header, the same form as when sending aggregates. The token is mandatory
-on all three addresses: there is no anonymous distribution at all,
-because the distribution is what the subscription is for.
+on all three addresses: there is no anonymous distribution at all — a
+set goes to a tenant, against a token issued on purpose.
 
 The token's scope must include downloading the bases (`facts` or `both`).
 A token with the `aggregates` scope gets a `403` on these addresses: a
 node that only sends observations must not gain the ability to download
 the bases, and the split has to hold on the receiver rather than on the
 client's word.
+
+### Two streams
+
+What `manifest` returns is decided by the subscription level of the
+tenant the token was issued to. The node does not report its level and
+chooses nothing in the request.
+
+| Level | What the set holds |
+|---|---|
+| free (`node`) | only the crawlers from the lists their owners publish about themselves: Googlebot, Bingbot, Applebot, DuckDuckBot, GPTBot and others. Class `crawler`, no fingerprints |
+| paid | the whole catalogue: networks of every class and fingerprints |
+
+The crawlers are free because they are the owners' public statements,
+and without them a free node cannot keep a search engine out of its own
+ban. The format is the same, `format: 1`: to the node it is an ordinary
+set, only with fewer records.
+
+**The version number is shared by the streams.** Each version belongs to
+one stream, and each stream skips the numbers of the other. The node only
+requires the version to be higher than the applied one, and the gaps do
+not bother it. When the level changes, this means:
+
+- **from free to paid** — the node may hold a number above the last
+  whole set. The answer is then "already the latest", and the whole set
+  arrives with the next publication;
+- **from paid to free** — the whole set is several times the size of the
+  crawlers set, and the node does not apply a shrunken set without an
+  explicit confirmation (see "Downloading"): the base stays as it was
+  until the owner decides;
+- **the subscription ended or was suspended** — `403`, the base freezes.
+  It does **not** shrink to the free stream: that would take away from
+  the node what it already has.
+
+`GET <url>/set/<version>` returns a version of its own stream only; a
+number of the other stream is a `404`: the whole set is not had by
+guessing its number.
 
 ### The answers and what the node does
 

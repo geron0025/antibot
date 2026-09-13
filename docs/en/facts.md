@@ -247,6 +247,14 @@ out **does not lift the protection**: the rules stay in force, the
 network classes stay known, only their freshness goes stale. The opposite
 design would mean an unpaid invoice opens somebody's site to bots.
 
+A free token gets a set too — the crawlers from the lists their owners
+publish about themselves, without fingerprints. That is enough to keep
+search engines out of a ban with an allowing rule (`crawler` together
+with `protected`), but not for network classes: hostings, clouds,
+operators and the names of fingerprints are in the paid set. How the two
+streams work and what happens when the level changes —
+[protocol/fact-set.md](protocol/fact-set.md), "Two streams".
+
 The token comes from `cloud.token`, one for both directions. `facts.url`
 without a token is an error at startup: there is no anonymous
 distribution, and a node that quietly does not fetch looks exactly like
