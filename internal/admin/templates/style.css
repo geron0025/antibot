@@ -63,23 +63,33 @@ header .inner {
 header nav { display: flex; gap: 16px; }
 header .right { display: flex; align-items: center; gap: 12px; }
 
-/* The bell: a <details>, so it opens without a line of JavaScript. */
-.bell { position: relative; }
+/* The bell and the account menu: <details>, so they open without a line
+   of JavaScript. */
+.bell, .account { position: relative; }
 /* margin: 0 undoes the general "details summary" offset below, which is
-   for the "As a table" toggles and pushed the bell off the header line. */
-.bell summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 4px;
-  margin: 0; padding: 4px 6px; border-radius: 6px; color: var(--dim); }
-.bell summary::-webkit-details-marker { display: none; }
-.bell summary:hover, .bell[open] summary { background: var(--hover); color: var(--text); }
+   for the "As a table" toggles and pushed these off the header line. */
+.bell summary, .account summary { list-style: none; cursor: pointer; display: flex; align-items: center;
+  gap: 4px; margin: 0; padding: 4px 6px; border-radius: 6px; color: var(--dim); font-size: inherit; }
+.bell summary::-webkit-details-marker, .account summary::-webkit-details-marker { display: none; }
+.bell summary:hover, .bell[open] summary,
+.account summary:hover, .account[open] summary { background: var(--hover); color: var(--text); }
+.chevron { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2;
+  stroke-linecap: round; stroke-linejoin: round; }
+.account[open] .chevron { transform: rotate(180deg); }
+.drop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 10;
+  background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, .12); }
+.account-menu { min-width: 160px; padding: 4px 0; }
+.account-menu button { display: block; width: 100%; text-align: left; padding: 6px 12px;
+  border: 0; border-radius: 0; background: none; }
+.account-menu button:hover { background: var(--hover); }
 .bell.current summary { color: var(--text); background: var(--hover); }
 .bell.firing summary { color: var(--red); }
 .bell-icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2;
   stroke-linecap: round; stroke-linejoin: round; }
 .bell-count { background: var(--red); color: var(--card); border-radius: 9px; min-width: 18px;
   padding: 0 5px; font-size: 11px; font-weight: 600; line-height: 18px; text-align: center; }
-.bell-menu { position: absolute; right: 0; top: calc(100% + 6px); z-index: 10; width: min(360px, 90vw);
-  background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 8px 0;
-  box-shadow: 0 6px 24px rgba(0, 0, 0, .12); }
+.bell-menu { width: min(360px, 90vw); padding: 8px 0; }
 .bell-menu h3 { font-size: 12px; color: var(--dim); margin: 6px 12px 4px; font-weight: 600; }
 .bell-menu p { margin: 6px 12px; }
 .bell-item { display: block; padding: 6px 12px; color: var(--text); }

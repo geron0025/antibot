@@ -26,7 +26,7 @@
           </svg>
           {{if .Firing}}<span class="bell-count">{{len .Firing}}</span>{{end}}
         </summary>
-        <div class="bell-menu">
+        <div class="drop bell-menu">
           {{if .Firing}}
           <h3>Firing now</h3>
           {{range .Firing}}
@@ -50,11 +50,18 @@
         </div>
       </details>
       {{end}}
-      <span class="dim">{{.User}}</span>
-      <form method="post" action="/logout">
-        <input type="hidden" name="csrf" value="{{.CSRF}}">
-        <button type="submit">Log out</button>
-      </form>
+      <details class="account">
+        <summary title="Account">
+          <span>{{.User}}</span>
+          <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+        </summary>
+        <div class="drop account-menu">
+          <form method="post" action="/logout">
+            <input type="hidden" name="csrf" value="{{.CSRF}}">
+            <button type="submit">Log out</button>
+          </form>
+        </div>
+      </details>
     </div>
   </div>
 </header>

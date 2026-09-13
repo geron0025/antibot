@@ -224,6 +224,28 @@ func TestLoggingOutClosesTheSession(t *testing.T) {
 	}
 }
 
+// Log out sits behind the user's name, not next to it.
+func TestLogOutIsInTheAccountMenu(t *testing.T) {
+	s, _ := newServer(t)
+	cookies := logIn(t, s)
+
+	body, _ := io.ReadAll(get(t, s, "/", cookies).Body)
+	page := string(body)
+	start := strings.Index(page, `<details class="account">`)
+	if start < 0 {
+		t.Fatal("no account menu in the header")
+	}
+	menu := page[start : start+strings.Index(page[start:], "</details>")]
+	for _, want := range []string{"owner", `action="/logout"`, "Log out"} {
+		if !strings.Contains(menu, want) {
+			t.Errorf("the account menu has no %q", want)
+		}
+	}
+	if strings.Count(page, `action="/logout"`) != 1 {
+		t.Error("a log out form outside the account menu")
+	}
+}
+
 // Password guessing must hit a limit.
 func TestGuessingHitsTheLimit(t *testing.T) {
 	s, _ := newServer(t)
