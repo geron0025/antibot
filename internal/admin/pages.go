@@ -38,6 +38,8 @@ func parseTemplates() (*template.Template, error) {
 				return "Rules"
 			case "domains":
 				return "Domains"
+			case "tokens":
+				return "API tokens"
 			default:
 				return "Overview"
 			}
@@ -64,6 +66,10 @@ type pageCommon struct {
 	Section string
 	Period  string
 	Error   string
+
+	// APITokens shows the tokens page in the menu: without a tokens file
+	// the API is off and the page has nothing to manage.
+	APITokens bool
 }
 
 func (s *Server) render(w http.ResponseWriter, name string, data any) {
@@ -290,12 +296,12 @@ func (s *Server) eventsPage(w http.ResponseWriter, r *http.Request, user string)
 // --- rules ---
 
 // RuleRow is a rule together with how many times it fired over the
-// period.
+// period. The API answers with it as is.
 type RuleRow struct {
-	Rule    rules.Rule
-	Matched int
-	IPs     int
-	Enabled bool
+	Rule    rules.Rule `json:"rule"`
+	Matched int        `json:"matched"`
+	IPs     int        `json:"ips"`
+	Enabled bool       `json:"enabled"`
 }
 
 type rulesData struct {
@@ -307,29 +313,40 @@ type rulesData struct {
 
 func (s *Server) rulesPage(w http.ResponseWriter, r *http.Request, user string) {
 	period := periodOf(r)
-	now := time.Now()
-
 	data := rulesData{
 		pageCommon: s.common(user, "rules", period, r.URL.Query().Get("error")),
 		CSRF:       s.csrfToken(r),
 	}
+	rows, events, err := s.ruleRows(time.Now(), period)
+	data.Rules, data.Events = rows, events
+	if err != nil {
+		data.Error = err.Error()
+	}
+	s.render(w, "rules.html", data)
+}
+
+// ruleRows lists the rules in the order of application, the disabled
+// after them, each with how often it fired over the period. The rules
+// page and the API share it: two lists that could disagree about what
+// fired would be worse than one.
+//
+// How often a rule fired comes from the log rather than from in-memory
+// counters: after a restart the counters reset while the log stays. The
+// rows come back even when the log could not be read; the error says the
+// counts are missing.
+func (s *Server) ruleRows(now time.Time, period time.Duration) ([]RuleRow, int, error) {
 	if s.o.Rules == nil {
-		s.render(w, "rules.html", data)
-		return
+		return nil, 0, nil
 	}
 
-	// How often a rule fired comes from the log rather than from
-	// in-memory counters: after a restart the counters reset while the
-	// log stays.
 	fired := map[string]summary.Row{}
+	events := 0
 	result, err := summary.Build(summary.Options{
 		Dir: s.o.EventsDir, From: now.Add(-period), To: now,
 		Top: 1000,
 	})
-	if err != nil {
-		data.Error = err.Error()
-	} else {
-		data.Events = result.Events
+	if err == nil {
+		events = result.Events
 		for _, row := range result.Rules {
 			fired[row.Value] = row
 		}
@@ -346,23 +363,19 @@ func (s *Server) rulesPage(w http.ResponseWriter, r *http.Request, user string) 
 
 	// The order of application rather than the order in the file: a human
 	// looks here when working out why the wrong thing fired.
+	var rows []RuleRow
 	for _, rule := range set.Effective() {
 		row := fired[rule.ID]
-		data.Rules = append(data.Rules, RuleRow{
-			Rule: rule, Matched: row.Count, IPs: row.IPs, Enabled: true,
-		})
+		rows = append(rows, RuleRow{Rule: rule, Matched: row.Count, IPs: row.IPs, Enabled: true})
 	}
 	for _, rule := range set.All() {
 		if _, ok := effective[rule.ID]; ok {
 			continue
 		}
 		row := fired[rule.ID]
-		data.Rules = append(data.Rules, RuleRow{
-			Rule: rule, Matched: row.Count, IPs: row.IPs, Enabled: false,
-		})
+		rows = append(rows, RuleRow{Rule: rule, Matched: row.Count, IPs: row.IPs, Enabled: false})
 	}
-
-	s.render(w, "rules.html", data)
+	return rows, events, err
 }
 
 // toggleRule enables and disables a rule.
@@ -436,6 +449,7 @@ func (s *Server) setRuleMode(w http.ResponseWriter, r *http.Request, who string)
 func (s *Server) common(user, section string, period time.Duration, message string) pageCommon {
 	c := pageCommon{
 		User: user, Version: s.o.Version, Section: section, Error: message,
+		APITokens: s.o.Tokens != nil,
 	}
 	if period > 0 {
 		c.Period = shortPeriod(period)

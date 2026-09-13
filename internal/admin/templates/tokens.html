@@ -1,0 +1,83 @@
+{{template "header" .}}
+
+<p class="dim">Tokens for the node's API — for a monitoring system, a panel
+of your own, a CI job that rolls rules out together with the site. A token
+is yours: it is issued only here or with <code>antibot api-token</code>, and
+it never leaves for the cloud. A program sends it as
+<code>Authorization: Bearer …</code> to <code>/api/v1/</code> on this
+address.</p>
+
+{{with .Issued}}
+<section class="warning">
+  <p><strong>Token {{.Name}} ({{.Scope}})</strong> — copy it now. The node
+  keeps only its hash, and this page will not show it again.</p>
+  <p><code class="value">{{.Value}}</code></p>
+</section>
+{{end}}
+
+<table>
+  <thead>
+    <tr>
+      <th>name</th><th>starts with</th><th>scope</th><th>issued</th>
+      <th>expires</th><th>last used</th><th>state</th><th></th>
+    </tr>
+  </thead>
+  <tbody>
+  {{range .Rows}}
+    <tr {{if ne .Status "live"}}class="disabled"{{end}}>
+      <td>{{.Name}}<div class="dim">{{.CreatedBy}}</div></td>
+      <td><code>{{.Prefix}}…</code></td>
+      <td>{{.Scope}}</td>
+      <td>{{time .CreatedAt}}</td>
+      <td>{{time .ExpiresAt}}{{if eq .Status "live"}} · {{.DaysLeft}} d left{{end}}</td>
+      <td>{{time .Used}}</td>
+      <td>{{.Status}}</td>
+      <td class="num">
+        {{if eq .Status "live"}}
+        <form method="post" action="/tokens/revoke">
+          <input type="hidden" name="csrf" value="{{$.CSRF}}">
+          <input type="hidden" name="name" value="{{.Name}}">
+          <button type="submit">revoke</button>
+        </form>
+        {{end}}
+      </td>
+    </tr>
+  {{else}}
+    <tr><td colspan="8" class="dim">no tokens</td></tr>
+  {{end}}
+  </tbody>
+</table>
+
+<section class="card add-domain">
+  <h2>Issue a token</h2>
+  <p class="dim"><span class="value">read</span> — the summary, the events
+  and the list of rules; <span class="value">write</span> — adding,
+  switching and deleting rules as well. A monitoring token should only
+  read: it must not be able to switch the protection off. Your password is
+  asked once more: a token outlives the session by months.</p>
+  <form method="post" action="/tokens/issue" class="fields">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>name
+      <input type="text" name="name" placeholder="monitoring" required>
+    </label>
+    <label>scope
+      <select name="scope">
+        <option value="read">read</option>
+        <option value="write">write</option>
+      </select>
+    </label>
+    <label>days
+      <input type="number" name="days" value="90" min="1" max="{{.MaxDays}}" required>
+    </label>
+    <label>your password
+      <input type="password" name="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit">issue</button>
+  </form>
+</section>
+
+<p class="dim">Every issue and revocation lands in the node's log with the
+name of the account; every change a token makes, with the name of the
+token.</p>
+
+{{template "footer" .}}

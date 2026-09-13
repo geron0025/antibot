@@ -109,6 +109,10 @@ type Admin struct {
 	// changed without restarting the node.
 	UsersFile string `yaml:"users_file"`
 
+	// TokensFile holds the API's tokens, as hashes, next to the accounts
+	// and for the same reason. Empty turns the API off.
+	TokensFile string `yaml:"tokens_file"`
+
 	SessionTTL Duration `yaml:"session_ttl"`
 }
 
@@ -172,6 +176,7 @@ func Defaults() Config {
 			Enabled:    true,
 			Listen:     "127.0.0.1:8090",
 			UsersFile:  "/var/lib/antibot/admin.json",
+			TokensFile: "/var/lib/antibot/api-tokens.json",
 			SessionTTL: Duration(12 * time.Hour),
 		},
 		Rules: Rules{

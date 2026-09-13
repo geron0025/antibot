@@ -58,7 +58,8 @@ and [configuration](docs/en/configuration.md).
 | [configuration.md](docs/en/configuration.md) | every configuration key and why it is what it is |
 | [rules.md](docs/en/rules.md) | rules: the model, the fields, the order, replaying over history |
 | [facts.md](docs/en/facts.md) | the network and fingerprint bases: applying, rolling back, the border |
-| [admin.md](docs/en/admin.md) | the admin UI: pages, login, its single writing action |
+| [admin.md](docs/en/admin.md) | the admin UI: pages, login, the writing actions |
+| [api.md](docs/en/api.md) | the API: tokens, the summary, events and rules for a program |
 | [operations.md](docs/en/operations.md) | running it: events, rotation, working out what broke |
 | [protocol/](docs/en/protocol/) | what goes up to the cloud and what comes back |
 

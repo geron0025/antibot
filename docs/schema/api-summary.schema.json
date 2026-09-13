@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antibot.dev/schema/api-summary/1",
+  "title": "Сводка по журналу ноды за период: GET /api/v1/summary",
+  "type": "object",
+  "required": ["from", "to", "summary"],
+  "additionalProperties": false,
+  "properties": {
+    "from": {"type": "string", "format": "date-time"},
+    "to": {"type": "string", "format": "date-time"},
+    "summary": {
+      "type": "object",
+      "required": ["events", "read", "broken", "ip_count", "host_count", "bytes", "truncated",
+                   "decisions", "answers", "latency", "rules", "shadows", "hosts", "ips", "ja4",
+                   "ua", "paths", "statuses", "server_error_paths", "client_error_paths",
+                   "unknown", "series"],
+      "additionalProperties": false,
+      "properties": {
+        "events": {"type": "integer", "minimum": 0},
+        "read": {"type": "integer", "minimum": 0},
+        "broken": {"type": "integer", "minimum": 0},
+        "ip_count": {"type": "integer", "minimum": 0},
+        "host_count": {"type": "integer", "minimum": 0},
+        "bytes": {"type": "integer", "minimum": 0},
+        "truncated": {"type": "boolean"},
+        "decisions": {"type": "object", "additionalProperties": {"type": "integer", "minimum": 0}},
+        "answers": {"$ref": "#/$defs/answers"},
+        "latency": {
+          "description": "время ответа сайта, наносекунды; только запросы, дошедшие до сайта",
+          "type": "object",
+          "required": ["count", "p50", "p95", "p99"],
+          "additionalProperties": false,
+          "properties": {
+            "count": {"type": "integer", "minimum": 0},
+            "p50": {"type": "integer", "minimum": 0},
+            "p95": {"type": "integer", "minimum": 0},
+            "p99": {"type": "integer", "minimum": 0}
+          }
+        },
+        "rules": {"$ref": "#/$defs/rows"},
+        "shadows": {"$ref": "#/$defs/rows"},
+        "hosts": {"$ref": "#/$defs/rows"},
+        "ips": {"$ref": "#/$defs/rows"},
+        "ja4": {"$ref": "#/$defs/rows"},
+        "ua": {"$ref": "#/$defs/rows"},
+        "paths": {"$ref": "#/$defs/rows"},
+        "statuses": {"$ref": "#/$defs/rows"},
+        "server_error_paths": {"$ref": "#/$defs/rows"},
+        "client_error_paths": {"$ref": "#/$defs/rows"},
+        "unknown": {
+          "type": "object",
+          "required": ["no_net_class", "no_family", "self_declared_crawlers"],
+          "additionalProperties": false,
+          "properties": {
+            "no_net_class": {"type": "integer", "minimum": 0},
+            "no_family": {"type": "integer", "minimum": 0},
+            "self_declared_crawlers": {"type": "array", "items": {"$ref": "#/$defs/crawler"}}
+          }
+        },
+        "series": {"type": "array", "items": {"$ref": "#/$defs/point"}}
+      }
+    }
+  },
+  "$defs": {
+    "answers": {
+      "description": "запросы по классам ответа, по порядку: 2xx, 3xx, 4xx, 5xx сайта, blocked — не пропустила нода, none — без кода",
+      "type": "array",
+      "maxItems": 6,
+      "items": {"type": "integer", "minimum": 0}
+    },
+    "rows": {"type": "array", "items": {"$ref": "#/$defs/row"}},
+    "row": {
+      "type": "object",
+      "required": ["value", "count", "ips"],
+      "additionalProperties": false,
+      "properties": {
+        "value": {"type": "string"},
+        "count": {"type": "integer", "minimum": 0},
+        "ips": {"type": "integer", "minimum": 0}
+      }
+    },
+    "crawler": {
+      "type": "object",
+      "required": ["value", "count", "ips", "verified"],
+      "additionalProperties": false,
+      "properties": {
+        "value": {"type": "string"},
+        "count": {"type": "integer", "minimum": 0},
+        "ips": {"type": "integer", "minimum": 0},
+        "verified": {"type": "integer", "minimum": 0}
+      }
+    },
+    "point": {
+      "type": "object",
+      "required": ["t", "events", "blocked", "answers"],
+      "additionalProperties": false,
+      "properties": {
+        "t": {"type": "string", "format": "date-time"},
+        "events": {"type": "integer", "minimum": 0},
+        "blocked": {"type": "integer", "minimum": 0},
+        "answers": {"$ref": "#/$defs/answers"}
+      }
+    }
+  }
+}

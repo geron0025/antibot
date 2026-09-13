@@ -189,7 +189,16 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 			log.Warn("the admin UI is not up: there are no accounts",
 				"file", cfg.Admin.UsersFile, "what to do", "antibot admin passwd NAME")
 		} else {
+			// The API lives on the admin UI's address and needs its tokens
+			// file; an empty path in the settings turns the API off.
+			var tokens *admin.Tokens
+			if cfg.Admin.TokensFile != "" {
+				if tokens, err = admin.OpenTokens(cfg.Admin.TokensFile); err != nil {
+					return err
+				}
+			}
 			adminUI, err = admin.New(admin.Options{
+				Tokens:           tokens,
 				Addr:             cfg.Admin.Listen,
 				HTTPAddr:         cfg.Admin.RedirectFrom,
 				Cert:             cfg.Admin.Certificate,

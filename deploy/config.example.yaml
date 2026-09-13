@@ -96,6 +96,11 @@ admin_ui:
   users_file: "/var/lib/antibot/admin.json"
   session_ttl: 12h
 
+  # Токены API — хешами, рядом с учётками. API живёт на этом же адресе,
+  # под /api/v1/; выпустить токен — antibot api-token issue ИМЯ или
+  # страница API tokens. Пусто — API выключен.
+  tokens_file: "/var/lib/antibot/api-tokens.json"
+
   # Не-loopback адрес без сертификата — отказ при запуске: пароль уходил
   # бы по сети открытым текстом. Хотите открыть админку наружу — сначала
   # задайте сертификат.

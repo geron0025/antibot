@@ -15,6 +15,10 @@
 // It exists because an antibot whose work is invisible never gets put
 // into blocking mode: a human first looks at whom the node is about to
 // cut off, and only then allows it to do so.
+//
+// On the same address, under /api/v1/, lives the node's API — the same
+// numbers for a program, behind a token issued on the tokens page or with
+// `antibot api-token`.
 package admin
 
 import (
@@ -67,6 +71,9 @@ type Options struct {
 	// uploaded pair lands. With an empty directory uploads are off.
 	Certs            *edgetls.Set
 	UploadedCertsDir string
+
+	// Tokens are the API's. Nil turns the API and the tokens page off.
+	Tokens *Tokens
 
 	Version string
 	Log     *slog.Logger
@@ -242,6 +249,15 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /domains/add", s.requireLogin(s.addDomain))
 	mux.Handle("POST /domains/remove", s.requireLogin(s.removeDomain))
 	mux.Handle("POST /domains/certificate", s.requireLogin(s.uploadCertificate))
+
+	// API tokens are issued and revoked here, and the password is asked
+	// once more for an issue: a token outlives a session by months.
+	if s.o.Tokens != nil {
+		mux.Handle("GET /tokens", s.requireLogin(s.tokensPage))
+		mux.Handle("POST /tokens/issue", s.requireLogin(s.issueToken))
+		mux.Handle("POST /tokens/revoke", s.requireLogin(s.revokeToken))
+		s.apiRoutes(mux)
+	}
 
 	return s.securityHeaders(mux)
 }

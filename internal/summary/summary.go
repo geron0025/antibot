@@ -551,9 +551,16 @@ type Filter struct {
 	// or "blocked". A class is matched the way the overview counts it, so
 	// that a click on "4xx" shows the site's 4xx and not the node's 403s.
 	Status string
+
+	// Before keeps only the events older than this moment: the API's
+	// pages go back in time from the last event of the previous page.
+	Before time.Time
 }
 
 func (f *Filter) matches(r *facts.Request) bool {
+	if !f.Before.IsZero() && !r.Time.Before(f.Before) {
+		return false
+	}
 	if f.Host != "" && r.Host != f.Host {
 		return false
 	}

@@ -2,7 +2,8 @@
 
 Shows events, statistics, rules and domains. It can change a few things,
 and all of them are listed: enable or disable an already written rule,
-add or remove a domain, upload a ready-made certificate.
+add or remove a domain, upload a ready-made certificate, issue and revoke
+an [API](api.md) token.
 
 It exists because an antibot whose work is invisible never gets put into
 blocking mode: a human first looks at whom the node is about to cut off,
@@ -40,6 +41,7 @@ the documentation says.
 | `/events` | events with filters |
 | `/rules` | rules in the order of application, with how often they fired |
 | `/domains` | domains, their sites' addresses, certificates and terms |
+| `/tokens` | API tokens: issuing, terms, the last use, revoking |
 | `/login` | the login |
 
 ### Overview
@@ -177,11 +179,22 @@ and the admin UI has to say so: **14 days** before the end of the term a
 warning appears on the overview, and the term is highlighted in the
 domain's row.
 
+### API tokens
+
+The tokens programs use to reach the node's [API](api.md): monitoring, a
+panel of the owner's own, a CI job that rolls rules out together with the
+site. Each has a name, the start of its value for recognising it, a scope
+(`read` or `write`), who issued it and when, the term, the last use and
+the state. Revoked and expired ones stay in the list: "which token did
+the CI use until the 12th" must have an answer.
+
+The page is shown only when `admin_ui.tokens_file` is set.
+
 ## The writing actions
 
-There are five and no others: enable or disable a rule, move it between
+There are seven and no others: enable or disable a rule, move it between
 `shadow` and `active`, add a domain, remove a domain, upload a
-certificate.
+certificate, issue an API token, revoke an API token.
 
 ### A rule: enable and disable
 
@@ -244,6 +257,29 @@ never writes the YAML. The file has two writers, the admin UI and
 `antibot domains`, and both go through one validation. The file is
 reread on the fly, like the rules.
 
+### API tokens: issue and revoke
+
+**Issuing asks for the password once more.** A session is enough to look
+around and to switch a rule off, but a token outlives the session by
+months: whoever stole a cookie must not turn it into a year of access.
+The same reason accounts cannot be changed through the admin UI. The
+password attempts are counted together with the login form — ten per
+five minutes per address.
+
+The value is shown **once**, in the answer to the issue, and nowhere
+else: the node keeps only its hash. A revocation takes effect from the
+next request. Both actions land in the node's log:
+
+```
+level=INFO msg="an API token was issued from the admin UI"
+  token=monitoring scope=read expires=2026-12-12 who=owner address=127.0.0.1
+level=INFO msg="an API token was revoked from the admin UI"
+  token=monitoring who=owner address=127.0.0.1
+```
+
+`antibot api-token` has the same file and the same validation: what the
+command issues is visible here and works without restarting the node.
+
 ## The borders
 
 - **a login is mandatory**, the password is stored as a
@@ -264,8 +300,13 @@ reread on the fly, like the rules.
 - **`X-Robots-Tag: noindex`** — the admin UI shows the events of somebody
   else's site, it has no business in search results;
 - **the write paths are listed**: `POST /rules/toggle`, `/rules/mode`, `/domains/add`,
-  `/domains/remove`, `/domains/certificate`. Any method other than GET is
-  not handled on the pages themselves;
+  `/domains/remove`, `/domains/certificate`, `/tokens/issue`,
+  `/tokens/revoke`. Any method other than GET is not handled on the pages
+  themselves;
+- **the API on the same address, through another door**: under
+  `/api/v1/` only a token in a header lets in, the API does not take the
+  session cookie, and the admin UI's forms do not take a token —
+  [api.md](api.md);
 - **an upload is capped at a megabyte** — two PEM files with room to
   spare, so the admin UI does not become a way to fill the disk.
 

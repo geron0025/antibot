@@ -1,0 +1,55 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antibot.dev/schema/api-events/1",
+  "title": "События ноды, страница API: GET /api/v1/events",
+  "type": "object",
+  "required": ["events"],
+  "additionalProperties": false,
+  "properties": {
+    "events": {"type": "array", "items": {"$ref": "#/$defs/event"}},
+    "next_before": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {
+    "event": {
+      "description": "Строка журнала событий ноды, как она лежит в NDJSON.",
+      "type": "object",
+      "required": ["t", "ip", "host", "method", "path", "proto", "ua_ok", "decision"],
+      "additionalProperties": false,
+      "properties": {
+        "t": {"type": "string", "format": "date-time"},
+        "ip": {"type": "string"},
+        "port": {"type": "integer", "minimum": 0},
+        "host": {"type": "string"},
+        "method": {"type": "string"},
+        "path": {"type": "string"},
+        "proto": {"type": "string"},
+        "ua": {"type": "string"},
+        "ref": {"type": "string"},
+        "ja3": {"type": "string"},
+        "ja3_hash": {"type": "string"},
+        "ja4": {"type": "string"},
+        "sni": {"type": "string"},
+        "alpn": {"type": "string"},
+        "tls": {"type": "string"},
+        "grease": {"type": "boolean"},
+        "h2": {"type": "string"},
+        "hdrs": {"type": "string"},
+        "hdrs_hash": {"type": "string"},
+        "cookie": {"type": "boolean"},
+        "family": {"type": "string"},
+        "ua_ok": {"type": "boolean"},
+        "net_class": {"type": "string"},
+        "net_owner": {"type": "string"},
+        "net_country": {"type": "string"},
+        "net_protected": {"type": "boolean"},
+        "net_age": {"type": "integer", "minimum": 0},
+        "decision": {"type": "string"},
+        "rule": {"type": "string"},
+        "shadow": {"type": "array", "items": {"type": "string"}},
+        "status": {"type": "integer", "minimum": 0},
+        "bytes": {"type": "integer", "minimum": 0},
+        "dur": {"description": "время ответа сайта, наносекунды", "type": "integer", "minimum": 0}
+      }
+    }
+  }
+}

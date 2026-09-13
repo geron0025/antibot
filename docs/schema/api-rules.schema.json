@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antibot.dev/schema/api-rules/1",
+  "title": "Правила ноды со срабатываниями за период: GET /api/v1/rules",
+  "type": "object",
+  "required": ["from", "to", "events", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "from": {"type": "string", "format": "date-time"},
+    "to": {"type": "string", "format": "date-time"},
+    "events": {"type": "integer", "minimum": 0},
+    "rules": {
+      "description": "В порядке применения, выключенные — после включённых.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule", "matched", "ips", "enabled"],
+        "additionalProperties": false,
+        "properties": {
+          "rule": {"$ref": "#/$defs/rule"},
+          "matched": {"type": "integer", "minimum": 0},
+          "ips": {"type": "integer", "minimum": 0},
+          "enabled": {"type": "boolean"}
+        }
+      }
+    }
+  },
+  "$defs": {
+    "rule": {
+      "description": "Правило, как оно лежит в rules.json. Условие — дерево all/any/not, описано в rules.md.",
+      "type": "object",
+      "required": ["id", "scope", "mode", "priority", "condition", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "name": {"type": "string"},
+        "scope": {"type": "array", "items": {"type": "string"}},
+        "enabled": {"type": "boolean"},
+        "mode": {"enum": ["shadow", "active"]},
+        "priority": {"type": "integer"},
+        "condition": {"type": "object"},
+        "action": {
+          "type": "object",
+          "required": ["type"],
+          "additionalProperties": false,
+          "properties": {
+            "type": {"enum": ["block", "ratelimit", "allow"]},
+            "status": {"type": "integer"},
+            "body": {"type": "string"},
+            "limit": {"type": "integer", "minimum": 0},
+            "window": {"type": "string"},
+            "key": {"type": "string"}
+          }
+        }
+      }
+    }
+  }
+}

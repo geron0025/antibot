@@ -194,6 +194,7 @@ admin_ui:
   enabled: true
   listen: "127.0.0.1:8090"
   users_file: "/var/lib/antibot/admin.json"
+  tokens_file: "/var/lib/antibot/api-tokens.json"
   session_ttl: 12h
   # certificate: "/etc/letsencrypt/live/admin.example.ru/fullchain.pem"
   # key: "/etc/letsencrypt/live/admin.example.ru/privkey.pem"
@@ -207,6 +208,7 @@ admin_ui:
 | `certificate`, `key` | empty | set **together** |
 | `redirect_from` | empty | an address where HTTP answers with 308 |
 | `users_file` | `/var/lib/antibot/admin.json` | the accounts |
+| `tokens_file` | `/var/lib/antibot/api-tokens.json` | the [API](api.md)'s tokens, as hashes; empty turns the API off |
 | `session_ttl` | `12h` | the session lifetime |
 
 **A non-loopback address without a certificate is a refusal at startup.**
@@ -223,6 +225,10 @@ configuration is often mounted read-only, while a password is changed
 without restarting the node. Without a single account the admin UI does
 not come up, but **the node works**: it must serve traffic with no human
 anywhere near it.
+
+The API tokens live next to them for the same reason. The API lives on
+the admin UI's address, under `/api/v1/`, and does not come up without
+it; issuing, scopes and answers — [api.md](api.md).
 
 ## rules
 

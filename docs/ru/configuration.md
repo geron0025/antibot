@@ -186,6 +186,7 @@ admin_ui:
   enabled: true
   listen: "127.0.0.1:8090"
   users_file: "/var/lib/antibot/admin.json"
+  tokens_file: "/var/lib/antibot/api-tokens.json"
   session_ttl: 12h
   # certificate: "/etc/letsencrypt/live/admin.example.ru/fullchain.pem"
   # key: "/etc/letsencrypt/live/admin.example.ru/privkey.pem"
@@ -199,6 +200,7 @@ admin_ui:
 | `certificate`, `key` | пусто | задаются **вместе** |
 | `redirect_from` | пусто | адрес, где HTTP отвечает кодом 308 |
 | `users_file` | `/var/lib/antibot/admin.json` | учётки |
+| `tokens_file` | `/var/lib/antibot/api-tokens.json` | токены [API](api.md), хешами; пусто — API выключен |
 | `session_ttl` | `12h` | срок сессии |
 
 **Не-loopback адрес без сертификата — отказ при запуске.** Не
@@ -214,6 +216,10 @@ admin_ui:
 монтируется только для чтения, а пароль меняют, не перезапуская ноду.
 Без единой учётки админка не поднимается, но **нода работает**: она
 обязана обслуживать трафик и без человека рядом.
+
+Токены API лежат рядом по той же причине. API живёт на адресе админки,
+под `/api/v1/`, и без неё не поднимается; выпуск, права и ответы —
+[api.md](api.md).
 
 ## rules
 
