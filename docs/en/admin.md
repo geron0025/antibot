@@ -235,7 +235,9 @@ firing triggers show on the overview too, as a warning at the top.
 
 **The bell** in the header is on every page: the number of firing
 triggers in red, and on a click — what is firing, since when and why,
-the five latest messages and a link here. It is a `<details>`: it opens
+the five latest messages and a link here. This page has no menu item of
+its own — the way to it is the bell, and here the bell is highlighted
+like the current item. It is a `<details>`: it opens
 without a line of JavaScript, like the rest of the admin UI. What
 is checked and how a message comes — [alerts.md](alerts.md).
 

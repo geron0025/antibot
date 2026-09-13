@@ -114,8 +114,19 @@ func TestTheBell(t *testing.T) {
 
 	for _, path := range []string{"/", "/rules", "/events", "/alerts"} {
 		body, _ := io.ReadAll(get(t, s, path, cookies).Body)
-		if !strings.Contains(string(body), `class="bell"`) || !strings.Contains(string(body), "Nothing is firing") {
+		page := string(body)
+		bell := `class="bell"`
+		if path == "/alerts" {
+			bell = `class="bell current"`
+		}
+		if !strings.Contains(page, bell) || !strings.Contains(page, "Nothing is firing") {
 			t.Errorf("%s: no quiet bell", path)
+		}
+		// The bell is the way to the alerts page; the menu has no
+		// second one.
+		nav := page[strings.Index(page, "<nav>"):strings.Index(page, "</nav>")]
+		if strings.Contains(nav, "/alerts") {
+			t.Errorf("%s: the menu duplicates the bell", path)
 		}
 	}
 

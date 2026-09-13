@@ -75,10 +75,9 @@ type pageCommon struct {
 	// the API is off and the page has nothing to manage.
 	APITokens bool
 
-	// AlertsOn shows the alerts page in the menu.
-	AlertsOn bool
-
 	// Bell is what the bell in the header carries; nil without alerts.
+	// The bell is also the way to the alerts page: the menu has no item
+	// of its own for it.
 	Bell *bellData
 }
 
@@ -527,7 +526,6 @@ func (s *Server) common(user, section string, period time.Duration, message stri
 	c := pageCommon{
 		User: user, Version: s.o.Version, Section: section, Error: message,
 		APITokens: s.o.Tokens != nil,
-		AlertsOn:  s.o.Alerts != nil,
 	}
 	if s.o.Alerts != nil {
 		c.Bell = s.bell()

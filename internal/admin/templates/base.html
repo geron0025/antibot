@@ -14,12 +14,11 @@
       <a href="/events" {{if eq .Section "events"}}class="current"{{end}}>Events</a>
       <a href="/rules" {{if eq .Section "rules"}}class="current"{{end}}>Rules</a>
       <a href="/domains" {{if eq .Section "domains"}}class="current"{{end}}>Domains</a>
-      {{if .AlertsOn}}<a href="/alerts" {{if eq .Section "alerts"}}class="current"{{end}}>Alerts</a>{{end}}
       {{if .APITokens}}<a href="/tokens" {{if eq .Section "tokens"}}class="current"{{end}}>API tokens</a>{{end}}
     </nav>
     <div class="right">
       {{with .Bell}}
-      <details class="bell{{if .Firing}} firing{{end}}">
+      <details class="bell{{if .Firing}} firing{{end}}{{if eq $.Section "alerts"}} current{{end}}">
         <summary aria-label="Alerts{{if .Firing}}: {{len .Firing}} firing{{end}}" title="Alerts{{if .Firing}}: {{len .Firing}} firing{{end}}">
           <svg class="bell-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>

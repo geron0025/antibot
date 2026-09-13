@@ -69,6 +69,7 @@ header .right { display: flex; align-items: center; gap: 12px; }
   padding: 4px 6px; border-radius: 6px; color: var(--dim); }
 .bell summary::-webkit-details-marker { display: none; }
 .bell summary:hover, .bell[open] summary { background: var(--hover); color: var(--text); }
+.bell.current summary { color: var(--text); background: var(--hover); }
 .bell.firing summary { color: var(--red); }
 .bell-icon { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 2;
   stroke-linecap: round; stroke-linejoin: round; }
