@@ -321,6 +321,51 @@ accepted yet: no more than 200 of them, about two days. It is created
 only when a token is set. What lies there and what goes next is shown by
 `antibot aggregate status` and `antibot aggregate show`.
 
+## alerts
+
+```yaml
+alerts:
+  enabled: true
+  command: ""
+  file: "/var/lib/antibot/alerts.json"
+  timeout: 30s
+  window: 5m
+  site_error_share: 0.5
+  site_min_requests: 20
+  spike_factor: 5
+  spike_min_requests: 500
+  spike_min_blocked: 200
+  rule_min_matches: 50
+  cert_days: 14
+  disk_min_mb: 1024
+  facts_max_age: 168h
+  outbox_max: 12
+```
+
+| Key | Default | What |
+|---|---|---|
+| `enabled` | `true` | whether to count the triggers at all |
+| `command` | empty | the delivery command, through `sh -c`; set here, it wins over the one set in the admin UI |
+| `file` | `/var/lib/antibot/alerts.json` | where the admin UI keeps its command; empty — the command only from the configuration |
+| `timeout` | `30s` | how long to wait for the command, from `1s` to `5m` |
+| `window` | `5m` | the stretch every traffic trigger looks at; whole minutes, from `1m` to `1h` |
+| `site_error_share` | `0.5` | the share of the site's 5xx at which it "does not answer" |
+| `site_min_requests` | `20` | fewer requests to the site over the window — no verdict |
+| `spike_factor` | `5` | how many times the usual makes a spike; at least `1.5` |
+| `spike_min_requests` | `500` | fewer requests over the window — no spike, however small the usual |
+| `spike_min_blocked` | `200` | the same for the cut-off ones |
+| `rule_min_matches` | `50` | the same for one rule; for a new rule it alone decides |
+| `cert_days` | `14` | how many days before the end of a term to speak of a certificate; `0` — never |
+| `disk_min_mb` | `1024` | how much free space under the log counts as the end; `0` — do not look |
+| `facts_max_age` | `168h` | how long the fact set may go without an update when the node fetches them |
+| `outbox_max` | `12` | how many unsent aggregate batches are already a breakage; `0` — do not look |
+
+The default thresholds are meant to spare a small site alarms from a
+dozen bots and a big one from drowning in them. "The usual" is the
+average of the hour before the window; there are no spikes in the first
+half hour after a start. How a message comes, what the command gets and
+ready templates — [alerts.md](alerts.md).
+
 ## What is checked at startup
 
 - at least one listener is set;
@@ -333,6 +378,9 @@ only when a token is set. What lies there and what goes next is shown by
 - `cloud.token` without `cloud.state_dir` is an error: nowhere to keep what is not sent yet;
 - `facts.url` without `facts.dir` is an error: nowhere to put it;
 - `facts.url` without `cloud.token` is an error: there is no anonymous distribution of the bases;
+- the `alerts` thresholds are within their bounds: the window is whole
+  minutes from `1m` to `1h`, a share is above zero and at most one,
+  `spike_factor` is at least `1.5`;
 - durations look like `30s`, `15m`, `24h` and are not negative.
 
 A duration type of our own is needed because YAML would read `30` as

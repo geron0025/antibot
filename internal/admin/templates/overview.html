@@ -9,6 +9,10 @@
   there is no auto-renewal; upload a fresh one on the
   <a href="/domains">Domains</a> page or renew it with certbot.</div>
 {{end}}
+{{range .Firing}}
+<div class="warning">{{.Text}} — since {{time .Since}}, see
+  <a href="/alerts">Alerts</a>.</div>
+{{end}}
 
 <section class="tiles">
   <div class="tile"><span class="big-number">{{count .Summary.Events}}</span><span class="caption">requests</span></div>

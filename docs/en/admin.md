@@ -3,7 +3,7 @@
 Shows events, statistics, rules and domains. It can change a few things,
 and all of them are listed: enable or disable an already written rule,
 add or remove a domain, upload a ready-made certificate, issue and revoke
-an [API](api.md) token.
+an [API](api.md) token, set the [alerts](alerts.md) command.
 
 It exists because an antibot whose work is invisible never gets put into
 blocking mode: a human first looks at whom the node is about to cut off,
@@ -41,6 +41,7 @@ the documentation says.
 | `/events` | events with filters |
 | `/rules` | rules in the order of application, with how often they fired |
 | `/domains` | domains, their sites' addresses, certificates and terms |
+| `/alerts` | alerts: the triggers and their thresholds, what is firing now, the messages, the delivery command |
 | `/tokens` | API tokens: issuing, terms, the last use, revoking |
 | `/login` | the login |
 
@@ -190,11 +191,20 @@ the CI use until the 12th" must have an answer.
 
 The page is shown only when `admin_ui.tokens_file` is set.
 
+### Alerts
+
+Every trigger with the thresholds in force and its state: fine, or firing
+since such a time and why. Below — the delivery command and the messages
+since the start: what was said and what became of the delivery. The
+firing triggers show on the overview too, as a warning at the top. What
+is checked and how a message comes — [alerts.md](alerts.md).
+
 ## The writing actions
 
-There are seven and no others: enable or disable a rule, move it between
+There are nine and no others: enable or disable a rule, move it between
 `shadow` and `active`, add a domain, remove a domain, upload a
-certificate, issue an API token, revoke an API token.
+certificate, issue an API token, revoke an API token, change the alerts
+command, send a test alert.
 
 ### A rule: enable and disable
 
@@ -280,6 +290,26 @@ level=INFO msg="an API token was revoked from the admin UI"
 `antibot api-token` has the same file and the same validation: what the
 command issues is visible here and works without restarting the node.
 
+### The alerts command
+
+**Changing it asks for the password once more**, like issuing a token:
+the command runs on the node's machine, and a stolen session must not
+become a way to run code there. The command from `config.yaml` wins: the
+admin UI shows it and does not change it. The admin UI's own command
+lives in `alerts.file`, mode `0600` — it often carries a bot's token or a
+mail password.
+
+The command itself does not go into the node's log, for the same reason —
+only who, from where, its length and a fingerprint:
+
+```
+level=WARN msg="the alert command was changed from the admin UI"
+  who=owner address=127.0.0.1 bytes=187 sha256=4c1f09a2b7e3
+```
+
+The **"send a test message"** button runs the command with a test
+message and shows what came of it.
+
 ## The borders
 
 - **a login is mandatory**, the password is stored as a
@@ -301,8 +331,8 @@ command issues is visible here and works without restarting the node.
   else's site, it has no business in search results;
 - **the write paths are listed**: `POST /rules/toggle`, `/rules/mode`, `/domains/add`,
   `/domains/remove`, `/domains/certificate`, `/tokens/issue`,
-  `/tokens/revoke`. Any method other than GET is not handled on the pages
-  themselves;
+  `/tokens/revoke`, `/alerts/command`, `/alerts/test`. Any method other
+  than GET is not handled on the pages themselves;
 - **the API on the same address, through another door**: under
   `/api/v1/` only a token in a header lets in, the API does not take the
   session cookie, and the admin UI's forms do not take a token —

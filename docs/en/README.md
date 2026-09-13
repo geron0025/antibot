@@ -12,6 +12,7 @@ to get it running. This directory holds the rest.
 | [facts.md](facts.md) | the network and fingerprint bases: applying, rolling back, the border |
 | [admin.md](admin.md) | the admin UI: pages, login, the writing actions |
 | [api.md](api.md) | the API: tokens, the summary, events and rules for a program |
+| [alerts.md](alerts.md) | alerts: the node tells you the site is in trouble, through your command |
 | [operations.md](operations.md) | running it: events, rotation, working out what broke |
 | [protocol/](protocol/) | the exchange with the update service, to the byte |
 

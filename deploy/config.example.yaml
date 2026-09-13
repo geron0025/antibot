@@ -158,3 +158,19 @@ cloud:
   interval: 15m
   # Открытое окно и пачки, которые облако ещё не приняло (не больше 200).
   state_dir: "/var/lib/antibot/aggregate"
+
+# Оповещения: нода сама говорит, что сайт не отвечает, правило режет
+# много, случился всплеск, истекает сертификат, журнал теряет события.
+# Триггер только сообщает и ничего не меняет в защите.
+#
+# Доставляет команда владельца — сообщение приходит в переменных
+# ANTIBOT_ALERT_* и JSON'ом на stdin, в текст команды ничего не
+# подставляется. Шаблоны для Telegram, вебхука и почты — docs/ru/alerts.md.
+# Команда отсюда побеждает заданную в админке.
+alerts:
+  enabled: true
+  # command: >-
+  #   curl -fsS -m 20 "https://api.telegram.org/bot<токен>/sendMessage"
+  #   --data-urlencode "chat_id=<id чата>"
+  #   --data-urlencode "text=antibot $ANTIBOT_ALERT_HOST · $ANTIBOT_ALERT_TEXT"
+  window: 5m

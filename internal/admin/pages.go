@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"time"
 
+	"github.com/geron0025/antibot/internal/alerts"
 	"github.com/geron0025/antibot/internal/facts"
 	"github.com/geron0025/antibot/internal/rules"
 	"github.com/geron0025/antibot/internal/summary"
@@ -40,6 +41,8 @@ func parseTemplates() (*template.Template, error) {
 				return "Domains"
 			case "tokens":
 				return "API tokens"
+			case "alerts":
+				return "Alerts"
 			default:
 				return "Overview"
 			}
@@ -70,6 +73,9 @@ type pageCommon struct {
 	// APITokens shows the tokens page in the menu: without a tokens file
 	// the API is off and the page has nothing to manage.
 	APITokens bool
+
+	// AlertsOn shows the alerts page in the menu.
+	AlertsOn bool
 }
 
 func (s *Server) render(w http.ResponseWriter, name string, data any) {
@@ -198,6 +204,10 @@ type overviewData struct {
 	// where it must be impossible to miss.
 	ExpiringCerts []CertState
 
+	// Firing are the alerts firing now. The certificate alerts are left
+	// out: the warning above already says the same in its own words.
+	Firing []alerts.Status
+
 	ServerErrors int
 	Answers      donutChart
 	Series       *columnsChart
@@ -252,6 +262,13 @@ func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request, user strin
 		set := s.o.Rules.Set()
 		data.Rules = len(set.All())
 		data.Effective = len(set.Effective())
+	}
+	if s.o.Alerts != nil {
+		for _, f := range s.o.Alerts.Firing() {
+			if f.Kind != alerts.CertExpiring {
+				data.Firing = append(data.Firing, f)
+			}
+		}
 	}
 	s.render(w, "overview.html", data)
 }
@@ -450,6 +467,7 @@ func (s *Server) common(user, section string, period time.Duration, message stri
 	c := pageCommon{
 		User: user, Version: s.o.Version, Section: section, Error: message,
 		APITokens: s.o.Tokens != nil,
+		AlertsOn:  s.o.Alerts != nil,
 	}
 	if period > 0 {
 		c.Period = shortPeriod(period)

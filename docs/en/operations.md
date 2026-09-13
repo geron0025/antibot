@@ -77,6 +77,11 @@ The port is not published outwards.
 
 ## What to put into monitoring
 
+The node says the most important things itself — [alerts](alerts.md):
+the site does not answer, a rule cuts off a lot, a spike, a certificate
+expires, the log loses events, the base is stale. For your own
+monitoring:
+
 - `/healthz` — liveness;
 - `events_dropped` from `/stats` — whether it is growing;
 - `aggregate_outbox` — whether batches pile up: the cloud is unreachable

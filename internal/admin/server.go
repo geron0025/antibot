@@ -34,6 +34,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/geron0025/antibot/internal/alerts"
 	"github.com/geron0025/antibot/internal/domains"
 	"github.com/geron0025/antibot/internal/edgetls"
 	"github.com/geron0025/antibot/internal/rules"
@@ -75,6 +76,14 @@ type Options struct {
 
 	// Tokens are the API's. Nil turns the API and the tokens page off.
 	Tokens *Tokens
+
+	// Alerts are the triggers' state and history; nil turns the page
+	// off. AlertCommand is the file the page writes the command to;
+	// ConfigAlertCommand is the command from config.yaml, which wins and
+	// is never changed here.
+	Alerts             *alerts.Watcher
+	AlertCommand       *alerts.CommandFile
+	ConfigAlertCommand string
 
 	Version string
 	Log     *slog.Logger
@@ -250,6 +259,14 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /domains/add", s.requireLogin(s.addDomain))
 	mux.Handle("POST /domains/remove", s.requireLogin(s.removeDomain))
 	mux.Handle("POST /domains/certificate", s.requireLogin(s.uploadCertificate))
+
+	// The alert command runs on the node's machine, so changing it asks
+	// for the password once more, like issuing a token.
+	if s.o.Alerts != nil {
+		mux.Handle("GET /alerts", s.requireLogin(s.alertsPage))
+		mux.Handle("POST /alerts/command", s.requireLogin(s.setAlertCommand))
+		mux.Handle("POST /alerts/test", s.requireLogin(s.testAlert))
+	}
 
 	// API tokens are issued and revoked here, and the password is asked
 	// once more for an issue: a token outlives a session by months.

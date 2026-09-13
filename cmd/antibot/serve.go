@@ -17,6 +17,7 @@ import (
 
 	"github.com/geron0025/antibot/internal/admin"
 	"github.com/geron0025/antibot/internal/aggregate"
+	"github.com/geron0025/antibot/internal/alerts"
 	"github.com/geron0025/antibot/internal/catalog"
 	"github.com/geron0025/antibot/internal/config"
 	"github.com/geron0025/antibot/internal/domains"
@@ -129,21 +130,6 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		}
 	}
 
-	var sink proxy.EventLog = eventLog
-	if agg != nil {
-		sink = fanOut{eventLog, agg}
-	}
-
-	handler := proxy.New(&proxy.Handler{
-		Routes:         router,
-		Events:         sink,
-		Decider:        ruleStore,
-		Facts:          factStore,
-		TrustedProxies: config.Prefixes(cfg.TrustedProxies),
-		OwnNetworks:    config.Prefixes(cfg.OwnNetworks),
-		Log:            log,
-	})
-
 	fallback, err := edgetls.SelfSigned(cfg.TLS.SelfSignedDir)
 	if err != nil {
 		return fmt.Errorf("self-signed certificate: %w", err)
@@ -161,6 +147,41 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		log.Warn("no certificates yet: working on the self-signed one, the browser will complain")
 	}
 
+	// The alerts count on the hot path, next to the log: a trigger has to
+	// fire within a minute rather than after a reread of the log.
+	var watcher *alerts.Watcher
+	var alertCommand *alerts.CommandFile
+	if cfg.Alerts.Enabled {
+		if cfg.Alerts.File != "" {
+			if alertCommand, err = alerts.OpenCommand(cfg.Alerts.File); err != nil {
+				return err
+			}
+		}
+		watcher = alerts.New(alertOptions(cfg, certs, eventLog, factStore, agg, alertCommand, log))
+	}
+
+	sinks := fanOut{eventLog}
+	if agg != nil {
+		sinks = append(sinks, agg)
+	}
+	if watcher != nil {
+		sinks = append(sinks, watcher)
+	}
+	var sink proxy.EventLog = eventLog
+	if len(sinks) > 1 {
+		sink = sinks
+	}
+
+	handler := proxy.New(&proxy.Handler{
+		Routes:         router,
+		Events:         sink,
+		Decider:        ruleStore,
+		Facts:          factStore,
+		TrustedProxies: config.Prefixes(cfg.TrustedProxies),
+		OwnNetworks:    config.Prefixes(cfg.OwnNetworks),
+		Log:            log,
+	})
+
 	stop := make(chan struct{})
 	defer close(stop)
 	go certs.Watch(cfg.TLS.ReloadInterval.Duration(), stop)
@@ -171,6 +192,9 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 	if fetcher := catalog.NewFetcher(factStore, cfg.Facts.URL, cfg.Cloud.Token,
 		node, Version, log); fetcher != nil {
 		go fetcher.Run(ctx, cfg.Facts.Interval.Duration())
+	}
+	if watcher != nil {
+		go watcher.Run(ctx)
 	}
 
 	// The admin UI is assembled before the node starts accepting traffic:
@@ -198,22 +222,25 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 				}
 			}
 			adminUI, err = admin.New(admin.Options{
-				Tokens:           tokens,
-				Addr:             cfg.Admin.Listen,
-				HTTPAddr:         cfg.Admin.RedirectFrom,
-				Cert:             cfg.Admin.Certificate,
-				Key:              cfg.Admin.Key,
-				Users:            users,
-				Sessions:         admin.NewSessions(cfg.Admin.SessionTTL.Duration()),
-				Attempts:         windows,
-				EventsDir:        cfg.Events.Dir,
-				Rules:            ruleStore,
-				Domains:          domainStore,
-				Certs:            certs,
-				UploadedCertsDir: cfg.TLS.UploadedDir,
-				ConfigRoutes:     configRoutes,
-				Version:          Version,
-				Log:              log,
+				Tokens:             tokens,
+				Alerts:             watcher,
+				AlertCommand:       alertCommand,
+				ConfigAlertCommand: cfg.Alerts.Command,
+				Addr:               cfg.Admin.Listen,
+				HTTPAddr:           cfg.Admin.RedirectFrom,
+				Cert:               cfg.Admin.Certificate,
+				Key:                cfg.Admin.Key,
+				Users:              users,
+				Sessions:           admin.NewSessions(cfg.Admin.SessionTTL.Duration()),
+				Attempts:           windows,
+				EventsDir:          cfg.Events.Dir,
+				Rules:              ruleStore,
+				Domains:            domainStore,
+				Certs:              certs,
+				UploadedCertsDir:   cfg.TLS.UploadedDir,
+				ConfigRoutes:       configRoutes,
+				Version:            Version,
+				Log:                log,
 			})
 			if err != nil {
 				return err

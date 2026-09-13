@@ -48,6 +48,35 @@ type Config struct {
 	Domains Domains `yaml:"domains"`
 	Facts   Facts   `yaml:"facts"`
 	Cloud   Cloud   `yaml:"cloud"`
+	Alerts  Alerts  `yaml:"alerts"`
+}
+
+// Alerts are the triggers that tell the owner something is wrong with
+// the site, and the owner's command that delivers the message. A
+// trigger only tells: it never changes the protection.
+type Alerts struct {
+	Enabled bool `yaml:"enabled"`
+
+	// Command is run through sh -c with the alert in ANTIBOT_ALERT_*
+	// variables and as JSON on stdin. Set here, it wins over the one set
+	// from the admin UI, which lands in File.
+	Command string   `yaml:"command"`
+	File    string   `yaml:"file"`
+	Timeout Duration `yaml:"timeout"`
+
+	// Window is the stretch every traffic trigger looks at.
+	Window Duration `yaml:"window"`
+
+	SiteErrorShare   float64  `yaml:"site_error_share"`
+	SiteMinRequests  int      `yaml:"site_min_requests"`
+	SpikeFactor      float64  `yaml:"spike_factor"`
+	SpikeMinRequests int      `yaml:"spike_min_requests"`
+	SpikeMinBlocked  int      `yaml:"spike_min_blocked"`
+	RuleMinMatches   int      `yaml:"rule_min_matches"`
+	CertDays         int      `yaml:"cert_days"`
+	DiskMinMB        int      `yaml:"disk_min_mb"`
+	FactsMaxAge      Duration `yaml:"facts_max_age"`
+	OutboxMax        int      `yaml:"outbox_max"`
 }
 
 type Listen struct {
@@ -195,6 +224,14 @@ func Defaults() Config {
 			Interval: Duration(15 * time.Minute),
 			StateDir: "/var/lib/antibot/aggregate",
 		},
+		Alerts: Alerts{
+			Enabled: true, File: "/var/lib/antibot/alerts.json",
+			Timeout: Duration(30 * time.Second), Window: Duration(5 * time.Minute),
+			SiteErrorShare: 0.5, SiteMinRequests: 20,
+			SpikeFactor: 5, SpikeMinRequests: 500, SpikeMinBlocked: 200, RuleMinMatches: 50,
+			CertDays: 14, DiskMinMB: 1024,
+			FactsMaxAge: Duration(7 * 24 * time.Hour), OutboxMax: 12,
+		},
 	}
 }
 
@@ -279,6 +316,32 @@ func (c *Config) Validate() error {
 			return fmt.Errorf("facts.url is set and cloud.token is not: " +
 				"the bases are handed out by subscription, there is no anonymous distribution")
 		}
+	}
+	return c.Alerts.validate()
+}
+
+func (a *Alerts) validate() error {
+	if !a.Enabled {
+		return nil
+	}
+	window := a.Window.Duration()
+	switch {
+	case window < time.Minute || window > time.Hour || window%time.Minute != 0:
+		return fmt.Errorf("alerts.window %s: whole minutes, from 1m to 1h", window)
+	case a.Timeout.Duration() < time.Second || a.Timeout.Duration() > 5*time.Minute:
+		return fmt.Errorf("alerts.timeout %s: from 1s to 5m", a.Timeout.Duration())
+	case a.SiteErrorShare <= 0 || a.SiteErrorShare > 1:
+		return fmt.Errorf("alerts.site_error_share %v: a share above 0, up to 1", a.SiteErrorShare)
+	case a.SpikeFactor < 1.5:
+		return fmt.Errorf("alerts.spike_factor %v: at least 1.5, or every busy hour is a spike", a.SpikeFactor)
+	case a.SiteMinRequests < 1 || a.SpikeMinRequests < 1 || a.SpikeMinBlocked < 1 || a.RuleMinMatches < 1:
+		return fmt.Errorf("alerts: the minimum counts are at least 1")
+	case a.CertDays < 0 || a.CertDays > 90:
+		return fmt.Errorf("alerts.cert_days %d: from 0 to 90", a.CertDays)
+	case a.DiskMinMB < 0 || a.OutboxMax < 0 || a.FactsMaxAge.Duration() < 0:
+		return fmt.Errorf("alerts: disk_min_mb, outbox_max and facts_max_age are not negative")
+	case len(a.Command) > 4096:
+		return fmt.Errorf("alerts.command is longer than 4096 bytes")
 	}
 	return nil
 }

@@ -1,0 +1,88 @@
+{{template "header" .}}
+
+<p class="dim">The node tells you when something is wrong with the site,
+without waiting for you to open this page. A trigger only tells: it changes
+neither the rules nor their mode. Each sends one message when it fires and
+one when things have been back to normal for a whole window; the message
+goes to your command below.</p>
+
+{{if .TestResult}}<div class="warning">The test message: {{.TestResult}}</div>{{end}}
+
+<table>
+  <thead><tr><th>trigger</th><th>fires when</th><th>now</th></tr></thead>
+  <tbody>
+  {{range .Rows}}
+    <tr>
+      <td>{{.Title}}</td>
+      <td class="dim">{{.When}}</td>
+      <td>
+        {{range .Firing}}
+        <div><strong>firing</strong> since {{time .Since}}{{if .Clearing}} · settling{{end}}
+          <div class="dim">{{.Text}}</div></div>
+        {{else}}<span class="dim">fine</span>{{end}}
+      </td>
+    </tr>
+  {{end}}
+  </tbody>
+</table>
+
+<section class="card add-domain">
+  <h2>Delivery</h2>
+  {{if eq .Source "config"}}
+  <p class="dim">The command is set in config.yaml, in
+  <span class="value">alerts.command</span>, and is changed only there.</p>
+  <pre class="value">{{.Command}}</pre>
+  {{else if .CanEdit}}
+  <p class="dim">A shell command the node runs with its own user. The
+  message arrives in <span class="value">$ANTIBOT_ALERT_TEXT</span> and the
+  other <span class="value">ANTIBOT_ALERT_*</span> variables, and as JSON on
+  stdin — never pasted into the command's text. Templates for Telegram, a
+  webhook and mail are in the documentation, alerts.md. Your password is
+  asked once more: the command runs on this machine.</p>
+  <form method="post" action="/alerts/command" class="fields">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>command
+      <textarea name="command" rows="5" cols="90" spellcheck="false">{{.Command}}</textarea>
+    </label>
+    <label>your password
+      <input type="password" name="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit">save</button>
+  </form>
+  {{if .UpdatedBy}}<p class="dim">Set by {{.UpdatedBy}}, {{time .UpdatedAt}}.</p>{{end}}
+  {{else}}
+  <p class="dim">No place to keep a command: <span class="value">alerts.file</span>
+  is empty in the settings. The alerts are written to the node's log.</p>
+  {{end}}
+  {{if .Command}}
+  <form method="post" action="/alerts/test">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <button type="submit">send a test message</button>
+  </form>
+  {{else}}
+  <p class="dim">No command yet: the alerts go only to the node's log and
+  to this page.</p>
+  {{end}}
+</section>
+
+<h2>Messages since the start</h2>
+<table>
+  <thead><tr><th>time</th><th>trigger</th><th>state</th><th>message</th><th>delivery</th></tr></thead>
+  <tbody>
+  {{range .History}}
+    <tr>
+      <td>{{time .Time}}</td>
+      <td class="value">{{.ID}}</td>
+      <td>{{.State}}</td>
+      <td>{{.Text}}</td>
+      <td class="dim">{{.Delivery}}</td>
+    </tr>
+  {{else}}
+    <tr><td colspan="5" class="dim">nothing since the start</td></tr>
+  {{end}}
+  </tbody>
+</table>
+<p class="dim">The history lives in the node's memory and starts anew with
+every restart; every message is in the node's log as well.</p>
+
+{{template "footer" .}}
