@@ -95,6 +95,33 @@ func TestSiteDownFiresOnceAndResolvesOnce(t *testing.T) {
 	}
 }
 
+// The ticker drifts by milliseconds: a check that comes a hair earlier
+// than a whole window after the quiet began still ends the trouble, and
+// no extra minute is added. On the stand this was 16:02:11.15 → 16:07:11.14.
+func TestResolvedDoesNotWaitAnExtraCheck(t *testing.T) {
+	w := watcher(options(), start)
+	for m := 0; m < 5; m++ {
+		feed(w, m, 10, failed)
+	}
+	for m := 5; m < 30; m++ {
+		feed(w, m, 10, served)
+	}
+	for m := 5; m <= 20; m++ {
+		drift := 100 * time.Millisecond
+		if m == 8 { // the check that sees the quiet first
+			drift = 150 * time.Millisecond
+		}
+		w.Check(at(m).Add(drift))
+	}
+	h := w.History()
+	if len(h) != 2 || h[0].State != Resolved {
+		t.Fatalf("messages: %s", strings.Join(states(w), ", "))
+	}
+	if !h[0].Time.Equal(at(13).Add(100*time.Millisecond)) || !strings.Contains(h[0].Text, "all clear for the last 5m") {
+		t.Fatalf("resolved at %v: %s", h[0].Time, h[0].Text)
+	}
+}
+
 // A rule that starts cutting a lot is noticed against its own usual; right
 // after a start there is no usual yet, and nothing is called a spike.
 func TestSpikesAgainstTheHourBefore(t *testing.T) {

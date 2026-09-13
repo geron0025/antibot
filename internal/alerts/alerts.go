@@ -450,7 +450,10 @@ func (w *Watcher) transition(now time.Time, found map[string]finding) {
 			st.clearSince = now
 			continue
 		}
-		if now.Sub(st.clearSince) < w.o.Window {
+		// Checks come once a minute off a ticker and drift by milliseconds:
+		// without rounding, a window of quiet can fall a hair short and
+		// "back to normal" waits a whole extra check.
+		if now.Sub(st.clearSince).Round(time.Minute) < w.o.Window {
 			continue
 		}
 		delete(w.states, id)
