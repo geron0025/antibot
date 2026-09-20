@@ -190,6 +190,18 @@ type Cloud struct {
 	// batches the cloud has not taken yet. Created only when there is a
 	// token: a node that sends nothing keeps nothing for sending.
 	StateDir string `yaml:"state_dir"`
+
+	// RegisterURL is where a node with no token asks for one. Empty
+	// means the address beside URL, and with no URL either, the one the
+	// build was born with — which is what a node installed from the
+	// README has.
+	RegisterURL string `yaml:"register_url"`
+
+	// LinkFile holds what the owner answered in the admin UI about the
+	// cloud, and the token if he took one. It is the node's own state,
+	// not settings: this file the admin UI does write, and the settings
+	// above win over everything in it.
+	LinkFile string `yaml:"link_file"`
 }
 
 // Defaults are the settings of a node that has just been installed: it
@@ -230,6 +242,7 @@ func Defaults() Config {
 		Cloud: Cloud{
 			Interval: Duration(15 * time.Minute),
 			StateDir: "/var/lib/antibot/aggregate",
+			LinkFile: "/var/lib/antibot/cloud.json",
 		},
 		Alerts: Alerts{
 			Enabled: true, File: "/var/lib/antibot/alerts.json",
@@ -315,13 +328,16 @@ func (c *Config) Validate() error {
 		if c.Facts.Dir == "" {
 			return fmt.Errorf("facts.url is set and facts.dir is not: nowhere to put it")
 		}
-		// The subscription token is one for both directions, and the
-		// distribution has no anonymous form: without a token the
-		// address is unreachable, and a node that quietly does not fetch
-		// looks exactly like one that fetches and finds nothing new.
-		if c.Cloud.Token == "" {
-			return fmt.Errorf("facts.url is set and cloud.token is not: " +
-				"the bases are handed out by subscription, there is no anonymous distribution")
+		// The distribution still has no anonymous form, but the token no
+		// longer has to be in this file: a node takes one itself when
+		// the owner ticks "receive security updates" in the admin UI.
+		// An address with no token anywhere is therefore a node waiting
+		// to be asked, not a broken settings file, and refusing to
+		// start would leave it unable to be asked at all. Without a
+		// token the fetching simply does not begin.
+		if c.Cloud.Token == "" && c.Cloud.LinkFile == "" {
+			return fmt.Errorf("facts.url is set, and there is neither cloud.token nor " +
+				"cloud.link_file to keep a token the node takes itself")
 		}
 	}
 	return c.Alerts.validate()

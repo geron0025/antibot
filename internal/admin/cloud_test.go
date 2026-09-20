@@ -24,7 +24,8 @@ func TestOverviewSaysWhatTheCloudGets(t *testing.T) {
 	}
 
 	s.o.Cloud = func() CloudState {
-		return CloudState{Token: true, Fetching: true, FactsVersion: 12, FactsBuilt: time.Now(),
+		return CloudState{Token: true, Answered: true, Fetching: true, Sending: true,
+			FactsVersion: 12, FactsBuilt: time.Now(),
 			Outbox: 3, LastProblem: "the cloud did not accept the token (401); sending sleeps for an hour"}
 	}
 	page, _ = io.ReadAll(get(t, s, "/", cookies).Body)
@@ -33,6 +34,17 @@ func TestOverviewSaysWhatTheCloudGets(t *testing.T) {
 		if !strings.Contains(string(page), want) {
 			t.Errorf("the overview does not say %q", want)
 		}
+	}
+
+	// A token with the sending switched off is not the same as a token
+	// with nothing to send, and the overview must not pass one off as
+	// the other.
+	s.o.Cloud = func() CloudState {
+		return CloudState{Token: true, Answered: true, Fetching: true, FactsVersion: 12}
+	}
+	page, _ = io.ReadAll(get(t, s, "/", cookies).Body)
+	if !strings.Contains(string(page), "not sent: switched off") {
+		t.Error("the overview claims the sending works where the owner turned it off")
 	}
 }
 

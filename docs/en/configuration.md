@@ -292,10 +292,11 @@ entirely — the very line promised in the protocol.
 Without a `url` the node does not fetch the bases; applying a set from
 disk always works: `antibot facts apply`. More in [facts.md](facts.md).
 
-Fetching runs once a day plus jitter. The token comes from
-`cloud.token`: it is one token for both directions, and there is no
-anonymous distribution of the bases. So `facts.url` without
-`cloud.token` is an error at startup.
+Fetching runs once a day plus jitter. One token serves both directions
+and there is no anonymous distribution of the bases — but the token need
+not come from this file: the node takes one itself when the owner ticks
+"receive security updates" in the admin UI ([cloud.md](cloud.md)). A
+`url` set here outranks the one the cloud sends.
 
 ## cloud
 
@@ -305,6 +306,8 @@ cloud:
   # url: "https://updates.example.com/ingest"
   interval: 15m
   state_dir: "/var/lib/antibot/aggregate"
+  link_file: "/var/lib/antibot/cloud.json"
+  # register_url: "https://updates.netbota.ru"
 ```
 
 Sending anonymized aggregates. **An empty token means no sending at
@@ -324,6 +327,18 @@ second.
 accepted yet: no more than 200 of them, about two days. It is created
 only when a token is set. What lies there and what goes next is shown by
 `antibot aggregate status` and `antibot aggregate show`.
+
+`link_file` holds what the owner answered in the admin UI about the
+cloud, and the token if he took one. It is **the node's state, not its
+settings**: the one file the admin UI writes here, mode `600`. A `token`
+set above outranks everything in it. An empty `link_file` means a token
+cannot be taken from the admin UI at all — it can then only be written
+into this file by hand.
+
+`register_url` is where the node asks for a token. Empty means the
+address beside `url`, and with no `url` either, the one the binary was
+built with. In detail —
+[cloud.md](cloud.md) and [protocol/registration.md](protocol/registration.md).
 
 ## alerts
 
@@ -381,7 +396,8 @@ ready templates — [alerts.md](alerts.md).
 - `cloud.token` without `cloud.url` is an error: nowhere to send;
 - `cloud.token` without `cloud.state_dir` is an error: nowhere to keep what is not sent yet;
 - `facts.url` without `facts.dir` is an error: nowhere to put it;
-- `facts.url` without `cloud.token` is an error: there is no anonymous distribution of the bases;
+- `facts.url` without `cloud.token` **and** without `cloud.link_file` is
+  an error: there is nowhere to take a token from and nowhere to put one;
 - the `alerts` thresholds are within their bounds: the window is whole
   minutes from `1m` to `1h`, a share is above zero and at most one,
   `spike_factor` is at least `1.5`;

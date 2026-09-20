@@ -45,6 +45,8 @@ func parseTemplates() (*template.Template, error) {
 				return "API tokens"
 			case "alerts":
 				return "Alerts"
+			case "cloud":
+				return "Cloud"
 			case "settings":
 				return "Settings"
 			default:
@@ -258,6 +260,15 @@ func (s *Server) expiringCerts(now time.Time) []CertState {
 }
 
 func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request, user string) {
+	// The two questions about the cloud are asked once, at the first
+	// login, and here rather than on a page nobody opens: what leaves
+	// this node is the owner's decision, and a decision nobody was
+	// offered is made by whoever wrote the defaults.
+	if s.o.CloudControl != nil && s.o.Cloud != nil && !s.o.Cloud().Answered {
+		http.Redirect(w, r, "/cloud?welcome=1", http.StatusSeeOther)
+		return
+	}
+
 	period := periodOf(r)
 	now := time.Now()
 

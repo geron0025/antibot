@@ -96,6 +96,11 @@ type Options struct {
 	// the block out.
 	Cloud func() CloudState
 
+	// CloudControl is what the cloud page may change: the two answers
+	// and the token. Nil makes the page read-only — the settings file
+	// decides, and nothing here may override it.
+	CloudControl CloudControl
+
 	Version string
 	Log     *slog.Logger
 }
@@ -288,6 +293,10 @@ func (s *Server) Handler() http.Handler {
 	// The admin UI's own certificate. Replacing it asks for the password
 	// once more: whoever holds its key reads the admin UI's traffic, and a
 	// stolen session must not be enough to put the thief's key there.
+	mux.Handle("GET /cloud", s.requireLogin(s.cloudPage))
+	mux.Handle("POST /cloud/save", s.requireLogin(s.saveCloud))
+	mux.Handle("POST /cloud/forget", s.requireLogin(s.forgetCloud))
+
 	mux.Handle("GET /settings", s.requireLogin(s.settingsPage))
 	mux.Handle("POST /settings/certificate", s.requireLogin(s.uploadAdminCertificate))
 

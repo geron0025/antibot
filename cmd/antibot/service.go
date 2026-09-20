@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/geron0025/antibot/internal/aggregate"
 	"github.com/geron0025/antibot/internal/events"
 )
 
@@ -20,7 +19,7 @@ import (
 // traffic of the customer's domains, and /healthz on them would turn into
 // a page that does not exist on every protected site. This port is not
 // published outwards.
-func serveService(ctx context.Context, addr string, log *events.Log, agg *aggregate.Aggregator, logger *slog.Logger) error {
+func serveService(ctx context.Context, addr string, log *events.Log, agg *aggregateSink, logger *slog.Logger) error {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -37,10 +36,9 @@ func serveService(ctx context.Context, addr string, log *events.Log, agg *aggreg
 			// people draw conclusions from it.
 			"events_dropped": log.Dropped.Load(),
 		}
-		// Absent rather than zero without a token: zero would claim the
-		// sending works and has nothing to report.
-		if agg != nil {
-			st := agg.Status()
+		// Absent rather than zero while nothing is being sent: zero
+		// would claim the sending works and has nothing to report.
+		if st, sending := agg.Status(); sending {
 			stats["aggregate_dropped"] = st.Dropped
 			stats["aggregate_outbox"] = st.Outbox
 			if !st.LastSent.IsZero() {

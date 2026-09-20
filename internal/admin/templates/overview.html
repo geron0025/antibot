@@ -138,12 +138,14 @@
       <tr>
         <td>fact set</td>
         <td>{{if .FactsVersion}}version {{.FactsVersion}}, built {{time .FactsBuilt}}{{else}}none yet{{end}}
-          {{if not .Fetching}}<span class="dim">· not fetched: facts.url is not set</span>{{end}}</td>
+          {{if not .Fetching}}<span class="dim">· not fetched: switched off on the <a href="/cloud">cloud page</a></span>{{end}}</td>
       </tr>
       <tr>
         <td>aggregates</td>
-        <td>{{if .Outbox}}{{.Outbox}} waiting to be sent{{else}}nothing waiting{{end}}
-          · {{if .LastSent.IsZero}}none accepted since the start{{else}}the last accepted {{time .LastSent}}{{end}}
+        <td>{{if .Sending}}
+            {{if .Outbox}}{{.Outbox}} waiting to be sent{{else}}nothing waiting{{end}}
+            · {{if .LastSent.IsZero}}none accepted since the start{{else}}the last accepted {{time .LastSent}}{{end}}
+          {{else}}not sent: switched off on the <a href="/cloud">cloud page</a>{{end}}
           {{with .LastProblem}}<div class="warning">{{.}}</div>{{end}}</td>
       </tr>
     </tbody>
@@ -152,9 +154,11 @@
   the documentation, protocol/aggregate.md: counts by five-minute windows, no
   addresses, no paths, no cookies.</p>
   {{else}}
-  <p>This node talks to nobody: there is no <code>cloud.token</code>, and
-  nothing leaves it — no aggregates, no requests for the bases.{{if .FactsVersion}}
-  It works on the fact set applied from disk, version {{.FactsVersion}}.{{end}}</p>
+  <p>This node talks to nobody: it has no token, and nothing leaves it — no
+  aggregates, no requests for the bases.{{if .FactsVersion}}
+  It works on the fact set applied from disk, version {{.FactsVersion}}.{{end}}
+  The two things it could do with the cloud, and what each of them sends,
+  are on the <a href="/cloud">cloud page</a>.</p>
   {{end}}
 </section>
 {{end}}

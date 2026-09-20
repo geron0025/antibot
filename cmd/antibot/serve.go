@@ -16,9 +16,9 @@ import (
 	"golang.org/x/net/http2"
 
 	"github.com/geron0025/antibot/internal/admin"
-	"github.com/geron0025/antibot/internal/aggregate"
 	"github.com/geron0025/antibot/internal/alerts"
 	"github.com/geron0025/antibot/internal/catalog"
+	"github.com/geron0025/antibot/internal/cloudlink"
 	"github.com/geron0025/antibot/internal/config"
 	"github.com/geron0025/antibot/internal/domains"
 	"github.com/geron0025/antibot/internal/edgetls"
@@ -100,35 +100,30 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 	router := proxy.NewRouteTable(buildRouter())
 	domainStore.OnChange(func() { router.Swap(buildRouter()) })
 
-	// The identifier is needed only to talk to the cloud, and without a
-	// token there is no talking: a node without one does not even create
-	// the file.
-	var node string
-	if cfg.Cloud.Token != "" {
-		node = nodeIdentity(cfg, log)
+	// What the owner answered about the cloud at his first login, and
+	// the token if he took one. The settings file wins over all of it.
+	linkState, err := cloudlink.Open(cfg.Cloud.LinkFile, log)
+	if err != nil {
+		return err
 	}
 
-	// The aggregate exists only with a token. A failure to assemble it is
-	// no reason to stop the node: the traffic is served whether or not
-	// the cloud hears about it.
-	var agg *aggregate.Aggregator
-	if cfg.Cloud.Token != "" {
-		agg, err = aggregate.Open(aggregate.Options{
-			Dir:          cfg.Cloud.StateDir,
-			URL:          cfg.Cloud.URL,
-			Token:        cfg.Cloud.Token,
-			NodeID:       node,
-			Version:      Version,
-			Interval:     cfg.Cloud.Interval.Duration(),
-			Served:       router.Named,
-			FactsVersion: func() int { return factStore.Current().Version() },
-			Log:          log,
-		})
-		if err != nil {
-			log.Error("the aggregate will not be sent", "err", err)
-			agg = nil
-		}
+	// The identifier is needed only to talk to the cloud, and a node
+	// that never does does not even create the file. It is made on
+	// first use rather than at startup, because the first use may be
+	// somebody ticking a checkbox an hour from now.
+	var nodeOnce sync.Once
+	var nodeID string
+	identity := func() string {
+		nodeOnce.Do(func() { nodeID = nodeIdentity(cfg, log) })
+		return nodeID
 	}
+
+	aggSink := &aggregateSink{}
+	link := &cloudLink{
+		cfg: cfg, state: linkState, facts: factStore, sink: aggSink,
+		node: identity, serve: router.Named, log: log,
+	}
+	linkState.OnChange(link.apply)
 
 	fallback, err := edgetls.SelfSigned(cfg.TLS.SelfSignedDir)
 	if err != nil {
@@ -157,13 +152,13 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 				return err
 			}
 		}
-		watcher = alerts.New(alertOptions(cfg, certs, eventLog, factStore, agg, alertCommand, log))
+		watcher = alerts.New(alertOptions(cfg, certs, eventLog, factStore, link, alertCommand, log))
 	}
 
-	sinks := fanOut{eventLog}
-	if agg != nil {
-		sinks = append(sinks, agg)
-	}
+	// The aggregator's place in the hot path is held whether or not
+	// there is one: the request path is built once, and the owner may
+	// turn the sending on at any time after that.
+	sinks := fanOut{eventLog, aggSink}
 	if watcher != nil {
 		sinks = append(sinks, watcher)
 	}
@@ -186,13 +181,6 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 	defer close(stop)
 	go certs.Watch(cfg.TLS.ReloadInterval.Duration(), stop)
 
-	// Fetching the bases starts only when there is somewhere to fetch
-	// from and something to prove the right with. Without a token there
-	// is no addressee, and that is a state, not a failure.
-	if fetcher := catalog.NewFetcher(factStore, cfg.Facts.URL, cfg.Cloud.Token,
-		node, Version, log); fetcher != nil {
-		go fetcher.Run(ctx, cfg.Facts.Interval.Duration())
-	}
 	if watcher != nil {
 		go watcher.Run(ctx)
 	}
@@ -221,15 +209,17 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 					return err
 				}
 			}
-			fetching := cfg.Facts.Enabled && cfg.Facts.URL != "" && cfg.Cloud.Token != ""
 			cloudState := func() admin.CloudState {
 				set := factStore.Current()
+				want := link.effective()
+				answer := linkState.State()
 				state := admin.CloudState{
-					Token: cfg.Cloud.Token != "", Fetching: fetching,
+					Token: want.Token != "", Fetching: want.Fetching, Sending: want.Sending,
+					FromConfig: want.FromConfig, Answered: answer.Answered,
+					Tenant: answer.Tenant, Level: answer.Level,
 					FactsVersion: set.Version(), FactsBuilt: set.CreatedAt(),
 				}
-				if agg != nil {
-					st := agg.Status()
+				if st, sending := aggSink.Status(); sending {
 					state.Outbox, state.LastSent, state.LastProblem = st.Outbox, st.LastSent, st.LastProblem
 				}
 				return state
@@ -242,8 +232,17 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 					log.Info("the admin UI serves the pair added on its settings page", "certificate", adminCert)
 				}
 			}
+			// The page may change the link only where the settings file
+			// says nothing: a token written there by hand outranks
+			// anything ticked in a browser.
+			var cloudControl admin.CloudControl
+			if cfg.Cloud.Token == "" {
+				cloudControl = link
+			}
+
 			adminUI, err = admin.New(admin.Options{
 				Cloud:              cloudState,
+				CloudControl:       cloudControl,
 				Tokens:             tokens,
 				Alerts:             watcher,
 				AlertCommand:       alertCommand,
@@ -271,23 +270,11 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		}
 	}
 
-	// The aggregator starts after every early return: on the way out the
-	// process waits for it to save the open window, and it must not wait
-	// for one that never started. Its context is not the signal's but
-	// its own, cancelled only once the listeners are done — the requests
-	// finishing during the shutdown were served and are counted.
-	if agg != nil {
-		aggCtx, stopAgg := context.WithCancel(context.Background())
-		aggDone := make(chan struct{})
-		go func() {
-			agg.Run(aggCtx)
-			close(aggDone)
-		}()
-		defer func() {
-			stopAgg()
-			<-aggDone
-		}()
-	}
+	// The link starts after every early return: on the way out the
+	// process waits for the aggregator to save the open window, and it
+	// must not wait for one that never started.
+	link.start(ctx)
+	defer link.stop()
 
 	var group sync.WaitGroup
 	errs := make(chan error, 4)
@@ -326,7 +313,7 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		group.Add(1)
 		go func() {
 			defer group.Done()
-			if err := serveService(ctx, cfg.Listen.Admin, eventLog, agg, log); err != nil {
+			if err := serveService(ctx, cfg.Listen.Admin, eventLog, aggSink, log); err != nil {
 				errs <- err
 			}
 		}()
@@ -334,7 +321,8 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 
 	log.Info("the node has started", "http", cfg.Listen.HTTP, "https", cfg.Listen.HTTPS,
 		"events", cfg.Events.Dir, "rules", len(ruleStore.Set().Effective()),
-		"facts", factStore.Current().Version(), "aggregate", agg != nil, "version", Version)
+		"facts", factStore.Current().Version(), "aggregate", link.effective().Sending,
+		"version", Version)
 
 	group.Wait()
 	close(errs)

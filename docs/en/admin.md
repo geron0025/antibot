@@ -46,6 +46,7 @@ the documentation says.
 | `/domains` | domains, their sites' addresses, certificates and terms |
 | `/alerts` | alerts: the triggers and their thresholds, what is firing now, the messages, the delivery command |
 | `/tokens` | API tokens: issuing, terms, the last use, revoking |
+| `/cloud` | the cloud: two checkboxes, the token, how both arrows fare |
 | `/settings` | settings: the admin UI's own certificate — names, term, files, replacing |
 | `/login` | the login |
 
@@ -245,6 +246,23 @@ screen the menu's items fold into a "burger" on the left — a `<details>`
 too: otherwise they would push the bell and the name off the edge. What
 is checked and how a message comes — [alerts.md](alerts.md).
 
+### The cloud
+
+Two checkboxes — "receive security updates" and "send statistics" — and
+what has come of them: whether there is a token, what the tenant is
+called in the cloud, which version of the set is applied, when the last
+batch went. **Both are off** until the owner ticks them himself; at his
+first login the overview sends him here, and that is the only time the
+admin UI takes anybody off the page they asked for.
+
+A ticked box on a node with no token is the request for one: the node
+introduces itself to the cloud and writes the issued token down. The
+change applies at once, with no restart. On the same page is "forget the
+token": it clears both boxes and wipes the token.
+
+If `cloud.token` is set in `config.yaml`, that decides: the boxes are
+shown but cannot be changed. In detail — [cloud.md](cloud.md).
+
 ### Settings
 
 For now there is one thing here — **the admin UI's own certificate**, the
@@ -277,10 +295,12 @@ only its owner knows.
 
 ## The writing actions
 
-There are ten and no others: enable or disable a rule, move it between
-`shadow` and `active`, add a domain, remove a domain, upload a site's
-certificate, replace the admin UI's certificate, issue an API token,
-revoke an API token, change the alerts command, send a test alert.
+There are twelve and no others: enable or disable a rule, move it
+between `shadow` and `active`, add a domain, remove a domain, upload a
+site's certificate, replace the admin UI's certificate, issue an API
+token, revoke an API token, change the alerts command, send a test
+alert, answer the two questions about the cloud, forget the cloud
+token.
 
 ### A rule: enable and disable
 
@@ -424,7 +444,8 @@ level=WARN msg="the admin UI certificate was replaced from the admin UI"
   else's site, it has no business in search results;
 - **the write paths are listed**: `POST /rules/toggle`, `/rules/mode`, `/domains/add`,
   `/domains/remove`, `/domains/certificate`, `/settings/certificate`,
-  `/tokens/issue`, `/tokens/revoke`, `/alerts/command`, `/alerts/test`. Any method other
+  `/tokens/issue`, `/tokens/revoke`, `/alerts/command`, `/alerts/test`,
+  `/cloud/save`, `/cloud/forget`. Any method other
   than GET is not handled on the pages themselves;
 - **the API on the same address, through another door**: under
   `/api/v1/` only a token in a header lets in, the API does not take the

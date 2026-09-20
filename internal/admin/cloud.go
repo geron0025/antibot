@@ -17,13 +17,30 @@ import (
 // many words that nothing leaves it. An owner who installed a node from a
 // public repository has every reason to ask.
 type CloudState struct {
-	// Token is whether cloud.token is set. Without one nothing leaves
-	// the node — neither aggregates nor requests for the bases.
+	// Token is whether there is a token at all — from the settings file
+	// or taken by the node itself. Without one nothing leaves the node,
+	// neither aggregates nor requests for the bases.
 	Token bool
+
+	// Answered says the owner has been asked the two questions. A node
+	// that was never asked is sent to the welcome page at login; one
+	// that answered "no" to both is not asked again.
+	Answered bool
+
+	// FromConfig says the settings file names the token. Then the two
+	// checkboxes are shown but decide nothing: what the machine's owner
+	// wrote by hand outranks a web page.
+	FromConfig bool
+
+	// Tenant and Level are what the cloud called this installation when
+	// it registered. The owner needs the name to call himself by it.
+	Tenant string
+	Level  string
 
 	FactsVersion int
 	FactsBuilt   time.Time
 	Fetching     bool
+	Sending      bool
 
 	Outbox      int
 	LastSent    time.Time

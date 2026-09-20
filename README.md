@@ -58,6 +58,7 @@ and [configuration](docs/en/configuration.md).
 | [configuration.md](docs/en/configuration.md) | every configuration key and why it is what it is |
 | [rules.md](docs/en/rules.md) | rules: the model, the fields, the order, replaying over history |
 | [facts.md](docs/en/facts.md) | the network and fingerprint bases: applying, rolling back, the border |
+| [cloud.md](docs/en/cloud.md) | the cloud: two checkboxes, the token, what goes out |
 | [admin.md](docs/en/admin.md) | the admin UI: pages, login, the writing actions |
 | [api.md](docs/en/api.md) | the API: tokens, the summary, events and rules for a program |
 | [alerts.md](docs/en/alerts.md) | alerts: the node tells you the site is in trouble, through your command |
@@ -85,8 +86,13 @@ and [configuration](docs/en/configuration.md).
 - **an admin UI**: events, statistics and rules;
 - **fact bases**: parsing, signature, applying from disk, fetching over
   the network, rollback;
-- **sending aggregates** to the cloud — only with a subscription token;
-  `antibot aggregate show` prints exactly what would leave.
+- **sending aggregates** to the cloud — only with a token;
+  `antibot aggregate show` prints exactly what would leave;
+- **two checkboxes and nothing beyond them**: at the first login the
+  admin UI asks whether the node may receive security updates and send
+  statistics. Both off until ticked, either one applies at once, and a
+  node with no token takes a free-level one itself instead of waiting
+  for anybody to send it one.
 
 Not there: ACME, Prometheus metrics.
 
@@ -110,9 +116,11 @@ storage and cannot get stuck in one.
 
 ## Borders set on day one
 
-- **Nothing is sent without a token.** Not "telemetry switched off by a
-  setting" but the absence of an addressee: until a token is in the
-  configuration, the sending code does not run at all.
+- **Nothing is sent without a token, and nothing without being asked.**
+  Not "telemetry switched off by a setting" but the absence of an
+  addressee: with no token the sending code does not run at all. With a
+  token taken from the admin UI, it runs only for the direction the
+  owner ticked.
 - **The arriving bases block nothing.** They change only what a client is
   called; what to do with it is decided by your rule.
 - **Rules are changed only by you.** There is no way to enable a rule

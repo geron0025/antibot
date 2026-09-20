@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antibot.dev/schema/registration-answer/1",
+  "title": "Ответ на регистрацию: токен, показанный один раз, и адреса",
+  "type": "object",
+  "required": ["format", "token", "scope", "level", "tenant", "facts_url", "ingest_url"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {"const": 1},
+    "token": {"type": "string", "minLength": 1},
+    "scope": {"enum": ["facts", "aggregates", "both"]},
+    "level": {"enum": ["node", "facts", "facts_and_analysis"]},
+    "tenant": {"type": "string", "minLength": 1, "maxLength": 64},
+    "facts_url": {"type": "string", "minLength": 1},
+    "ingest_url": {"type": "string", "minLength": 1}
+  }
+}

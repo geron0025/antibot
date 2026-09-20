@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://antibot.dev/schema/registration/1",
+  "title": "Запрос регистрации ноды: единственный запрос без токена",
+  "type": "object",
+  "required": ["format", "node", "version"],
+  "additionalProperties": false,
+  "properties": {
+    "format": {"const": 1},
+    "node": {"type": "string", "minLength": 1, "maxLength": 64},
+    "version": {"type": "string", "maxLength": 32},
+    "facts": {"type": "boolean"},
+    "aggregates": {"type": "boolean"}
+  }
+}

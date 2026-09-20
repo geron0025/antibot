@@ -4,7 +4,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/geron0025/antibot/internal/aggregate"
 	"github.com/geron0025/antibot/internal/alerts"
 	"github.com/geron0025/antibot/internal/catalog"
 	"github.com/geron0025/antibot/internal/config"
@@ -16,9 +15,8 @@ import (
 // settings, the probes into the parts they watch, and the command in
 // force — the configuration's, or else the one set from the admin UI.
 func alertOptions(cfg config.Config, certs *edgetls.Set, eventLog *events.Log, factStore *catalog.Store,
-	agg *aggregate.Aggregator, file *alerts.CommandFile, log *slog.Logger) alerts.Options {
+	link *cloudLink, file *alerts.CommandFile, log *slog.Logger) alerts.Options {
 	a := cfg.Alerts
-	fetching := cfg.Facts.Enabled && cfg.Facts.URL != "" && cfg.Cloud.Token != ""
 
 	probes := alerts.Probes{
 		Certificates: func() []alerts.Certificate {
@@ -31,13 +29,18 @@ func alertOptions(cfg config.Config, certs *edgetls.Set, eventLog *events.Log, f
 		},
 		EventsDropped: eventLog.Dropped.Load,
 		EventsDir:     cfg.Events.Dir,
+		// Asked on every check rather than decided at startup: the
+		// owner turns the fetching on and off from the admin UI, and a
+		// trigger about a base that has gone stale must not fire at a
+		// node that was told to stop fetching an hour ago.
 		Facts: func() (int, time.Time, bool) {
 			set := factStore.Current()
-			return set.Version(), set.CreatedAt(), fetching
+			return set.Version(), set.CreatedAt(), link.effective().Fetching
 		},
-	}
-	if agg != nil {
-		probes.Outbox = func() (int, bool) { return agg.Status().Outbox, true }
+		Outbox: func() (int, bool) {
+			st, sending := link.sink.Status()
+			return st.Outbox, sending
+		},
 	}
 
 	return alerts.Options{
