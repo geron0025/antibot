@@ -596,22 +596,40 @@ func TestNotBeforeIsRespected(t *testing.T) {
 	}
 }
 
-// A node that was never told whom to believe refuses everything. That is
-// correct: with no trusted key nothing verifies, and the node works on
-// rules that do not reference facts.
-func TestAnEmptyKeyringTrustsNobody(t *testing.T) {
-	if len(builtinKeys) != 0 {
-		t.Skip("built-in keys have appeared, the test needs rewriting")
-	}
+// Every built-in key has to end up in the ring. NewKeyring drops a key
+// that does not parse without saying so — it has nowhere to report at
+// that point — so a typo in a base64 half would ship as a node that
+// quietly trusts one signer fewer than the release says it does.
+func TestEveryBuiltinKeyReachesTheRing(t *testing.T) {
 	ring := NewKeyring()
-	if ring.Trusted() != 0 {
-		t.Fatalf("%d keys out of nowhere", ring.Trusted())
+	if ring.Trusted() != len(builtinKeys) {
+		t.Fatalf("the ring holds %d of %d built-in keys", ring.Trusted(), len(builtinKeys))
 	}
-	s := newSigner(t, "2026-a")
+	seen := map[string]bool{}
+	for _, k := range builtinKeys {
+		if seen[k.KeyID] {
+			t.Errorf("key %q is built in twice", k.KeyID)
+		}
+		seen[k.KeyID] = true
+
+		// A facts key that also signs proposals would undo the split
+		// the two uses exist for: one compromised key would forge both
+		// the base for everyone and the advice for one owner.
+		if k.Use != UseFacts {
+			t.Errorf("key %q signs %q: the built-in list is the facts channel", k.KeyID, k.Use)
+		}
+	}
+}
+
+// A set signed by a key the release never heard of is refused, whatever
+// the mathematics says. That is the whole point of a built-in list.
+func TestAKeyThatIsNotBuiltInVerifiesNothing(t *testing.T) {
+	ring := NewKeyring()
+	s := newSigner(t, "not-ours")
 	m, _ := s.set(t, 137, nil, nil)
 	manifest, _ := ParseManifest(m)
 	if err := ring.Verify(manifest.KeyID, UseFacts, manifest.Digest(), manifest.Signature, time.Now()); err == nil {
-		t.Error("an empty keyring verified a signature")
+		t.Error("the ring verified a signature from an untrusted key")
 	}
 }
 

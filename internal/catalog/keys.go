@@ -50,11 +50,18 @@ type keyFile struct {
 // builtinKeys are the keys compiled into the binary — the ground of
 // trust. They change with a release and only with a release.
 //
-// Empty until the signing key exists. An empty list is not a hole: with
-// no trusted key no set verifies, and a node with no set works on rules
-// that do not reference facts. Refusing everything is the correct
-// behaviour for a node that was never told whom to believe.
-var builtinKeys = []Key{}
+// Two keys, and the second one has never signed anything. 2026-a is the
+// working key and lives on the machine that hands out sets; 2026-b is
+// the spare, kept offline, and exists so that losing the working key
+// does not mean reinstalling every node in the world. A key is refused
+// over the wire if it arrives with the same id and a different value,
+// so the spare has to be here before it is needed, not after.
+var builtinKeys = []Key{
+	{KeyID: "2026-a", Algo: "ed25519", Use: UseFacts,
+		Public: "fs/w0rGocwbD887Lx3NsyTs2D+Rw2Ah6yaalIiUnG/U="},
+	{KeyID: "2026-b", Algo: "ed25519", Use: UseFacts,
+		Public: "71vaxTAi7gZAFJt7T+TwAWDZFa3Rjw76tt/yM5LYaEw="},
+}
 
 // Keyring is what the node believes.
 type Keyring struct {

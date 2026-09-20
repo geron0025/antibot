@@ -197,9 +197,18 @@ substitution:
   with the same `key_id` but a different value means either a mistake in
   the build or an attempt at substitution, and both need a human.
 
-> In the current build the built-in list is **empty**: the signing key
-> does not exist yet. That is not a hole — with no trusted key nothing
-> verifies, and the node works on rules that do not reference facts.
+The build carries two built-in keys, both for fact sets:
+
+| `key_id` | What it is |
+|---|---|
+| `2026-a` | the working key: the sets the cloud hands out are signed with it |
+| `2026-b` | the spare: it has signed nothing and is kept apart from the working one |
+
+The spare is built in ahead of time for a reason: a key with the same
+`key_id` is not redefined over the wire, so there would be no way of
+adding it to an installed node after the working key was lost. `antibot
+facts status` prints, as `trusted keys`, how many keys the node actually
+believes.
 
 ## An empty directory is a normal state
 
