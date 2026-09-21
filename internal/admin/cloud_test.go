@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/geron0025/antibot/internal/control"
 )
 
 // A node without a token says in so many words that nothing leaves it;
@@ -17,13 +19,13 @@ func TestOverviewSaysWhatTheCloudGets(t *testing.T) {
 	s, _ := newServer(t)
 	cookies := logIn(t, s)
 
-	s.o.Cloud = func() CloudState { return CloudState{} }
+	local(s).CloudState = func() CloudState { return CloudState{Answered: true} }
 	page, _ := io.ReadAll(get(t, s, "/", cookies).Body)
 	if !strings.Contains(string(page), "This node talks to nobody") {
 		t.Fatal("a node without a token does not say that nothing leaves it")
 	}
 
-	s.o.Cloud = func() CloudState {
+	local(s).CloudState = func() CloudState {
 		return CloudState{Token: true, Answered: true, Fetching: true, Sending: true,
 			FactsVersion: 12, FactsBuilt: time.Now(),
 			Outbox: 3, LastProblem: "the cloud did not accept the token (401); sending sleeps for an hour"}
@@ -39,7 +41,7 @@ func TestOverviewSaysWhatTheCloudGets(t *testing.T) {
 	// A token with the sending switched off is not the same as a token
 	// with nothing to send, and the overview must not pass one off as
 	// the other.
-	s.o.Cloud = func() CloudState {
+	local(s).CloudState = func() CloudState {
 		return CloudState{Token: true, Answered: true, Fetching: true, FactsVersion: 12}
 	}
 	page, _ = io.ReadAll(get(t, s, "/", cookies).Body)
@@ -87,7 +89,7 @@ func TestAdminCertificateIsReread(t *testing.T) {
 	// A pair that does not load stops the start, before any port is taken.
 	users, _ := OpenUsers(filepath.Join(dir, "admin.json"))
 	users.Set("owner", password)
-	_, err = New(Options{Addr: "0.0.0.0:0", Cert: certFile, Key: keyFile, Users: users, Log: log})
+	_, err = New(Options{Addr: "0.0.0.0:0", Cert: certFile, Key: keyFile, Users: users, Log: log, Core: &control.Local{}})
 	if err == nil || !strings.Contains(err.Error(), "certificate") {
 		t.Fatalf("a broken pair at the start: %v", err)
 	}

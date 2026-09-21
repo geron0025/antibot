@@ -20,6 +20,7 @@ import (
 	"github.com/geron0025/antibot/internal/catalog"
 	"github.com/geron0025/antibot/internal/cloudlink"
 	"github.com/geron0025/antibot/internal/config"
+	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/domains"
 	"github.com/geron0025/antibot/internal/edgetls"
 	"github.com/geron0025/antibot/internal/events"
@@ -32,6 +33,10 @@ import (
 )
 
 func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
+	// Stopping from the control socket ends the same way a signal does.
+	ctx, shutdown := context.WithCancel(ctx)
+	defer shutdown()
+
 	flags := flag.NewFlagSet("serve", flag.ExitOnError)
 	path := flags.String("config", "/etc/antibot/config.yaml", "settings file")
 	if err := flags.Parse(args); err != nil {
@@ -185,6 +190,44 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		go watcher.Run(ctx)
 	}
 
+	// What the admin UI may ask of the core: served on the control
+	// socket, and handed directly to the admin UI while it still lives in
+	// this process.
+	cloudState := func() control.CloudState {
+		set := factStore.Current()
+		want := link.effective()
+		answer := linkState.State()
+		state := control.CloudState{
+			Token: want.Token != "", Fetching: want.Fetching, Sending: want.Sending,
+			FromConfig: want.FromConfig, Answered: answer.Answered,
+			Tenant: answer.Tenant, Level: answer.Level,
+			FactsVersion: set.Version(), FactsBuilt: set.CreatedAt(),
+		}
+		if st, sending := aggSink.Status(); sending {
+			state.Outbox, state.LastSent, state.LastProblem = st.Outbox, st.LastSent, st.LastProblem
+		}
+		return state
+	}
+	// The link may be changed only where the settings file says
+	// nothing: a token written there by hand outranks anything ticked in
+	// a browser.
+	var cloudLink control.CloudLink
+	if cfg.Cloud.Token == "" {
+		cloudLink = link
+	}
+	core := &control.Local{
+		Version: Version, Started: time.Now(),
+		Watcher: watcher, ConfigCommand: cfg.Alerts.Command,
+		CloudState: cloudState, Link: cloudLink,
+		Certs: certs, ConfigRoute: configRoutes,
+		Reloaders: map[control.Reloadable]func() error{
+			control.ReloadRules:        func() error { _, err := ruleStore.Reload(); return err },
+			control.ReloadDomains:      func() error { _, err := domainStore.Reload(); return err },
+			control.ReloadCertificates: func() error { certs.Reload(); return nil },
+		},
+		Shutdown: shutdown,
+	}
+
 	// The admin UI is assembled before the node starts accepting traffic:
 	// an invalid setting (an outward-facing address without a
 	// certificate) must stop the startup rather than bring an
@@ -209,21 +252,6 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 					return err
 				}
 			}
-			cloudState := func() admin.CloudState {
-				set := factStore.Current()
-				want := link.effective()
-				answer := linkState.State()
-				state := admin.CloudState{
-					Token: want.Token != "", Fetching: want.Fetching, Sending: want.Sending,
-					FromConfig: want.FromConfig, Answered: answer.Answered,
-					Tenant: answer.Tenant, Level: answer.Level,
-					FactsVersion: set.Version(), FactsBuilt: set.CreatedAt(),
-				}
-				if st, sending := aggSink.Status(); sending {
-					state.Outbox, state.LastSent, state.LastProblem = st.Outbox, st.LastSent, st.LastProblem
-				}
-				return state
-			}
 			// A pair added on the settings page serves when config.yaml
 			// names none; when it names one, config.yaml wins.
 			adminCert, adminKey := cfg.Admin.Certificate, cfg.Admin.Key
@@ -232,37 +260,24 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 					log.Info("the admin UI serves the pair added on its settings page", "certificate", adminCert)
 				}
 			}
-			// The page may change the link only where the settings file
-			// says nothing: a token written there by hand outranks
-			// anything ticked in a browser.
-			var cloudControl admin.CloudControl
-			if cfg.Cloud.Token == "" {
-				cloudControl = link
-			}
-
 			adminUI, err = admin.New(admin.Options{
-				Cloud:              cloudState,
-				CloudControl:       cloudControl,
-				Tokens:             tokens,
-				Alerts:             watcher,
-				AlertCommand:       alertCommand,
-				ConfigAlertCommand: cfg.Alerts.Command,
-				Addr:               cfg.Admin.Listen,
-				HTTPAddr:           cfg.Admin.RedirectFrom,
-				Cert:               adminCert,
-				Key:                adminKey,
-				CertDir:            cfg.Admin.UploadedDir,
-				Users:              users,
-				Sessions:           admin.NewSessions(cfg.Admin.SessionTTL.Duration()),
-				Attempts:           windows,
-				EventsDir:          cfg.Events.Dir,
-				Rules:              ruleStore,
-				Domains:            domainStore,
-				Certs:              certs,
-				UploadedCertsDir:   cfg.TLS.UploadedDir,
-				ConfigRoutes:       configRoutes,
-				Version:            Version,
-				Log:                log,
+				Core:             core,
+				Tokens:           tokens,
+				AlertCommand:     alertCommand,
+				Addr:             cfg.Admin.Listen,
+				HTTPAddr:         cfg.Admin.RedirectFrom,
+				Cert:             adminCert,
+				Key:              adminKey,
+				CertDir:          cfg.Admin.UploadedDir,
+				Users:            users,
+				Sessions:         admin.NewSessions(cfg.Admin.SessionTTL.Duration()),
+				Attempts:         rules.NewWindows(),
+				EventsDir:        cfg.Events.Dir,
+				Rules:            ruleStore,
+				Domains:          domainStore,
+				UploadedCertsDir: cfg.TLS.UploadedDir,
+				Version:          Version,
+				Log:              log,
 			})
 			if err != nil {
 				return err
@@ -312,6 +327,9 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 	if ports.service != nil {
 		run(func() error { return serveService(ctx, ports.service, eventLog, aggSink, log) })
 	}
+	if ports.control != nil {
+		run(func() error { return control.Serve(ctx, ports.control, core, log) })
+	}
 
 	log.Info("the node has started", "http", cfg.Listen.HTTP, "https", cfg.Listen.HTTPS,
 		"events", cfg.Events.Dir, "rules", len(ruleStore.Set().Effective()),
@@ -330,7 +348,7 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 
 // portSet is the node's listeners, taken before any of them serves.
 type portSet struct {
-	http, https, service net.Listener
+	http, https, service, control net.Listener
 }
 
 // takePorts takes every port the settings name. On a refusal the ones
@@ -365,6 +383,12 @@ func takePorts(cfg config.Config, adminUI *admin.Server) (p portSet, err error) 
 	}
 	if p.service, err = take("listen.admin", cfg.Listen.Admin); err != nil {
 		return p, err
+	}
+	if cfg.Listen.Control != "" {
+		if p.control, err = control.Listen(cfg.Listen.Control); err != nil {
+			return p, err
+		}
+		taken = append(taken, p.control)
 	}
 	if adminUI != nil {
 		if err = adminUI.Listen(); err != nil {

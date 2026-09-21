@@ -121,7 +121,7 @@ func TestABrokenFileKeepsThePreviousList(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"version":1,"domains":[{"host":"broken`), 0o640); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.reload(); err == nil {
+	if _, err := s.Reload(); err == nil {
 		t.Error("the broken file was not reported")
 	}
 	if len(s.List()) != 1 || s.List()[0].Host != "a.ru" {

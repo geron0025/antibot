@@ -25,8 +25,8 @@ func newAlertsServer(t *testing.T, configCommand string) (*Server, string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s.o.AlertCommand, s.o.ConfigAlertCommand = file, configCommand
-	s.o.Alerts = alerts.New(alerts.Options{
+	s.o.AlertCommand, local(s).ConfigCommand = file, configCommand
+	local(s).Watcher = alerts.New(alerts.Options{
 		Window: 5 * time.Minute, SiteErrorShare: 0.5, SiteMinRequests: 20, SpikeFactor: 5,
 		SpikeMinRequests: 500, SpikeMinBlocked: 200, RuleMinMatches: 50, CertDays: 14,
 		Timeout: 5 * time.Second,
@@ -147,9 +147,9 @@ func TestTheBell(t *testing.T) {
 
 	now := time.Now()
 	for i := 0; i < 30; i++ {
-		s.o.Alerts.Write(facts.Request{Time: now.Add(-2 * time.Minute), Decision: "pass", Status: 502})
+		local(s).Watcher.Write(facts.Request{Time: now.Add(-2 * time.Minute), Decision: "pass", Status: 502})
 	}
-	s.o.Alerts.Check(now)
+	local(s).Watcher.Check(now)
 
 	body, _ := io.ReadAll(get(t, s, "/rules", cookies).Body)
 	page := string(body)
@@ -161,7 +161,7 @@ func TestTheBell(t *testing.T) {
 	}
 
 	// No alerts, no bell.
-	s.o.Alerts = nil
+	local(s).Watcher = nil
 	body, _ = io.ReadAll(get(t, s, "/", cookies).Body)
 	if strings.Contains(string(body), `class="bell`) {
 		t.Error("a bell without alerts")

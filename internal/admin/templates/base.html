@@ -67,6 +67,10 @@
   </div>
 </header>
 <main>
+{{if .CoreDown}}<div class="error">The core does not answer on its control socket. Events,
+rules and domains are shown from their files and can be changed — the core takes the
+changes up when it is back. Alerts, the cloud and the certificates it serves are not
+shown until then.</div>{{end}}
 {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
 {{end}}
 

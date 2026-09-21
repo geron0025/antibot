@@ -83,6 +83,10 @@ type Listen struct {
 	HTTP  string `yaml:"http"`
 	HTTPS string `yaml:"https"`
 	Admin string `yaml:"admin"`
+
+	// Control is the unix socket the admin UI asks the core over. Empty
+	// turns it off: a core run with ready rules and no admin UI needs none.
+	Control string `yaml:"control"`
 }
 
 type TLS struct {
@@ -208,7 +212,8 @@ type Cloud struct {
 // listens, proxies, writes the log and goes nowhere.
 func Defaults() Config {
 	return Config{
-		Listen:     Listen{HTTP: ":80", HTTPS: ":443", Admin: "127.0.0.1:8091"},
+		Listen: Listen{HTTP: ":80", HTTPS: ":443", Admin: "127.0.0.1:8091",
+			Control: "/var/lib/antibot/core.sock"},
 		NodeIDFile: "/var/lib/antibot/node.id",
 		TLS: TLS{
 			UploadedDir:    "/var/lib/antibot/certificates",

@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"html/template"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/geron0025/antibot/internal/alerts"
+	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/facts"
 	"github.com/geron0025/antibot/internal/rules"
 	"github.com/geron0025/antibot/internal/summary"
@@ -82,6 +84,10 @@ type pageCommon struct {
 	// the API is off and the page has nothing to manage.
 	APITokens bool
 
+	// CoreDown says the core does not answer on its socket: the pages
+	// show what lives in files, and nothing of what lives in its memory.
+	CoreDown bool
+
 	// Bell is what the bell in the header carries; nil without alerts.
 	// The bell is also the way to the alerts page: the menu has no item
 	// of its own for it.
@@ -101,12 +107,12 @@ type bellData struct {
 // are on the alerts page.
 const bellRecent = 5
 
-func (s *Server) bell() *bellData {
-	recent := s.o.Alerts.History()
+func bell(state control.Alerts) *bellData {
+	recent := state.History
 	if len(recent) > bellRecent {
 		recent = recent[:bellRecent]
 	}
-	return &bellData{Firing: s.o.Alerts.Firing(), Recent: recent}
+	return &bellData{Firing: state.Firing, Recent: recent}
 }
 
 func (s *Server) render(w http.ResponseWriter, name string, data any) {
@@ -248,12 +254,9 @@ type overviewData struct {
 
 // expiringCerts lists the loaded certificates that run out within the
 // warning window.
-func (s *Server) expiringCerts(now time.Time) []CertState {
-	if s.o.Certs == nil {
-		return nil
-	}
+func (s *Server) expiringCerts(ctx context.Context, now time.Time) []CertState {
 	var out []CertState
-	for _, info := range s.o.Certs.List() {
+	for _, info := range s.coreCertificates(ctx) {
 		if info.NotAfter.Sub(now) < expiryWarning {
 			out = append(out, *certStateOf(info.Names, "", info.NotAfter, now))
 		}
@@ -266,7 +269,8 @@ func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request, user strin
 	// login, and here rather than on a page nobody opens: what leaves
 	// this node is the owner's decision, and a decision nobody was
 	// offered is made by whoever wrote the defaults.
-	if s.o.CloudControl != nil && s.o.Cloud != nil && !s.o.Cloud().Answered {
+	cloud := s.coreCloud(r.Context())
+	if cloud != nil && !cloud.FromConfig && !cloud.Answered {
 		http.Redirect(w, r, "/settings/cloud?welcome=1", http.StatusSeeOther)
 		return
 	}
@@ -295,7 +299,7 @@ func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request, user strin
 		pageCommon:    s.common(user, "overview", period, ""),
 		CSRF:          s.csrfToken(r),
 		Summary:       result,
-		ExpiringCerts: s.expiringCerts(now),
+		ExpiringCerts: s.expiringCerts(r.Context(), now),
 		ServerErrors:  result.Answers[summary.AnswerServerError],
 		Answers:       newDonut(result.Answers),
 		Series:        newColumns(result.Series, period),
@@ -305,17 +309,14 @@ func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request, user strin
 		data.Rules = len(set.All())
 		data.Effective = len(set.Effective())
 	}
-	if s.o.Alerts != nil {
-		for _, f := range s.o.Alerts.Firing() {
+	if data.Bell != nil {
+		for _, f := range data.Bell.Firing {
 			if f.Kind != alerts.CertExpiring {
 				data.Firing = append(data.Firing, f)
 			}
 		}
 	}
-	if s.o.Cloud != nil {
-		state := s.o.Cloud()
-		data.Cloud = &state
-	}
+	data.Cloud = cloud
 	s.render(w, "overview.html", data)
 }
 
@@ -479,6 +480,7 @@ func (s *Server) toggleRule(w http.ResponseWriter, r *http.Request, who string) 
 		http.Redirect(w, r, withError(backTo(r), err.Error()), http.StatusSeeOther)
 		return
 	}
+	s.reload(r.Context(), control.ReloadRules)
 
 	// Who turned what on goes into the node's log: a change of protection
 	// must not happen anonymously.
@@ -530,6 +532,7 @@ func (s *Server) setRuleMode(w http.ResponseWriter, r *http.Request, who string)
 		http.Redirect(w, r, withError(backTo(r), err.Error()), http.StatusSeeOther)
 		return
 	}
+	s.reload(r.Context(), control.ReloadRules)
 
 	s.o.Log.Info("a rule's mode was changed from the admin UI",
 		"rule", id, "mode", mode, "who", who, "address", clientAddr(r))
@@ -543,8 +546,14 @@ func (s *Server) common(user, section string, period time.Duration, message stri
 		User: user, Version: s.o.Version, Section: section, Error: message,
 		APITokens: s.o.Tokens != nil,
 	}
-	if s.o.Alerts != nil {
-		c.Bell = s.bell()
+	// One question to the core per page: its answer is the bell, and its
+	// absence is the warning that the core is down.
+	state, err := s.coreAlerts(context.Background())
+	switch {
+	case err != nil:
+		c.CoreDown = true
+	case state.Enabled:
+		c.Bell = bell(state)
 	}
 	if period > 0 {
 		c.Period = shortPeriod(period)

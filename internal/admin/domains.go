@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/domains"
 	"github.com/geron0025/antibot/internal/edgetls"
 )
@@ -59,15 +60,12 @@ type CertState struct {
 // mechanism.
 const expiryWarning = 14 * 24 * time.Hour
 
-func (s *Server) certState(host string, now time.Time) *CertState {
-	if s.o.Certs == nil {
+func certState(certs []control.Certificate, host string, now time.Time) *CertState {
+	c := covering(certs, host)
+	if c == nil {
 		return nil
 	}
-	leaf := s.o.Certs.Covering(host)
-	if leaf == nil {
-		return nil
-	}
-	return certStateOf(leaf.DNSNames, leaf.Subject.CommonName, leaf.NotAfter, now)
+	return certStateOf(c.Names, "", c.NotAfter, now)
 }
 
 func certStateOf(names []string, common string, until time.Time, now time.Time) *CertState {
@@ -100,15 +98,16 @@ func (s *Server) domainsPage(w http.ResponseWriter, r *http.Request, user string
 		CanUpload:  s.o.UploadedCertsDir != "",
 	}
 
+	certs := s.coreCertificates(r.Context())
 	inConfig := map[string]bool{}
-	for host, to := range s.o.ConfigRoutes {
+	for host, to := range s.coreRoutes(r.Context()) {
 		if host == "*" {
 			data.Fallback = to
 			continue
 		}
 		inConfig[host] = true
 		data.Rows = append(data.Rows, DomainRow{
-			Host: host, To: to, FromConfig: true, Cert: s.certState(host, now),
+			Host: host, To: to, FromConfig: true, Cert: certState(certs, host, now),
 		})
 	}
 	sort.Slice(data.Rows, func(i, j int) bool { return data.Rows[i].Host < data.Rows[j].Host })
@@ -117,7 +116,7 @@ func (s *Server) domainsPage(w http.ResponseWriter, r *http.Request, user string
 		for _, d := range s.o.Domains.List() {
 			data.Rows = append(data.Rows, DomainRow{
 				Host: d.Host, To: d.To, Shadowed: inConfig[d.Host],
-				Cert: s.certState(d.Host, now),
+				Cert: certState(certs, d.Host, now),
 			})
 		}
 	}
@@ -238,6 +237,7 @@ func (s *Server) addDomain(w http.ResponseWriter, r *http.Request, who string) {
 		s.domainsError(w, r, err.Error())
 		return
 	}
+	s.reload(r.Context(), control.ReloadDomains)
 
 	// Who pointed what where goes into the node's log: a change of
 	// where a site's traffic flows must not happen anonymously.
@@ -266,6 +266,7 @@ func (s *Server) removeDomain(w http.ResponseWriter, r *http.Request, who string
 		s.domainsError(w, r, err.Error())
 		return
 	}
+	s.reload(r.Context(), control.ReloadDomains)
 
 	s.o.Log.Info("a domain was removed from the admin UI",
 		"host", host, "who", who, "address", clientAddr(r))
@@ -286,7 +287,7 @@ func (s *Server) uploadCertificate(w http.ResponseWriter, r *http.Request, who s
 		http.Error(w, "the request did not come from this page", http.StatusForbidden)
 		return
 	}
-	if s.o.UploadedCertsDir == "" || s.o.Certs == nil {
+	if s.o.UploadedCertsDir == "" {
 		http.Error(w, "uploads are not connected", http.StatusNotFound)
 		return
 	}
@@ -299,7 +300,7 @@ func (s *Server) uploadCertificate(w http.ResponseWriter, r *http.Request, who s
 		s.domainsError(w, r, err.Error())
 		return
 	}
-	if !s.serves(host) {
+	if !s.serves(r.Context(), host) {
 		s.domainsError(w, r, fmt.Sprintf("the node does not serve %s", host))
 		return
 	}
@@ -315,7 +316,7 @@ func (s *Server) uploadCertificate(w http.ResponseWriter, r *http.Request, who s
 		return
 	}
 
-	until, err := s.installCertificate(host, chain, key)
+	until, err := s.installCertificate(r.Context(), host, chain, key)
 	if err != nil {
 		s.o.Log.Error("the certificate was not accepted", "host", host, "who", who, "err", err)
 		s.domainsError(w, r, host+": "+err.Error())
@@ -329,8 +330,8 @@ func (s *Server) uploadCertificate(w http.ResponseWriter, r *http.Request, who s
 
 // serves answers whether the name is on either list — the file or the
 // configuration.
-func (s *Server) serves(host string) bool {
-	if _, ok := s.o.ConfigRoutes[host]; ok && host != "*" {
+func (s *Server) serves(ctx context.Context, host string) bool {
+	if _, ok := s.coreRoutes(ctx)[host]; ok && host != "*" {
 		return true
 	}
 	if s.o.Domains != nil {
@@ -365,12 +366,12 @@ func formFile(r *http.Request, field string) ([]byte, error) {
 // installCertificate validates and writes the pair, then makes it serve
 // at once: a human who has just uploaded a certificate checks the site
 // in the next breath, not after the timer.
-func (s *Server) installCertificate(host string, chain, key []byte) (time.Time, error) {
+func (s *Server) installCertificate(ctx context.Context, host string, chain, key []byte) (time.Time, error) {
 	until, err := edgetls.Install(s.o.UploadedCertsDir, host, chain, key)
 	if err != nil {
 		return time.Time{}, err
 	}
-	s.o.Certs.Reload()
+	s.reload(ctx, control.ReloadCertificates)
 	return until, nil
 }
 

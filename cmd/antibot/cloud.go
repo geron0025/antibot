@@ -10,11 +10,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/geron0025/antibot/internal/admin"
 	"github.com/geron0025/antibot/internal/aggregate"
 	"github.com/geron0025/antibot/internal/catalog"
 	"github.com/geron0025/antibot/internal/cloudlink"
 	"github.com/geron0025/antibot/internal/config"
+	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/facts"
 )
 
@@ -243,7 +243,7 @@ func (l *cloudLink) Answer(facts, aggregates bool) error {
 func (l *cloudLink) Register(ctx context.Context, facts, aggregates bool) error {
 	node := l.node()
 	if node == "" {
-		return admin.CloudRefusal("this node has no identifier: see the log, " +
+		return control.Refuse("this node has no identifier: see the log, " +
 			"the file in node_id_file could not be read or created")
 	}
 
@@ -268,15 +268,15 @@ func cloudWords(err error) error {
 	var refused *cloudlink.Refused
 	switch {
 	case errors.Is(err, cloudlink.ErrAlreadyRegistered):
-		return admin.CloudRefusal("this installation already took a token once. " +
+		return control.Refuse("this installation already took a token once. " +
 			"The cloud keeps only its hash and cannot show it again — write to us, " +
 			"or set cloud.token in config.yaml if you still have it")
 	case errors.As(err, &soon):
-		return admin.CloudRefusal(fmt.Sprintf("the cloud has had enough registrations "+
+		return control.Refuse(fmt.Sprintf("the cloud has had enough registrations "+
 			"from this address for now; try again in %s", soon.RetryAfter.Round(time.Minute)))
 	case errors.As(err, &refused):
-		return admin.CloudRefusal("the cloud refused: " + refused.Text)
+		return control.Refuse("the cloud refused: " + refused.Text)
 	default:
-		return admin.CloudRefusal("the cloud did not answer: " + err.Error())
+		return control.Refuse("the cloud did not answer: " + err.Error())
 	}
 }

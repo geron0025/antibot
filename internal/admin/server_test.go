@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/events"
 	"github.com/geron0025/antibot/internal/facts"
 	"github.com/geron0025/antibot/internal/rules"
@@ -69,12 +70,17 @@ func newServer(t *testing.T) (*Server, string) {
 		Addr: "127.0.0.1:0", Users: users, Sessions: NewSessions(time.Hour),
 		Attempts: rules.NewWindows(), EventsDir: dir,
 		Rules: store, Version: "test",
+		Core: &control.Local{Version: "test"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	return s, dir
 }
+
+// local is the test's core: the same implementation the core serves on
+// its socket, over objects each test sets up.
+func local(s *Server) *control.Local { return s.o.Core.(*control.Local) }
 
 // logIn walks a human's path: the login page, the form, the session
 // cookie.
@@ -548,7 +554,7 @@ func TestWithoutAccountsItDoesNotComeUp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := New(Options{Addr: "127.0.0.1:8090", Users: users}); err == nil {
+	if _, err := New(Options{Addr: "127.0.0.1:8090", Users: users, Core: &control.Local{}}); err == nil {
 		t.Error("the admin UI came up without accounts")
 	}
 }
@@ -564,14 +570,14 @@ func TestNonLoopbackWithoutACertificateIsARefusal(t *testing.T) {
 
 	refused := []string{"0.0.0.0:8090", "203.0.113.7:8090", ":8090"}
 	for _, addr := range refused {
-		if _, err := New(Options{Addr: addr, Users: users, EventsDir: dir}); err == nil {
+		if _, err := New(Options{Addr: addr, Users: users, EventsDir: dir, Core: &control.Local{}}); err == nil {
 			t.Errorf("the admin UI came up on %s without a certificate", addr)
 		}
 	}
 
 	allowed := []string{"127.0.0.1:8090", "[::1]:8090", "localhost:8090"}
 	for _, addr := range allowed {
-		if _, err := New(Options{Addr: addr, Users: users, EventsDir: dir}); err != nil {
+		if _, err := New(Options{Addr: addr, Users: users, EventsDir: dir, Core: &control.Local{}}); err != nil {
 			t.Errorf("the admin UI did not come up on %s: %v", addr, err)
 		}
 	}
@@ -587,7 +593,7 @@ func TestItOpensOnAnEmptyLog(t *testing.T) {
 	}
 	s, err := New(Options{
 		Addr: "127.0.0.1:0", Users: users, Sessions: NewSessions(time.Hour),
-		EventsDir: filepath.Join(dir, "no-such-dir"),
+		EventsDir: filepath.Join(dir, "no-such-dir"), Core: &control.Local{},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -674,5 +680,30 @@ func TestColumnsStayInsideThePlot(t *testing.T) {
 	}
 	if newColumns(make([]summary.Point, 5), time.Hour) != nil {
 		t.Error("a chart was drawn over no requests")
+	}
+}
+
+// The admin UI stays up while the core is down: what lives in files is
+// shown, and every page says the core does not answer.
+func TestTheAdminUIStandsWhileTheCoreIsDown(t *testing.T) {
+	s, _ := newServer(t)
+	s.o.Core = control.NewClient(filepath.Join(t.TempDir(), "gone.sock"))
+	cookies := logIn(t, s)
+
+	for _, path := range []string{"/", "/events", "/rules", "/alerts", "/settings/cloud", "/settings/alerts"} {
+		resp := get(t, s, path, cookies)
+		body, _ := io.ReadAll(resp.Body)
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("%s: %d", path, resp.StatusCode)
+			continue
+		}
+		if !strings.Contains(string(body), "The core does not answer") {
+			t.Errorf("%s does not say the core is down", path)
+		}
+	}
+	// The rules are in a file and stay readable.
+	body, _ := io.ReadAll(get(t, s, "/rules", cookies).Body)
+	if !strings.Contains(string(body), "block-curl") {
+		t.Error("the rules are not shown while the core is down")
 	}
 }

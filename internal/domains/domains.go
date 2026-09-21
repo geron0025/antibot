@@ -150,7 +150,7 @@ func Open(path string, log *slog.Logger) (*Store, error) {
 	empty := []Domain{}
 	s.list.Store(&empty)
 
-	if _, err := s.reload(); err != nil {
+	if _, err := s.Reload(); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -200,7 +200,7 @@ func (s *Store) Watch(ctx context.Context, every time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			changed, err := s.reload()
+			changed, err := s.Reload()
 			if err != nil {
 				// The previous list stays in force: a broken file must
 				// not take the served sites off the air.
@@ -215,8 +215,10 @@ func (s *Store) Watch(ctx context.Context, every time.Duration) {
 	}
 }
 
-// reload reads the file if it has changed. It returns whether it changed.
-func (s *Store) reload() (bool, error) {
+// Reload reads the file now if it has changed, and returns whether it did:
+// the core calls it when the admin UI says it has just written the file,
+// rather than waiting for the next look.
+func (s *Store) Reload() (bool, error) {
 	s.mu.Lock()
 	changed, err := s.reloadLocked()
 	s.mu.Unlock()

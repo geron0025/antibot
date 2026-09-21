@@ -6,7 +6,9 @@ neither the rules nor their mode. Each sends one message when it fires and
 one when things have been back to normal for a whole window; the message
 goes to the command set in <a href="/settings/alerts">alert delivery</a>.</p>
 
-{{if not .Delivering}}<div class="warning">No command yet: the alerts go only
+{{if .Off}}<div class="warning">The alerts are off in the core's settings:
+<span class="value">alerts.enabled</span> is false.</div>
+{{else if not .Delivering}}<div class="warning">No command yet: the alerts go only
 to the node's log and to this page. <a href="/settings/alerts">Set one →</a></div>{{end}}
 
 <div class="scroll"><table>

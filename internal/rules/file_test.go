@@ -64,7 +64,7 @@ func TestReadingAndRereading(t *testing.T) {
 	}
 	// The size changed, so the reread works even at one-second precision
 	// of the file's time.
-	if changed, err := s.reload(); err != nil || !changed {
+	if changed, err := s.Reload(); err != nil || !changed {
 		t.Fatalf("reread: changed=%v, err=%v", changed, err)
 	}
 	r2 := facts.Request{Host: "example.ru", NetClass: "hosting"}
@@ -86,7 +86,7 @@ func TestABrokenFileKeepsThePreviousSet(t *testing.T) {
 	if err := os.WriteFile(path, []byte(`{"version":1,"rules":[{"id":"x"`), 0o640); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.reload(); err == nil {
+	if _, err := s.Reload(); err == nil {
 		t.Fatal("the broken file was read without an error")
 	}
 
@@ -133,7 +133,7 @@ func TestAVanishedFileLiftsTheRules(t *testing.T) {
 	if err := os.Remove(path); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.reload(); err != nil {
+	if _, err := s.Reload(); err != nil {
 		t.Fatalf("the file vanishing is not a read error: %v", err)
 	}
 	r := facts.Request{Host: "example.ru", NetClass: "hosting"}
@@ -227,7 +227,7 @@ func TestReadingDuringAReread(t *testing.T) {
 			t.Error(err)
 			break
 		}
-		if _, err := s.reload(); err != nil {
+		if _, err := s.Reload(); err != nil {
 			t.Error(err)
 			break
 		}

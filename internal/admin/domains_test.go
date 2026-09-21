@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/domains"
 	"github.com/geron0025/antibot/internal/edgetls"
 )
@@ -38,9 +39,13 @@ func newDomainsServer(t *testing.T) (*Server, string) {
 	}
 	uploads := filepath.Join(dir, "certificates")
 	s.o.Domains = store
-	s.o.Certs = edgetls.Open([]string{uploads}, nil, nil)
+	certs := edgetls.Open([]string{uploads}, nil, nil)
+	local(s).Certs = certs
+	local(s).Reloaders = map[control.Reloadable]func() error{
+		control.ReloadCertificates: func() error { certs.Reload(); return nil },
+	}
 	s.o.UploadedCertsDir = uploads
-	s.o.ConfigRoutes = map[string]string{"hand.example.ru": "http://10.0.0.1", "*": "http://backend"}
+	local(s).ConfigRoute = map[string]string{"hand.example.ru": "http://10.0.0.1", "*": "http://backend"}
 
 	s.lookupHost = func(_ context.Context, host string) ([]string, error) {
 		switch host {
@@ -270,7 +275,7 @@ func TestUploadingACertificate(t *testing.T) {
 	if resp := upload(t, s, cookies, "", "hand.example.ru", chain, key); resp.Code != http.StatusForbidden {
 		t.Errorf("an upload without a token returned %d, want 403", resp.Code)
 	}
-	if s.o.Certs.Covering("hand.example.ru") != nil {
+	if local(s).Certs.Covering("hand.example.ru") != nil {
 		t.Fatal("the certificate got in without a token")
 	}
 
@@ -279,7 +284,7 @@ func TestUploadingACertificate(t *testing.T) {
 		t.Fatalf("the upload returned %d to %q (%s)", resp.Code, resp.Header().Get("Location"), errorOf(resp))
 	}
 	// It serves at once, without waiting for the rescan timer.
-	if s.o.Certs.Covering("hand.example.ru") == nil {
+	if local(s).Certs.Covering("hand.example.ru") == nil {
 		t.Fatal("the uploaded certificate does not serve")
 	}
 	if _, err := os.Stat(filepath.Join(dir, "certificates", "hand.example.ru", "fullchain.pem")); err != nil {
@@ -298,10 +303,10 @@ func TestUploadingACertificate(t *testing.T) {
 	if msg := errorOf(upload(t, s, cookies, csrf, "hand.example.ru", fresh, freshKey)); msg != "" {
 		t.Fatalf("the renewal was refused: %s", msg)
 	}
-	if leaf := s.o.Certs.Covering("hand.example.ru"); leaf == nil || leaf.NotAfter.Before(time.Now().AddDate(0, 5, 0)) {
+	if leaf := local(s).Certs.Covering("hand.example.ru"); leaf == nil || leaf.NotAfter.Before(time.Now().AddDate(0, 5, 0)) {
 		t.Error("the renewed pair does not serve")
 	}
-	if n := s.o.Certs.Len(); n != 1 {
+	if n := local(s).Certs.Len(); n != 1 {
 		t.Errorf("the renewal left %d pairs rather than replacing one", n)
 	}
 }
@@ -319,7 +324,7 @@ func TestAWildcardCertificateCoversItsNames(t *testing.T) {
 		t.Fatalf("the wildcard pair was refused: %s", msg)
 	}
 	for _, host := range []string{"hand.example.ru", "here.example.ru"} {
-		if s.o.Certs.Covering(host) == nil {
+		if local(s).Certs.Covering(host) == nil {
 			t.Errorf("%s is not covered by the wildcard", host)
 		}
 	}
@@ -351,7 +356,7 @@ func TestUploadRefusals(t *testing.T) {
 			t.Errorf("%s: the message is %q, want one mentioning %q", c.name, got, c.want)
 		}
 	}
-	if s.o.Certs.Len() != 0 {
+	if local(s).Certs.Len() != 0 {
 		t.Error("a refused pair got into the set")
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/geron0025/antibot/internal/alerts"
+	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/facts"
 	"github.com/geron0025/antibot/internal/replay"
 	"github.com/geron0025/antibot/internal/rules"
@@ -258,13 +259,18 @@ type apiAlertsAnswer struct {
 // what became of each delivery. A monitoring system that asks this does
 // not need the node's command at all.
 func (s *Server) apiAlerts(w http.ResponseWriter, r *http.Request, _ *Token) {
-	if s.o.Alerts == nil {
+	state, err := s.coreAlerts(r.Context())
+	if err != nil {
+		apiFail(w, http.StatusServiceUnavailable, "the core does not answer")
+		return
+	}
+	if !state.Enabled {
 		apiFail(w, http.StatusNotFound, "the alerts are off: alerts.enabled is false")
 		return
 	}
-	firing := s.o.Alerts.Firing()
+	firing := state.Firing
 	answer := apiAlertsAnswer{Triggers: []apiAlertTrigger{}, History: []apiAlertMessage{}}
-	for _, t := range s.o.Alerts.Triggers() {
+	for _, t := range state.Triggers {
 		trigger := apiAlertTrigger{Kind: t.Kind, Title: t.Title, When: t.When, Firing: []apiAlertFiring{}}
 		for _, f := range firing {
 			if f.Kind == t.Kind {
@@ -274,7 +280,7 @@ func (s *Server) apiAlerts(w http.ResponseWriter, r *http.Request, _ *Token) {
 		}
 		answer.Triggers = append(answer.Triggers, trigger)
 	}
-	for _, e := range s.o.Alerts.History() {
+	for _, e := range state.History {
 		e.Alert.Time = e.Alert.Time.UTC()
 		answer.History = append(answer.History, apiAlertMessage{Alert: e.Alert, Delivery: e.Delivery})
 	}
@@ -404,6 +410,7 @@ func (s *Server) apiAddRule(w http.ResponseWriter, r *http.Request, tok *Token) 
 		s.apiRuleFail(w, r, "the rule was not added through the API", rule.ID, tok, err)
 		return
 	}
+	s.reload(r.Context(), control.ReloadRules)
 
 	warning := ""
 	if rule.Mode == rules.Active {
@@ -430,6 +437,7 @@ func (s *Server) apiToggleRule(enable bool) func(http.ResponseWriter, *http.Requ
 			s.apiRuleFail(w, r, "the rule was not toggled through the API", id, tok, err)
 			return
 		}
+		s.reload(r.Context(), control.ReloadRules)
 		s.o.Log.Info("a rule was toggled through the API",
 			"rule", id, "enabled", enable, "token", tok.Name, "address", clientAddr(r))
 		s.apiRule(w, http.StatusOK, id, "")
@@ -455,6 +463,7 @@ func (s *Server) apiSetRuleMode(w http.ResponseWriter, r *http.Request, tok *Tok
 		s.apiRuleFail(w, r, "the rule's mode was not changed through the API", id, tok, err)
 		return
 	}
+	s.reload(r.Context(), control.ReloadRules)
 	s.o.Log.Info("a rule's mode was changed through the API",
 		"rule", id, "mode", body.Mode, "token", tok.Name, "address", clientAddr(r))
 	s.apiRule(w, http.StatusOK, id, "")
@@ -470,6 +479,7 @@ func (s *Server) apiRemoveRule(w http.ResponseWriter, r *http.Request, tok *Toke
 		s.apiRuleFail(w, r, "the rule was not deleted through the API", id, tok, err)
 		return
 	}
+	s.reload(r.Context(), control.ReloadRules)
 	s.o.Log.Info("a rule was deleted through the API",
 		"rule", id, "token", tok.Name, "address", clientAddr(r))
 	w.WriteHeader(http.StatusNoContent)

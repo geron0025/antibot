@@ -1,6 +1,7 @@
 package admin
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"net/http"
@@ -25,6 +26,9 @@ type alertsData struct {
 	// Delivering says a command is set: without one the alerts go only
 	// to the log and to this page.
 	Delivering bool
+
+	// Off says the core's settings turn the alerts off.
+	Off bool
 }
 
 // deliveryData is the settings tab that says where the alerts go.
@@ -44,9 +48,12 @@ type deliveryData struct {
 }
 
 func (s *Server) alertsPage(w http.ResponseWriter, r *http.Request, user string) {
-	firing := s.o.Alerts.Firing()
+	// A core that does not answer is said so by the header of the page;
+	// here it is only an empty page, not alerts that are off.
+	state, err := s.coreAlerts(r.Context())
+	firing := state.Firing
 	var rows []alertRow
-	for _, t := range s.o.Alerts.Triggers() {
+	for _, t := range state.Triggers {
 		row := alertRow{Trigger: t}
 		for _, f := range firing {
 			if f.Kind == t.Kind {
@@ -60,9 +67,10 @@ func (s *Server) alertsPage(w http.ResponseWriter, r *http.Request, user string)
 		pageCommon: s.common(user, "alerts", 0, r.URL.Query().Get("error")),
 		CSRF:       s.csrfToken(r),
 		Rows:       rows,
-		History:    s.o.Alerts.History(),
+		History:    state.History,
+		Off:        err == nil && !state.Enabled,
 	}
-	if s.o.ConfigAlertCommand != "" {
+	if state.ConfigCommand != "" {
 		data.Delivering = true
 	} else if s.o.AlertCommand != nil {
 		c, err := s.o.AlertCommand.Get()
@@ -85,9 +93,10 @@ func (s *Server) renderDelivery(w http.ResponseWriter, r *http.Request, user, me
 		TestResult: test,
 	}
 	data.Tab = "alerts"
+	state, _ := s.coreAlerts(r.Context())
 	switch {
-	case s.o.ConfigAlertCommand != "":
-		data.Command, data.Source = s.o.ConfigAlertCommand, "config"
+	case state.ConfigCommand != "":
+		data.Command, data.Source = state.ConfigCommand, "config"
 	case s.o.AlertCommand != nil:
 		c, err := s.o.AlertCommand.Get()
 		if err != nil && data.Error == "" {
@@ -113,7 +122,12 @@ func (s *Server) setAlertCommand(w http.ResponseWriter, r *http.Request, who str
 		http.Error(w, "the request did not come from this page", http.StatusForbidden)
 		return
 	}
-	if s.o.ConfigAlertCommand != "" || s.o.AlertCommand == nil {
+	state, err := s.coreAlerts(r.Context())
+	if err != nil {
+		s.alertsError(w, r, "The core does not answer: whether its settings name a command is unknown, nothing was changed")
+		return
+	}
+	if state.ConfigCommand != "" || s.o.AlertCommand == nil {
 		s.alertsError(w, r, "The command is set in config.yaml and is changed only there")
 		return
 	}
@@ -154,7 +168,12 @@ func (s *Server) testAlert(w http.ResponseWriter, r *http.Request, who string) {
 		http.Error(w, "the request did not come from this page", http.StatusForbidden)
 		return
 	}
-	result := s.o.Alerts.Test(r.Context())
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	result, err := s.o.Core.TestAlert(ctx)
+	if err != nil {
+		result = "not sent: " + err.Error()
+	}
 	s.o.Log.Info("a test alert was sent from the admin UI", "who", who, "address", clientAddr(r), "result", result)
 	s.renderDelivery(w, r, who, "", result)
 }

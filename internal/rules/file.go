@@ -84,7 +84,7 @@ func Open(path string, limiter Limiter, log *slog.Logger) (*Store, error) {
 	}
 	s.set.Store(empty)
 
-	if _, err := s.reload(); err != nil {
+	if _, err := s.Reload(); err != nil {
 		return nil, err
 	}
 	return s, nil
@@ -114,7 +114,7 @@ func (s *Store) Watch(ctx context.Context, every time.Duration) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			changed, err := s.reload()
+			changed, err := s.Reload()
 			if err != nil {
 				// The previous set stays in force. A broken file must
 				// neither bring the node down nor silently lift the
@@ -131,8 +131,10 @@ func (s *Store) Watch(ctx context.Context, every time.Duration) {
 	}
 }
 
-// reload reads the file if it has changed. It returns whether it changed.
-func (s *Store) reload() (bool, error) {
+// Reload reads the file now if it has changed, and returns whether it did:
+// the core calls it when the admin UI says it has just written the file,
+// rather than waiting for the next look.
+func (s *Store) Reload() (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return s.reloadLocked()

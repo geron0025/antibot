@@ -336,16 +336,16 @@ func TestAPIAlerts(t *testing.T) {
 		t.Fatalf("with the alerts off: %d %s", rec.Code, rec.Body)
 	}
 
-	s.o.Alerts = alerts.New(alerts.Options{
+	local(s).Watcher = alerts.New(alerts.Options{
 		Window: 5 * time.Minute, SiteErrorShare: 0.5, SiteMinRequests: 20, SpikeFactor: 5,
 		SpikeMinRequests: 500, SpikeMinBlocked: 200, RuleMinMatches: 50, CertDays: 14,
 		Timeout: time.Second,
 	})
 	now := time.Now()
 	for i := 0; i < 30; i++ {
-		s.o.Alerts.Write(facts.Request{Time: now.Add(-2 * time.Minute), Decision: "pass", Status: 502})
+		local(s).Watcher.Write(facts.Request{Time: now.Add(-2 * time.Minute), Decision: "pass", Status: 502})
 	}
-	s.o.Alerts.Check(now)
+	local(s).Watcher.Check(now)
 
 	rec := call(t, s, "GET", "/api/v1/alerts", read, "")
 	if rec.Code != http.StatusOK {

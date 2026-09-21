@@ -7,6 +7,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/geron0025/antibot/internal/control"
 )
 
 // fakeControl is the link, as far as the page is concerned.
@@ -44,11 +46,11 @@ func (f *fakeControl) Forget() error {
 	return nil
 }
 
-func withCloud(t *testing.T, state *CloudState, control CloudControl) *Server {
+func withCloud(t *testing.T, state *CloudState, link control.CloudLink) *Server {
 	t.Helper()
 	s, _ := newServer(t)
-	s.o.Cloud = func() CloudState { return *state }
-	s.o.CloudControl = control
+	local(s).CloudState = func() CloudState { return *state }
+	local(s).Link = link
 	return s
 }
 
@@ -90,19 +92,19 @@ func TestTheFirstLoginAsksTheTwoQuestions(t *testing.T) {
 // Saying no to both is an answer, and the node stops asking.
 func TestNoToBothIsAnAnswerAndTheNodeStopsAsking(t *testing.T) {
 	state := &CloudState{}
-	control := &fakeControl{state: state}
-	s := withCloud(t, state, control)
+	link := &fakeControl{state: state}
+	s := withCloud(t, state, link)
 	cookies := logIn(t, s)
 
 	resp := postCloud(t, s, "/settings/cloud/save", cookies, url.Values{})
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("%d", resp.StatusCode)
 	}
-	if control.registered != 0 {
+	if link.registered != 0 {
 		t.Error("the node registered although it was told to do nothing")
 	}
-	if len(control.answered) != 1 || control.answered[0] != [2]bool{false, false} {
-		t.Fatalf("what was recorded: %v", control.answered)
+	if len(link.answered) != 1 || link.answered[0] != [2]bool{false, false} {
+		t.Fatalf("what was recorded: %v", link.answered)
 	}
 
 	if resp := get(t, s, "/", cookies); resp.StatusCode == http.StatusSeeOther &&
@@ -115,25 +117,25 @@ func TestNoToBothIsAnAnswerAndTheNodeStopsAsking(t *testing.T) {
 // to nobody.
 func TestTickingABoxTakesAToken(t *testing.T) {
 	state := &CloudState{}
-	control := &fakeControl{state: state}
-	s := withCloud(t, state, control)
+	link := &fakeControl{state: state}
+	s := withCloud(t, state, link)
 	cookies := logIn(t, s)
 
 	resp := postCloud(t, s, "/settings/cloud/save", cookies, url.Values{"facts": {"1"}})
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("%d", resp.StatusCode)
 	}
-	if control.registered != 1 {
-		t.Fatalf("registered %d times", control.registered)
+	if link.registered != 1 {
+		t.Fatalf("registered %d times", link.registered)
 	}
-	if len(control.answered) != 1 || control.answered[0] != [2]bool{true, false} {
-		t.Fatalf("what was recorded: %v", control.answered)
+	if len(link.answered) != 1 || link.answered[0] != [2]bool{true, false} {
+		t.Fatalf("what was recorded: %v", link.answered)
 	}
 
 	// With a token in hand the next change does not register again.
 	postCloud(t, s, "/settings/cloud/save", cookies, url.Values{"facts": {"1"}, "aggregates": {"1"}})
-	if control.registered != 1 {
-		t.Errorf("registered again: %d", control.registered)
+	if link.registered != 1 {
+		t.Errorf("registered again: %d", link.registered)
 	}
 }
 
@@ -141,8 +143,8 @@ func TestTickingABoxTakesAToken(t *testing.T) {
 // three failures need three different things from him.
 func TestARefusalIsShownToTheOwner(t *testing.T) {
 	state := &CloudState{}
-	control := &fakeControl{state: state, err: CloudRefusal("this installation already took a token once")}
-	s := withCloud(t, state, control)
+	link := &fakeControl{state: state, err: control.Refuse("this installation already took a token once")}
+	s := withCloud(t, state, link)
 	cookies := logIn(t, s)
 
 	resp := postCloud(t, s, "/settings/cloud/save", cookies, url.Values{"facts": {"1"}})
@@ -181,15 +183,15 @@ func TestASettingsFileTokenIsNotOverridden(t *testing.T) {
 // Forgetting is offered only where there is a token to forget.
 func TestForgettingClearsEverything(t *testing.T) {
 	state := &CloudState{Token: true, Answered: true, Fetching: true, Tenant: "node-1"}
-	control := &fakeControl{state: state}
-	s := withCloud(t, state, control)
+	link := &fakeControl{state: state}
+	s := withCloud(t, state, link)
 	cookies := logIn(t, s)
 
 	if resp := postCloud(t, s, "/settings/cloud/forget", cookies, url.Values{}); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("%d", resp.StatusCode)
 	}
-	if control.forgotten != 1 || state.Token {
-		t.Fatalf("forgotten %d times, token %v", control.forgotten, state.Token)
+	if link.forgotten != 1 || state.Token {
+		t.Fatalf("forgotten %d times, token %v", link.forgotten, state.Token)
 	}
 }
 

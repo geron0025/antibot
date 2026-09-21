@@ -36,8 +36,8 @@ import (
 	"time"
 
 	"github.com/geron0025/antibot/internal/alerts"
+	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/domains"
-	"github.com/geron0025/antibot/internal/edgetls"
 	"github.com/geron0025/antibot/internal/rules"
 )
 
@@ -64,42 +64,36 @@ type Options struct {
 	Users    *Users
 	Sessions *Sessions
 
-	// Attempts bounds password guessing. The same limiter as the rules
-	// use: there is no point in a second one.
+	// Attempts bounds password guessing. The admin UI's own: the rules'
+	// limiter lives in the core's memory, and the admin UI has no access
+	// to it.
 	Attempts *rules.Windows
 
 	EventsDir string
 	Rules     *rules.Store
 
-	// Domains is the file of domains added at run time; ConfigRoutes are
-	// the routes led by hand in config.yaml, shown but never written.
-	Domains      *domains.Store
-	ConfigRoutes map[string]string
+	// Domains is the file of domains added at run time. The routes
+	// written by hand in the core's settings file come from Core, shown
+	// but never written.
+	Domains *domains.Store
 
-	// Certs shows what serves each name; UploadedCertsDir is where an
-	// uploaded pair lands. With an empty directory uploads are off.
-	Certs            *edgetls.Set
+	// UploadedCertsDir is where an uploaded site pair lands; the core
+	// serves it as soon as it is asked to reread. With an empty directory
+	// uploads are off.
 	UploadedCertsDir string
 
 	// Tokens are the API's. Nil turns the API and the tokens page off.
 	Tokens *Tokens
 
-	// Alerts are the triggers' state and history; nil turns the page
-	// off. AlertCommand is the file the page writes the command to;
-	// ConfigAlertCommand is the command from config.yaml, which wins and
-	// is never changed here.
-	Alerts             *alerts.Watcher
-	AlertCommand       *alerts.CommandFile
-	ConfigAlertCommand string
+	// AlertCommand is the file the delivery tab writes the command to.
+	// Whether the alerts are on at all, and the command from the core's
+	// settings file, which wins and is never changed here, come from Core.
+	AlertCommand *alerts.CommandFile
 
-	// Cloud reports the link to the cloud for the overview; nil leaves
-	// the block out.
-	Cloud func() CloudState
-
-	// CloudControl is what the cloud page may change: the two answers
-	// and the token. Nil makes the page read-only — the settings file
-	// decides, and nothing here may override it.
-	CloudControl CloudControl
+	// Core is the node's core: what exists only in its memory, asked over
+	// its control socket. The admin UI works while the core is down, and
+	// says so on every page.
+	Core control.Core
 
 	Version string
 	Log     *slog.Logger
@@ -139,6 +133,9 @@ func New(o Options) (*Server, error) {
 	}
 	if o.Sessions == nil {
 		o.Sessions = NewSessions(12 * time.Hour)
+	}
+	if o.Core == nil {
+		return nil, fmt.Errorf("the admin UI has no core to ask")
 	}
 
 	withTLS := o.Cert != "" && o.Key != ""
@@ -351,12 +348,12 @@ func (s *Server) Handler() http.Handler {
 	// The alert command runs on the node's machine, so changing it asks
 	// for the password once more, like issuing a token. Where alerts go is
 	// a setting; what fires and what was sent is on the alerts page.
-	if s.o.Alerts != nil {
-		mux.Handle("GET /alerts", s.requireLogin(s.alertsPage))
-		mux.Handle("GET /settings/alerts", s.requireLogin(s.deliveryPage))
-		mux.Handle("POST /settings/alerts/command", s.requireLogin(s.setAlertCommand))
-		mux.Handle("POST /settings/alerts/test", s.requireLogin(s.testAlert))
-	}
+	// Whether the core has alerts at all is asked on each page: the core
+	// may be restarted with other settings while the admin UI runs.
+	mux.Handle("GET /alerts", s.requireLogin(s.alertsPage))
+	mux.Handle("GET /settings/alerts", s.requireLogin(s.deliveryPage))
+	mux.Handle("POST /settings/alerts/command", s.requireLogin(s.setAlertCommand))
+	mux.Handle("POST /settings/alerts/test", s.requireLogin(s.testAlert))
 
 	// API tokens are issued and revoked here, and the password is asked
 	// once more for an issue: a token outlives a session by months.

@@ -8,44 +8,12 @@ import (
 	"os"
 	"sync"
 	"time"
+
+	"github.com/geron0025/antibot/internal/control"
 )
 
-// CloudState is what the overview says about the node's link to the
-// cloud: whether there is one at all, and how both directions fare.
-//
-// The first line matters most for a node without a token: it says in so
-// many words that nothing leaves it. An owner who installed a node from a
-// public repository has every reason to ask.
-type CloudState struct {
-	// Token is whether there is a token at all — from the settings file
-	// or taken by the node itself. Without one nothing leaves the node,
-	// neither aggregates nor requests for the bases.
-	Token bool
-
-	// Answered says the owner has been asked the two questions. A node
-	// that was never asked is sent to the welcome page at login; one
-	// that answered "no" to both is not asked again.
-	Answered bool
-
-	// FromConfig says the settings file names the token. Then the two
-	// checkboxes are shown but decide nothing: what the machine's owner
-	// wrote by hand outranks a web page.
-	FromConfig bool
-
-	// Tenant and Level are what the cloud called this installation when
-	// it registered. The owner needs the name to call himself by it.
-	Tenant string
-	Level  string
-
-	FactsVersion int
-	FactsBuilt   time.Time
-	Fetching     bool
-	Sending      bool
-
-	Outbox      int
-	LastSent    time.Time
-	LastProblem string
-}
+// CloudState is the link to the cloud as the core reports it.
+type CloudState = control.CloudState
 
 // certificate keeps the admin UI's own pair and rereads the files when
 // they change: a renewed certificate is taken up without a restart, the
