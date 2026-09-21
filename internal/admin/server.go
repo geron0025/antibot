@@ -360,12 +360,15 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /settings/alerts/command", s.requireLogin(s.setAlertCommand))
 	mux.Handle("POST /settings/alerts/test", s.requireLogin(s.testAlert))
 
-	// API tokens are issued and revoked here, and the password is asked
-	// once more for an issue: a token outlives a session by months.
+	// API tokens are a tab of the settings; they are issued and revoked
+	// there, and the password is asked once more for an issue: a token
+	// outlives a session by months. /tokens is where the page lived
+	// before, and bookmarks of it still arrive.
 	if s.o.Tokens != nil {
-		mux.Handle("GET /tokens", s.requireLogin(s.tokensPage))
-		mux.Handle("POST /tokens/issue", s.requireLogin(s.issueToken))
-		mux.Handle("POST /tokens/revoke", s.requireLogin(s.revokeToken))
+		mux.Handle("GET /settings/tokens", s.requireLogin(s.tokensPage))
+		mux.Handle("POST /settings/tokens/issue", s.requireLogin(s.issueToken))
+		mux.Handle("POST /settings/tokens/revoke", s.requireLogin(s.revokeToken))
+		mux.Handle("GET /tokens", http.RedirectHandler("/settings/tokens", http.StatusMovedPermanently))
 		s.apiRoutes(mux)
 	}
 

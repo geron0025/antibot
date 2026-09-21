@@ -32,7 +32,7 @@ been sent is on the <a href="/alerts">alerts page</a>.</p>
   {{if .UpdatedBy}}<p class="dim">Set by {{.UpdatedBy}}, {{time .UpdatedAt}}.</p>{{end}}
   {{else}}
   <p class="dim">No place to keep a command: <span class="value">alerts.file</span>
-  is empty in the settings. The alerts are written to the node's log.</p>
+  is empty in the settings. The alerts are written to the core's log.</p>
   {{end}}
   {{if .Command}}
   <form method="post" action="/settings/alerts/test">
@@ -40,7 +40,7 @@ been sent is on the <a href="/alerts">alerts page</a>.</p>
     <button type="submit">send a test message</button>
   </form>
   {{else}}
-  <p class="dim">No command yet: the alerts go only to the node's log and
+  <p class="dim">No command yet: the alerts go only to the core's log and
   to this page.</p>
   {{end}}
 </section>

@@ -59,13 +59,15 @@ func (s *Server) renderTokens(w http.ResponseWriter, r *http.Request, user, mess
 		rows = append(rows, row)
 	}
 
-	s.render(w, "tokens.html", tokensData{
-		pageCommon: s.common(user, "tokens", 0, message),
+	data := tokensData{
+		pageCommon: s.common(user, "settings", 0, message),
 		CSRF:       s.csrfToken(r),
 		Rows:       rows,
 		MaxDays:    MaxTokenDays,
 		Issued:     issued,
-	})
+	}
+	data.Tab = "tokens"
+	s.render(w, "tokens.html", data)
 }
 
 // issueToken asks for the password once more. A session is enough to
@@ -134,9 +136,9 @@ func (s *Server) revokeToken(w http.ResponseWriter, r *http.Request, who string)
 	}
 	s.o.Log.Info("an API token was revoked from the admin UI",
 		"token", name, "who", who, "address", clientAddr(r))
-	http.Redirect(w, r, "/tokens", http.StatusSeeOther)
+	http.Redirect(w, r, "/settings/tokens", http.StatusSeeOther)
 }
 
 func (s *Server) tokensError(w http.ResponseWriter, r *http.Request, message string) {
-	http.Redirect(w, r, "/tokens?error="+url.QueryEscape(message), http.StatusSeeOther)
+	http.Redirect(w, r, "/settings/tokens?error="+url.QueryEscape(message), http.StatusSeeOther)
 }

@@ -43,8 +43,6 @@ func parseTemplates() (*template.Template, error) {
 				return "Rules"
 			case "domains":
 				return "Domains"
-			case "tokens":
-				return "API tokens"
 			case "alerts":
 				return "Alerts"
 			case "settings":

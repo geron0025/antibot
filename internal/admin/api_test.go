@@ -207,8 +207,14 @@ func TestTokensPage(t *testing.T) {
 		return rec
 	}
 
-	page := call(t, s, "GET", "/tokens", "", "", cookies...)
-	for _, want := range []string{"monitoring", "ci", "Issue a token", "API tokens"} {
+	// The page is a tab of the settings; its old address still leads there.
+	if rec := call(t, s, "GET", "/tokens", "", "", cookies...); rec.Code != http.StatusMovedPermanently ||
+		rec.Header().Get("Location") != "/settings/tokens" {
+		t.Fatalf("/tokens: %d to %q", rec.Code, rec.Header().Get("Location"))
+	}
+	page := call(t, s, "GET", "/settings/tokens", "", "", cookies...)
+	for _, want := range []string{"monitoring", "ci", "Issue a token",
+		`href="/settings" class="current">Settings</a>`, `href="/settings/tokens" class="current"`} {
 		if !strings.Contains(page.Body.String(), want) {
 			t.Errorf("the page does not contain %q", want)
 		}
@@ -216,7 +222,7 @@ func TestTokensPage(t *testing.T) {
 
 	issue := url.Values{"csrf": {csrf}, "name": {"panel"}, "scope": {"read"}, "days": {"30"},
 		"password": {"not the password at all"}}
-	if rec := post("/tokens/issue", issue); rec.Code != http.StatusSeeOther ||
+	if rec := post("/settings/tokens/issue", issue); rec.Code != http.StatusSeeOther ||
 		!strings.Contains(rec.Header().Get("Location"), "error") {
 		t.Fatalf("a wrong password: %d %v", rec.Code, rec.Header())
 	}
@@ -225,12 +231,12 @@ func TestTokensPage(t *testing.T) {
 	}
 
 	noCSRF := url.Values{"name": {"panel"}, "scope": {"read"}, "days": {"30"}, "password": {password}}
-	if rec := post("/tokens/issue", noCSRF); rec.Code != http.StatusForbidden {
+	if rec := post("/settings/tokens/issue", noCSRF); rec.Code != http.StatusForbidden {
 		t.Fatalf("without CSRF: %d", rec.Code)
 	}
 
 	issue.Set("password", password)
-	rec := post("/tokens/issue", issue)
+	rec := post("/settings/tokens/issue", issue)
 	value := regexp.MustCompile(`abn_[A-Za-z0-9_-]{43}`).FindString(rec.Body.String())
 	if rec.Code != http.StatusOK || value == "" {
 		t.Fatalf("issue: %d %s", rec.Code, rec.Body)
@@ -239,13 +245,13 @@ func TestTokensPage(t *testing.T) {
 		t.Fatalf("the issued token: %d", rec.Code)
 	}
 
-	if rec := post("/tokens/revoke", url.Values{"csrf": {csrf}, "name": {"panel"}}); rec.Code != http.StatusSeeOther {
+	if rec := post("/settings/tokens/revoke", url.Values{"csrf": {csrf}, "name": {"panel"}}); rec.Code != http.StatusSeeOther {
 		t.Fatalf("revoke: %d", rec.Code)
 	}
 	if rec := call(t, s, "GET", "/api/v1/rules", value, ""); rec.Code != http.StatusUnauthorized {
 		t.Fatalf("the revoked token: %d", rec.Code)
 	}
-	if strings.Contains(call(t, s, "GET", "/tokens", "", "", cookies...).Body.String(), value) {
+	if strings.Contains(call(t, s, "GET", "/settings/tokens", "", "", cookies...).Body.String(), value) {
 		t.Fatal("the page shows the value a second time")
 	}
 }

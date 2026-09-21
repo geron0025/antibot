@@ -77,9 +77,9 @@ shown until then.</div>{{end}}
 {{define "footer"}}
 </main>
 <footer>
-  <span class="dim">antibot {{.Version}} · rule conditions are composed
+  <span class="dim">antibot-admin {{.Version}} · rule conditions are composed
   with <code>antibot rules</code>; every change made here lands in the
-  node's log</span>
+  admin UI's log</span>
 </footer>
 </body>
 </html>{{end}}
@@ -89,7 +89,6 @@ shown until then.</div>{{end}}
       <a href="/events" {{if eq .Section "events"}}class="current"{{end}}>Events</a>
       <a href="/rules" {{if eq .Section "rules"}}class="current"{{end}}>Rules</a>
       <a href="/domains" {{if eq .Section "domains"}}class="current"{{end}}>Domains</a>
-      {{if .APITokens}}<a href="/tokens" {{if eq .Section "tokens"}}class="current"{{end}}>API tokens</a>{{end}}
       <a href="/settings" {{if eq .Section "settings"}}class="current"{{end}}>Settings</a>
 {{end}}
 
@@ -98,6 +97,7 @@ shown until then.</div>{{end}}
   <a href="/settings/core" {{if eq .Tab "core"}}class="current"{{end}}>Core</a>
   <a href="/settings/cloud" {{if eq .Tab "cloud"}}class="current"{{end}}>Cloud</a>
   {{if .Bell}}<a href="/settings/alerts" {{if eq .Tab "alerts"}}class="current"{{end}}>Alert delivery</a>{{end}}
+  {{if .APITokens}}<a href="/settings/tokens" {{if eq .Tab "tokens"}}class="current"{{end}}>API tokens</a>{{end}}
   <a href="/settings" {{if eq .Tab "certificate"}}class="current"{{end}}>Admin certificate</a>
 </nav>
 {{end}}

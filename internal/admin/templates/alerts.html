@@ -9,7 +9,7 @@ goes to the command set in <a href="/settings/alerts">alert delivery</a>.</p>
 {{if .Off}}<div class="warning">The alerts are off in the core's settings:
 <span class="value">alerts.enabled</span> is false.</div>
 {{else if not .Delivering}}<div class="warning">No command yet: the alerts go only
-to the node's log and to this page. <a href="/settings/alerts">Set one →</a></div>{{end}}
+to the core's log and to this page. <a href="/settings/alerts">Set one →</a></div>{{end}}
 
 <div class="scroll"><table>
   <thead><tr><th>trigger</th><th>fires when</th><th>now</th></tr></thead>
@@ -48,6 +48,6 @@ to the node's log and to this page. <a href="/settings/alerts">Set one →</a></
   </tbody>
 </table></div>
 <p class="dim">The history lives in the node's memory and starts anew with
-every restart; every message is in the node's log as well.</p>
+every restart of the core; every message is in the core's log as well.</p>
 
 {{template "footer" .}}
