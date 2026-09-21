@@ -29,9 +29,11 @@ jobs:
           mkdir -p dist
           for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
             os="${target%/*}"; arch="${target#*/}"
-            CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath \
-              -ldflags "-s -w -X main.Version=${version}" \
-              -o "dist/antibot-${os}-${arch}" ./cmd/antibot
+            for program in antibot antibot-admin; do
+              CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath \
+                -ldflags "-s -w -X main.Version=${version}" \
+                -o "dist/${program}-${os}-${arch}" "./cmd/${program}"
+            done
           done
           cd dist && sha256sum antibot-* > checksums.txt && cat checksums.txt
 
@@ -43,8 +45,17 @@ jobs:
           files: dist/*
           generate_release_notes: true
 
+  # Two images from one Dockerfile: the core, and the admin UI apart
+  # from it. The core's image carries none of the admin UI's code.
   image:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - target: core
+            suffix: ""
+          - target: admin
+            suffix: "-admin"
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-qemu-action@v4
@@ -62,7 +73,7 @@ jobs:
       - id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ghcr.io/${{ github.repository }}${{ matrix.suffix }}
           tags: |
             type=semver,pattern=v{{version}}
             type=semver,pattern={{version}}
@@ -73,6 +84,7 @@ jobs:
         with:
           context: .
           file: deploy/Dockerfile
+          target: ${{ matrix.target }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}

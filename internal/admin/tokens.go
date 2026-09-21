@@ -23,7 +23,7 @@ import (
 // the node's API.
 //
 // A token belongs to the owner of the node: it is issued only on the node,
-// with `antibot api-token` or on the admin UI's page, and it never leaves
+// with `antibot-admin api-token` or on the admin UI's page, and it never leaves
 // for the cloud. The node has no code that would send one, and a token
 // handed to the cloud would let the cloud switch rules on at somebody's
 // site — the one thing it must never be able to do.

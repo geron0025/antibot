@@ -95,6 +95,7 @@ shown until then.</div>{{end}}
 
 {{define "settings-tabs"}}
 <nav class="tabs" aria-label="Settings">
+  <a href="/settings/core" {{if eq .Tab "core"}}class="current"{{end}}>Core</a>
   <a href="/settings/cloud" {{if eq .Tab "cloud"}}class="current"{{end}}>Cloud</a>
   {{if .Bell}}<a href="/settings/alerts" {{if eq .Tab "alerts"}}class="current"{{end}}>Alert delivery</a>{{end}}
   <a href="/settings" {{if eq .Tab "certificate"}}class="current"{{end}}>Admin certificate</a>

@@ -1,0 +1,49 @@
+# Настройки админки ноды — antibot-admin.
+#
+# Отдельный файл и отдельная программа: админка работает под своим
+# пользователем и config.yaml ядра не читает — в нём токен облака. Что
+# ей нужно от ядра, названо ниже, в core: сокет и общие файлы.
+#
+# Вход обязателен: без учёток админка не запускается. Завести —
+# antibot-admin accounts passwd ИМЯ.
+
+# Не-loopback адрес без сертификата — отказ при запуске: пароль уходил
+# бы по сети открытым текстом. Хотите открыть админку наружу — сначала
+# задайте сертификат.
+listen: "127.0.0.1:8090"
+# certificate: "/etc/letsencrypt/live/admin.example.ru/fullchain.pem"
+# key: "/etc/letsencrypt/live/admin.example.ru/privkey.pem"
+# На этом адресе HTTP отвечает перенаправлением кодом 308.
+# redirect_from: ":8089"
+
+# Пара, добавленная на странице Settings, когда certificate и key не
+# заданы: ложится сюда и работает со следующего запуска. Пара, заданная
+# выше, заменяется на месте и работает сразу.
+uploaded_dir: "/var/lib/antibot-admin/admin-ui"
+
+# Свои файлы админки — там, куда у ядра доступа нет.
+users_file: "/var/lib/antibot-admin/admin.json"
+session_ttl: 12h
+
+# Токены API — хешами, рядом с учётками. API живёт на адресе админки,
+# под /api/v1/; выпустить токен — antibot-admin api-token issue ИМЯ или
+# страница API tokens. Пусто — API выключен.
+tokens_file: "/var/lib/antibot-admin/api-tokens.json"
+
+# Ядро. Пути — те же, что в его config.yaml.
+core:
+  # listen.control ядра. Не отвечает — админка работает дальше и пишет
+  # об этом на каждой странице.
+  socket: "/var/lib/antibot/core.sock"
+  # Только чтение.
+  events_dir: "/var/lib/antibot/events"
+  # Пишутся тем же кодом, что команды antibot rules и antibot domains;
+  # после записи админка просит ядро перечитать файл сразу.
+  rules_file: "/var/lib/antibot/shared/rules.json"
+  domains_file: "/var/lib/antibot/shared/domains.json"
+  # tls.uploaded_dir ядра: сюда ложатся сертификаты сайтов, загруженные
+  # на странице доменов. Пусто — загрузки нет.
+  certificates_dir: "/var/lib/antibot/shared/certificates"
+  # alerts.file ядра: команда доставки оповещений со вкладки настроек.
+  # Пусто — менять её из админки нельзя.
+  alerts_file: "/var/lib/antibot/shared/alerts.json"

@@ -38,10 +38,12 @@ func main() {
 		err = replayCommand(os.Args[2:])
 	case "facts":
 		err = factsCommand(os.Args[2:], log)
-	case "admin":
-		err = adminCommand(os.Args[2:])
-	case "api-token":
-		err = apiTokenCommand(os.Args[2:])
+	case "admin", "api-token":
+		// Moved with the admin UI into a program of its own; said here so
+		// that a command from an old note does not end in "unknown".
+		fmt.Fprintf(os.Stderr, "the admin UI and its %s command are a separate program now: "+
+			"antibot-admin %s\n", os.Args[1], map[string]string{"admin": "accounts", "api-token": "api-token"}[os.Args[1]])
+		os.Exit(2)
 	case "aggregate":
 		err = aggregateCommand(os.Args[2:])
 	case "version":
@@ -69,10 +71,10 @@ Commands:
   domains   show and change the domains added at run time
   replay    replay the rules over recorded events
   facts     show and roll back the network and fingerprint bases
-  admin     accounts of the viewing admin UI
-  api-token tokens of the node's API
   aggregate show what is counted and about to be sent to the cloud
   version   show the version
+
+The admin UI is a separate program, antibot-admin.
 
 Examples:
   antibot serve -config /etc/antibot/config.yaml
@@ -80,8 +82,6 @@ Examples:
   antibot domains add shop.example.ru http://203.0.113.7:8080
   antibot facts status
   antibot replay -for 24h
-  antibot admin passwd owner
-  antibot api-token issue monitoring
   antibot aggregate status
 `)
 }

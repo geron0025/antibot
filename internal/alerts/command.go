@@ -36,7 +36,9 @@ type commandFile struct {
 // this file is not read: what the machine's owner wrote into config.yaml
 // by hand must not be replaced through a stolen session.
 //
-// Mode 0600: a command often carries a bot's token or a mail password.
+// Mode 0640: a command often carries a bot's token or a mail password,
+// so nobody but the owner and the group reads it — and the group is how
+// the core reads a command the admin UI, another user, has written.
 type CommandFile struct {
 	path string
 
@@ -137,7 +139,7 @@ func (c *CommandFile) Set(command, by string, now time.Time) error {
 	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err := os.Chmod(name, 0o600); err != nil {
+	if err := os.Chmod(name, 0o640); err != nil {
 		return err
 	}
 	if err := os.Rename(name, c.path); err != nil {

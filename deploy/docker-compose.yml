@@ -16,6 +16,9 @@ services:
       - antibot-state:/var/lib/antibot
     depends_on:
       - backend
+    # Упавшее ядро поднимает докер: у админки прав на чужой процесс нет,
+    # и не должно быть.
+    restart: unless-stopped
     healthcheck:
       # Проверка изнутри контейнера: служебный порт наружу не публикуется.
       test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8091/healthz"]

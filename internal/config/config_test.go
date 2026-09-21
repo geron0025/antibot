@@ -115,3 +115,18 @@ func TestExampleConfigParses(t *testing.T) {
 		t.Fatalf("the example configuration does not parse: %v", err)
 	}
 }
+
+// Settings written before the admin UI became a program of its own say
+// where the section went, rather than failing on an unknown field or
+// being silently ignored.
+func TestTheOldAdminSectionSaysWhereItWent(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	body := "listen:\n  http: \":8080\"\nadmin_ui:\n  enabled: true\n  listen: \"127.0.0.1:8090\"\n"
+	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Load(path)
+	if err == nil || !strings.Contains(err.Error(), "antibot-admin") {
+		t.Fatalf("err = %v", err)
+	}
+}

@@ -9,17 +9,16 @@ import (
 	"strings"
 
 	"github.com/geron0025/antibot/internal/admin"
-	"github.com/geron0025/antibot/internal/config"
 )
 
-// adminCommand creates and removes admin UI accounts.
+// accountsCommand creates and removes admin UI accounts.
 //
 // The accounts are the one thing the admin UI cannot change about itself:
 // changing a password through the admin UI would mean that whoever stole
 // a session takes the access for good.
-func adminCommand(args []string) error {
+func accountsCommand(args []string) error {
 	if len(args) == 0 {
-		adminUsage()
+		accountsUsage()
 		return fmt.Errorf("no subcommand given")
 	}
 
@@ -31,27 +30,27 @@ func adminCommand(args []string) error {
 	case "remove":
 		return adminRemove(args[1:])
 	default:
-		adminUsage()
+		accountsUsage()
 		return fmt.Errorf("unknown subcommand %q", args[0])
 	}
 }
 
-func adminUsage() {
-	fmt.Fprint(os.Stderr, `antibot admin — accounts of the viewing admin UI
+func accountsUsage() {
+	fmt.Fprint(os.Stderr, `antibot-admin accounts — accounts of the admin UI
 
   passwd NAME [-config FILE]   create an account or change a password
   list [-config FILE]          list the accounts
   remove NAME [-config FILE]   remove an account
 
-The admin UI only shows: events, statistics and rules. Nothing can be
-changed through it — rules are changed with antibot rules.
+The accounts are changed only here: a password changed through the admin
+UI would let whoever stole a session keep the access for good.
 `)
 }
 
-// usersFilePath takes the path to the accounts file from the node's
+// usersFilePath takes the path to the accounts file from the admin UI's
 // settings.
 func usersFilePath(flags *flag.FlagSet, args []string) (string, error) {
-	configPath := flags.String("config", "/etc/antibot/config.yaml", "settings file")
+	configPath := flags.String("config", defaultConfig, "the admin UI's settings file")
 	usersFile := flags.String("users", "", "accounts file (by default, taken from the settings)")
 	if err := flags.Parse(args); err != nil {
 		return "", err
@@ -59,20 +58,20 @@ func usersFilePath(flags *flag.FlagSet, args []string) (string, error) {
 	if *usersFile != "" {
 		return *usersFile, nil
 	}
-	cfg, err := config.Load(*configPath)
+	cfg, err := admin.LoadConfig(*configPath)
 	if err != nil {
 		return "", err
 	}
-	return cfg.Admin.UsersFile, nil
+	return cfg.UsersFile, nil
 }
 
 func adminPasswd(args []string) error {
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
-		return fmt.Errorf("no name given: antibot admin passwd NAME")
+		return fmt.Errorf("no name given: antibot-admin accounts passwd NAME")
 	}
 	name := args[0]
 
-	flags := flag.NewFlagSet("admin passwd", flag.ExitOnError)
+	flags := flag.NewFlagSet("accounts passwd", flag.ExitOnError)
 	file, err := usersFilePath(flags, args[1:])
 	if err != nil {
 		return err
@@ -175,7 +174,7 @@ func stty(mode string) error {
 }
 
 func adminList(args []string) error {
-	flags := flag.NewFlagSet("admin list", flag.ExitOnError)
+	flags := flag.NewFlagSet("accounts list", flag.ExitOnError)
 	file, err := usersFilePath(flags, args)
 	if err != nil {
 		return err
@@ -198,11 +197,11 @@ func adminList(args []string) error {
 
 func adminRemove(args []string) error {
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
-		return fmt.Errorf("no name given: antibot admin remove NAME")
+		return fmt.Errorf("no name given: antibot-admin accounts remove NAME")
 	}
 	name := args[0]
 
-	flags := flag.NewFlagSet("admin remove", flag.ExitOnError)
+	flags := flag.NewFlagSet("accounts remove", flag.ExitOnError)
 	file, err := usersFilePath(flags, args[1:])
 	if err != nil {
 		return err

@@ -18,7 +18,7 @@
 //
 // On the same address, under /api/v1/, lives the node's API — the same
 // numbers for a program, behind a token issued on the tokens page or with
-// `antibot api-token`. The API takes a ready rule, the way `antibot rules
+// `antibot-admin api-token`. The API takes a ready rule, the way `antibot rules
 // add` does: one more door to the same write path, not an editor.
 package admin
 
@@ -129,7 +129,7 @@ func New(o Options) (*Server, error) {
 		o.Addr = "127.0.0.1:8090"
 	}
 	if o.Users == nil || !o.Users.Any() {
-		return nil, fmt.Errorf("the admin UI is enabled but there are no accounts: create one with `antibot admin passwd`")
+		return nil, fmt.Errorf("there are no accounts: create one with `antibot-admin accounts passwd`")
 	}
 	if o.Sessions == nil {
 		o.Sessions = NewSessions(12 * time.Hour)
@@ -338,6 +338,11 @@ func (s *Server) Handler() http.Handler {
 		}
 		http.Redirect(w, r, target, http.StatusMovedPermanently)
 	})
+
+	// The core: whether it answers, and a restart, which asks for the
+	// password once more.
+	mux.Handle("GET /settings/core", s.requireLogin(s.corePage))
+	mux.Handle("POST /settings/core/restart", s.requireLogin(s.restartCore))
 
 	// The admin UI's own certificate. Replacing it asks for the password
 	// once more: whoever holds its key reads the admin UI's traffic, and a

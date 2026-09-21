@@ -47,7 +47,7 @@ func tempPath(t *testing.T) string {
 	return filepath.Join(t.TempDir(), "admin.json")
 }
 
-// Before the first `antibot admin passwd` there are no accounts — and
+// Before the first `antibot-admin accounts passwd` there are no accounts — and
 // that is not a read error but the ordinary state of a node that has just
 // been installed.
 func TestAMissingFileIsNotAnError(t *testing.T) {

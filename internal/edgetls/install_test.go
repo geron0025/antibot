@@ -64,8 +64,10 @@ func TestInstallPutsThePairWhereTheScannerLooks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if st.Mode().Perm() != 0o600 {
-		t.Errorf("private key permissions %o, want 600", st.Mode().Perm())
+	// The group is the core's: the admin UI writes the key, the core
+	// serves it, and they are two users of one group.
+	if st.Mode().Perm() != 0o640 {
+		t.Errorf("private key permissions %o, want 640", st.Mode().Perm())
 	}
 
 	s := Open([]string{dir}, nil, nil)

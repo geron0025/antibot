@@ -327,7 +327,8 @@ func TestCommandFile(t *testing.T) {
 	if err := c.Set("curl -s https://example.com", "owner", at(0)); err != nil {
 		t.Fatal(err)
 	}
-	if info, _ := os.Stat(path); info.Mode().Perm() != 0o600 {
+	// Group-readable: the admin UI writes it, the core reads it.
+	if info, _ := os.Stat(path); info.Mode().Perm() != 0o640 {
 		t.Fatalf("mode %v", info.Mode().Perm())
 	}
 

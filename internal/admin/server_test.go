@@ -707,3 +707,40 @@ func TestTheAdminUIStandsWhileTheCoreIsDown(t *testing.T) {
 		t.Error("the rules are not shown while the core is down")
 	}
 }
+
+// The core tab shows what the core says of itself, and a restart is asked
+// against the password and only then passed on.
+func TestTheCoreTab(t *testing.T) {
+	s, _ := newServer(t)
+	stopped := make(chan struct{}, 1)
+	local(s).Started = time.Now().Add(-time.Hour)
+	local(s).Shutdown = func() { stopped <- struct{}{} }
+	cookies := logIn(t, s)
+
+	body, _ := io.ReadAll(get(t, s, "/settings/core", cookies).Body)
+	for _, want := range []string{`href="/settings/core" class="current"`, "answers", "up 1h0m0s", `action="/settings/core/restart"`} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("the tab has no %q", want)
+		}
+	}
+
+	form := url.Values{"password": {"not the password"}, "csrf": {tokenFrom(cookies)}}
+	if rec := postForm(t, s, "/settings/core/restart", cookies, form); !strings.Contains(rec.Header().Get("Location"), "error") {
+		t.Fatalf("a wrong password: %v", rec.Header())
+	}
+	select {
+	case <-stopped:
+		t.Fatal("the core was stopped against a wrong password")
+	case <-time.After(300 * time.Millisecond):
+	}
+
+	form = url.Values{"password": {password}, "csrf": {tokenFrom(cookies)}}
+	if rec := postForm(t, s, "/settings/core/restart", cookies, form); rec.Header().Get("Location") != "/settings/core?done=restart" {
+		t.Fatalf("restart: %v", rec.Header())
+	}
+	select {
+	case <-stopped:
+	case <-time.After(2 * time.Second):
+		t.Fatal("the core was not asked to stop")
+	}
+}

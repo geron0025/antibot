@@ -15,7 +15,6 @@ import (
 
 	"golang.org/x/net/http2"
 
-	"github.com/geron0025/antibot/internal/admin"
 	"github.com/geron0025/antibot/internal/alerts"
 	"github.com/geron0025/antibot/internal/catalog"
 	"github.com/geron0025/antibot/internal/cloudlink"
@@ -136,9 +135,10 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 	}
 	// The upload directory is created here: a directory the scanner
 	// cannot read keeps the whole previous set in force, and the first
-	// upload must not depend on being the one to create it.
+	// upload must not depend on being the one to create it. Writable by
+	// the group: the uploads come from the admin UI, another user of it.
 	if cfg.TLS.UploadedDir != "" {
-		if err := os.MkdirAll(cfg.TLS.UploadedDir, 0o750); err != nil {
+		if err := os.MkdirAll(cfg.TLS.UploadedDir, 0o770); err != nil {
 			return fmt.Errorf("uploaded certificates directory: %w", err)
 		}
 	}
@@ -190,9 +190,9 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		go watcher.Run(ctx)
 	}
 
-	// What the admin UI may ask of the core: served on the control
-	// socket, and handed directly to the admin UI while it still lives in
-	// this process.
+	// What the admin UI may ask of the core, served on the control
+	// socket. The admin UI is a program of its own, antibot-admin; the
+	// core neither starts it nor knows whether there is one.
 	cloudState := func() control.CloudState {
 		set := factStore.Current()
 		want := link.effective()
@@ -221,75 +221,35 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		CloudState: cloudState, Link: cloudLink,
 		Certs: certs, ConfigRoute: configRoutes,
 		Reloaders: map[control.Reloadable]func() error{
-			control.ReloadRules:        func() error { _, err := ruleStore.Reload(); return err },
-			control.ReloadDomains:      func() error { _, err := domainStore.Reload(); return err },
-			control.ReloadCertificates: func() error { certs.Reload(); return nil },
+			control.ReloadRules: func() error {
+				changed, err := ruleStore.Reload()
+				if changed {
+					log.Info("the rules were reread at the admin UI's word",
+						"in_force", len(ruleStore.Set().Effective()))
+				}
+				return err
+			},
+			control.ReloadDomains: func() error {
+				changed, err := domainStore.Reload()
+				if changed {
+					log.Info("the domains were reread at the admin UI's word", "domains", len(domainStore.List()))
+				}
+				return err
+			},
+			control.ReloadCertificates: func() error {
+				certs.Reload()
+				log.Info("the certificates were reread at the admin UI's word", "certificates", certs.Len())
+				return nil
+			},
 		},
 		Shutdown: shutdown,
-	}
-
-	// The admin UI is assembled before the node starts accepting traffic:
-	// an invalid setting (an outward-facing address without a
-	// certificate) must stop the startup rather than bring an
-	// already-working node down a second after it started.
-	var adminUI *admin.Server
-	if cfg.Admin.Enabled {
-		users, err := admin.OpenUsers(cfg.Admin.UsersFile)
-		if err != nil {
-			return err
-		}
-		// The absence of accounts is no reason to stop the node: it must
-		// serve traffic even with no human anywhere near it.
-		if !users.Any() {
-			log.Warn("the admin UI is not up: there are no accounts",
-				"file", cfg.Admin.UsersFile, "what to do", "antibot admin passwd NAME")
-		} else {
-			// The API lives on the admin UI's address and needs its tokens
-			// file; an empty path in the settings turns the API off.
-			var tokens *admin.Tokens
-			if cfg.Admin.TokensFile != "" {
-				if tokens, err = admin.OpenTokens(cfg.Admin.TokensFile); err != nil {
-					return err
-				}
-			}
-			// A pair added on the settings page serves when config.yaml
-			// names none; when it names one, config.yaml wins.
-			adminCert, adminKey := cfg.Admin.Certificate, cfg.Admin.Key
-			if adminCert == "" {
-				if adminCert, adminKey = admin.UploadedPair(cfg.Admin.UploadedDir); adminCert != "" {
-					log.Info("the admin UI serves the pair added on its settings page", "certificate", adminCert)
-				}
-			}
-			adminUI, err = admin.New(admin.Options{
-				Core:             core,
-				Tokens:           tokens,
-				AlertCommand:     alertCommand,
-				Addr:             cfg.Admin.Listen,
-				HTTPAddr:         cfg.Admin.RedirectFrom,
-				Cert:             adminCert,
-				Key:              adminKey,
-				CertDir:          cfg.Admin.UploadedDir,
-				Users:            users,
-				Sessions:         admin.NewSessions(cfg.Admin.SessionTTL.Duration()),
-				Attempts:         rules.NewWindows(),
-				EventsDir:        cfg.Events.Dir,
-				Rules:            ruleStore,
-				Domains:          domainStore,
-				UploadedCertsDir: cfg.TLS.UploadedDir,
-				Version:          Version,
-				Log:              log,
-			})
-			if err != nil {
-				return err
-			}
-		}
 	}
 
 	// Every port is taken before anything is served. A port somebody
 	// else holds is a refusal to start, naming the key and the address:
 	// a node that comes up without one of its doors looks alive, and
 	// the missing door is found out only when somebody needs it.
-	ports, err := takePorts(cfg, adminUI)
+	ports, err := takePorts(cfg)
 	if err != nil {
 		return err
 	}
@@ -321,9 +281,6 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 	if ports.https != nil {
 		run(func() error { return serveHTTPS(ctx, ports.https, handler, certs, log) })
 	}
-	if adminUI != nil {
-		run(func() error { return adminUI.Serve(ctx) })
-	}
 	if ports.service != nil {
 		run(func() error { return serveService(ctx, ports.service, eventLog, aggSink, log) })
 	}
@@ -354,7 +311,7 @@ type portSet struct {
 // takePorts takes every port the settings name. On a refusal the ones
 // already taken are given back, so that a supervisor restarting the node
 // does not find its own ports held by the attempt before.
-func takePorts(cfg config.Config, adminUI *admin.Server) (p portSet, err error) {
+func takePorts(cfg config.Config) (p portSet, err error) {
 	var taken []net.Listener
 	defer func() {
 		if err != nil {
@@ -389,11 +346,6 @@ func takePorts(cfg config.Config, adminUI *admin.Server) (p portSet, err error) 
 			return p, err
 		}
 		taken = append(taken, p.control)
-	}
-	if adminUI != nil {
-		if err = adminUI.Listen(); err != nil {
-			return p, err
-		}
 	}
 	return p, nil
 }

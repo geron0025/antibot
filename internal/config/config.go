@@ -42,13 +42,13 @@ type Config struct {
 	// and the configuration is often mounted read-only.
 	NodeIDFile string `yaml:"node_id_file"`
 
-	Events  Events  `yaml:"events"`
-	Admin   Admin   `yaml:"admin_ui"`
-	Rules   Rules   `yaml:"rules"`
-	Domains Domains `yaml:"domains"`
-	Facts   Facts   `yaml:"facts"`
-	Cloud   Cloud   `yaml:"cloud"`
-	Alerts  Alerts  `yaml:"alerts"`
+	Events  Events       `yaml:"events"`
+	AdminUI MovedAdminUI `yaml:"admin_ui"`
+	Rules   Rules        `yaml:"rules"`
+	Domains Domains      `yaml:"domains"`
+	Facts   Facts        `yaml:"facts"`
+	Cloud   Cloud        `yaml:"cloud"`
+	Alerts  Alerts       `yaml:"alerts"`
 }
 
 // Alerts are the triggers that tell the owner something is wrong with
@@ -117,43 +117,11 @@ type Events struct {
 	Queue    int    `yaml:"queue"`
 }
 
-// Admin is the viewing admin UI.
-//
-// It changes nothing: rules are changed only by the antibot rules
-// command. Hence the defaults: loopback, login required, and without
-// accounts it does not come up at all.
-type Admin struct {
-	Enabled bool `yaml:"enabled"`
-
-	// Listen defaults to loopback. A non-loopback address without a
-	// certificate is a refusal at startup: the password would go over the
-	// network in clear text.
-	Listen string `yaml:"listen"`
-
-	// RedirectFrom is the address on which HTTP answers with code 308.
-	// It works only together with a certificate.
-	RedirectFrom string `yaml:"redirect_from"`
-
-	Certificate string `yaml:"certificate"`
-	Key         string `yaml:"key"`
-
-	// UploadedDir is where a pair added on the settings page lands when
-	// certificate and key are empty; the node serves it from the next
-	// start. A pair named above is replaced in place instead. Empty turns
-	// adding off.
-	UploadedDir string `yaml:"uploaded_dir"`
-
-	// UsersFile is a separate file rather than these settings: the
-	// configuration is often mounted read-only, while a password is
-	// changed without restarting the node.
-	UsersFile string `yaml:"users_file"`
-
-	// TokensFile holds the API's tokens, as hashes, next to the accounts
-	// and for the same reason. Empty turns the API off.
-	TokensFile string `yaml:"tokens_file"`
-
-	SessionTTL Duration `yaml:"session_ttl"`
-}
+// MovedAdminUI is the admin_ui section of settings written before the
+// admin UI became a program of its own. Read only to say where it went:
+// silently ignoring it would leave the owner wondering why the admin UI
+// is not up.
+type MovedAdminUI map[string]any
 
 type Rules struct {
 	File string `yaml:"file"`
@@ -210,13 +178,19 @@ type Cloud struct {
 
 // Defaults are the settings of a node that has just been installed: it
 // listens, proxies, writes the log and goes nowhere.
+//
+// What the admin UI writes lies in /var/lib/antibot/shared: the admin UI
+// is another user, and writing a file atomically takes the right to
+// write its directory. That right is given for this directory alone —
+// not for the rest of /var/lib/antibot, where the token to the cloud and
+// the node's identifier live.
 func Defaults() Config {
 	return Config{
 		Listen: Listen{HTTP: ":80", HTTPS: ":443", Admin: "127.0.0.1:8091",
 			Control: "/var/lib/antibot/core.sock"},
 		NodeIDFile: "/var/lib/antibot/node.id",
 		TLS: TLS{
-			UploadedDir:    "/var/lib/antibot/certificates",
+			UploadedDir:    "/var/lib/antibot/shared/certificates",
 			SelfSignedDir:  "/var/lib/antibot/certs",
 			ReloadInterval: Duration(30 * time.Second),
 		},
@@ -224,20 +198,12 @@ func Defaults() Config {
 			Dir: "/var/lib/antibot/events", MaxSize: 256 << 20,
 			KeepDays: 14, Queue: 4096,
 		},
-		Admin: Admin{
-			Enabled:     true,
-			Listen:      "127.0.0.1:8090",
-			UploadedDir: "/var/lib/antibot/admin-ui",
-			UsersFile:   "/var/lib/antibot/admin.json",
-			TokensFile:  "/var/lib/antibot/api-tokens.json",
-			SessionTTL:  Duration(12 * time.Hour),
-		},
 		Rules: Rules{
-			File:           "/var/lib/antibot/rules.json",
+			File:           "/var/lib/antibot/shared/rules.json",
 			ReloadInterval: Duration(5 * time.Second),
 		},
 		Domains: Domains{
-			File:           "/var/lib/antibot/domains.json",
+			File:           "/var/lib/antibot/shared/domains.json",
 			ReloadInterval: Duration(5 * time.Second),
 		},
 		Facts: Facts{
@@ -250,7 +216,7 @@ func Defaults() Config {
 			LinkFile: "/var/lib/antibot/cloud.json",
 		},
 		Alerts: Alerts{
-			Enabled: true, File: "/var/lib/antibot/alerts.json",
+			Enabled: true, File: "/var/lib/antibot/shared/alerts.json",
 			Timeout: Duration(30 * time.Second), Window: Duration(5 * time.Minute),
 			SiteErrorShare: 0.5, SiteMinRequests: 20,
 			SpikeFactor: 5, SpikeMinRequests: 500, SpikeMinBlocked: 200, RuleMinMatches: 50,
@@ -314,13 +280,9 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	if c.Admin.Enabled {
-		if c.Admin.Listen == "" {
-			return fmt.Errorf("admin_ui.enabled without admin_ui.listen: nowhere to listen")
-		}
-		if (c.Admin.Certificate == "") != (c.Admin.Key == "") {
-			return fmt.Errorf("admin_ui: certificate and key are set together")
-		}
+	if c.AdminUI != nil {
+		return fmt.Errorf("admin_ui: the admin UI is a separate program now, antibot-admin, " +
+			"with settings of its own (admin.yaml); move the section there and remove it from here")
 	}
 
 	if c.Cloud.Token != "" && c.Cloud.URL == "" {

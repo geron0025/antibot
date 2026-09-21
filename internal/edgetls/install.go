@@ -12,8 +12,10 @@ import (
 
 // Install validates an uploaded certificate pair and puts it into the
 // upload directory in the certbot layout: a subdirectory per domain,
-// fullchain.pem and privkey.pem, the key with 0600. The scanner then
-// picks it up like any other pair.
+// fullchain.pem and privkey.pem, the key with 0640. The scanner then
+// picks it up like any other pair. The key is readable by the group
+// because the admin UI, which writes it, and the core, which serves it,
+// are two users of the one group; nobody else reads it.
 //
 // The checks are the point: a key that does not match, a certificate
 // without the domain's name or one already expired is a refusal with a
@@ -36,7 +38,7 @@ func Install(dir, host string, chain, key []byte) (time.Time, error) {
 	// "*" cannot be a directory name everywhere, and the scanner takes
 	// the names from the certificate anyway.
 	sub := filepath.Join(dir, strings.Replace(host, "*.", "_wildcard.", 1))
-	if err := writePair(filepath.Join(sub, "fullchain.pem"), filepath.Join(sub, "privkey.pem"), chain, key); err != nil {
+	if err := writePair(filepath.Join(sub, "fullchain.pem"), filepath.Join(sub, "privkey.pem"), chain, key, 0o640); err != nil {
 		return time.Time{}, err
 	}
 	return leaf.NotAfter, nil
@@ -59,7 +61,8 @@ func InstallPair(certFile, keyFile string, chain, key []byte) (*x509.Certificate
 			return nil, fmt.Errorf("%s is a link, the way certbot keeps its files: renew it with certbot, not here", path)
 		}
 	}
-	if err := writePair(certFile, keyFile, chain, key); err != nil {
+	// 0600: this key is the admin UI's own, and no one else serves it.
+	if err := writePair(certFile, keyFile, chain, key, 0o600); err != nil {
 		return nil, err
 	}
 	return leaf, nil
@@ -124,13 +127,13 @@ func LeafNames(leaf *x509.Certificate) []string {
 // failure while writing leaves the previous pair whole, and the window in
 // which the two files disagree is two renames long. A reader treats a
 // pair that disagrees as "being replaced" and keeps the previous one.
-func writePair(certFile, keyFile string, chain, key []byte) error {
+func writePair(certFile, keyFile string, chain, key []byte, keyMode os.FileMode) error {
 	for _, path := range []string{certFile, keyFile} {
 		if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
 			return fmt.Errorf("certificate directory: %w", err)
 		}
 	}
-	keyTmp, err := writeTemp(keyFile, key, 0o600)
+	keyTmp, err := writeTemp(keyFile, key, keyMode)
 	if err != nil {
 		return err
 	}

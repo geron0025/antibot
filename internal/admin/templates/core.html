@@ -1,0 +1,50 @@
+{{template "header" .}}
+{{template "settings-tabs" .}}
+
+<p class="dim">The core is the program that serves the sites: a process of
+its own, apart from this admin UI. The admin UI asks it over its control
+socket and has no other power over it.</p>
+
+{{if .Asked}}
+<section class="card done">
+  <p>The core was asked to restart. It finishes the requests in flight and
+  stops; whoever supervises it — systemd or docker — starts it again within
+  seconds. Reload this page to see the new start time.</p>
+</section>
+{{end}}
+
+<section class="card">
+  <h2>The core</h2>
+  {{with .Health}}
+  <div class="scroll"><table>
+    <tbody>
+      <tr><th>state</th><td>answers</td></tr>
+      <tr><th>version</th><td class="value">{{.Version}}</td></tr>
+      <tr><th>started</th><td>{{time .Started}} <span class="dim">· up {{$.Uptime}}</span></td></tr>
+    </tbody>
+  </table></div>
+  {{else}}
+  <p>The core does not answer. If it has stopped, its supervisor starts it
+  again by itself; if it stays down, its log says why —
+  <code>journalctl -u antibot</code> or <code>docker logs</code>.</p>
+  {{end}}
+</section>
+
+{{if .Health}}
+<section class="card">
+  <h2>Restart</h2>
+  <p class="dim">The core finishes the requests in flight and stops, and its
+  supervisor starts it again. Every site behind the node is cut off for the
+  seconds that takes. Your password is asked once more: a stolen session
+  must not be enough to do that.</p>
+  <form method="post" action="/settings/core/restart" class="fields">
+    <input type="hidden" name="csrf" value="{{.CSRF}}">
+    <label>your password
+      <input type="password" name="password" autocomplete="current-password" required>
+    </label>
+    <button type="submit">restart the core</button>
+  </form>
+</section>
+{{end}}
+
+{{template "footer" .}}

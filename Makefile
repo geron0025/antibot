@@ -10,9 +10,12 @@ fuzz:
 	go test ./internal/h2fp -run FuzzSnifferDoesNotCrash -fuzz FuzzSnifferDoesNotCrash -fuzztime 60s
 	go test ./internal/rules -run FuzzParse -fuzz FuzzParse -fuzztime 60s
 
+# Two programs: the core, which serves traffic, and the admin UI, which
+# runs beside it under a user of its own — or not at all.
 .PHONY: build
 build:
 	go build -trimpath -ldflags "-s -w -X main.Version=$(VERSION)" -o antibot ./cmd/antibot
+	go build -trimpath -ldflags "-s -w -X main.Version=$(VERSION)" -o antibot-admin ./cmd/antibot-admin
 
 .PHONY: up
 up:

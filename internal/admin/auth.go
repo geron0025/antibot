@@ -58,7 +58,7 @@ type usersFile struct {
 const UsersFormatVersion = 1
 
 // OpenUsers reads the accounts file. A missing file is not an error:
-// before the first `antibot admin passwd` there are no accounts, and the
+// before the first `antibot-admin accounts passwd` there are no accounts, and the
 // admin UI then simply does not come up.
 func OpenUsers(path string) (*Users, error) {
 	u := &Users{path: path}

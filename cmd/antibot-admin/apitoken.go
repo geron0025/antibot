@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/geron0025/antibot/internal/admin"
-	"github.com/geron0025/antibot/internal/config"
 )
 
 // apiTokenCommand issues, lists and revokes the tokens of the node's API.
@@ -37,7 +36,7 @@ func apiTokenCommand(args []string) error {
 }
 
 func apiTokenUsage() {
-	fmt.Fprint(os.Stderr, `antibot api-token — tokens of the node's API
+	fmt.Fprint(os.Stderr, `antibot-admin api-token — tokens of the node's API
 
   issue NAME [-scope read|write] [-days 90] [-config FILE]
                                issue a token; the value is printed once
@@ -49,10 +48,10 @@ the cloud. A monitoring token should only read.
 `)
 }
 
-// tokensFilePath takes the path to the tokens file from the node's
+// tokensFilePath takes the path to the tokens file from the admin UI's
 // settings.
 func tokensFilePath(flags *flag.FlagSet, args []string) (string, error) {
-	configPath := flags.String("config", "/etc/antibot/config.yaml", "settings file")
+	configPath := flags.String("config", defaultConfig, "the admin UI's settings file")
 	tokensFile := flags.String("tokens", "", "tokens file (by default, taken from the settings)")
 	if err := flags.Parse(args); err != nil {
 		return "", err
@@ -60,19 +59,19 @@ func tokensFilePath(flags *flag.FlagSet, args []string) (string, error) {
 	if *tokensFile != "" {
 		return *tokensFile, nil
 	}
-	cfg, err := config.Load(*configPath)
+	cfg, err := admin.LoadConfig(*configPath)
 	if err != nil {
 		return "", err
 	}
-	if cfg.Admin.TokensFile == "" {
-		return "", fmt.Errorf("admin_ui.tokens_file is empty in %s: the API is off", *configPath)
+	if cfg.TokensFile == "" {
+		return "", fmt.Errorf("tokens_file is empty in %s: the API is off", *configPath)
 	}
-	return cfg.Admin.TokensFile, nil
+	return cfg.TokensFile, nil
 }
 
 func apiTokenIssue(args []string) error {
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
-		return fmt.Errorf("no name given: antibot api-token issue NAME")
+		return fmt.Errorf("no name given: antibot-admin api-token issue NAME")
 	}
 	name := args[0]
 
@@ -92,7 +91,7 @@ func apiTokenIssue(args []string) error {
 	if err != nil {
 		return err
 	}
-	// The value alone goes to stdout, so that TOKEN=$(antibot api-token
+	// The value alone goes to stdout, so that TOKEN=$(antibot-admin api-token
 	// issue ci) takes exactly it; the words go to stderr.
 	fmt.Fprintf(os.Stderr, "the token %s (%s) lives until %s; the value is shown once, the node keeps only its hash:\n",
 		tok.Name, tok.Scope, tok.ExpiresAt.Format(time.DateOnly))
@@ -136,7 +135,7 @@ func apiTokenList(args []string) error {
 
 func apiTokenRevoke(args []string) error {
 	if len(args) == 0 || strings.HasPrefix(args[0], "-") {
-		return fmt.Errorf("no name given: antibot api-token revoke NAME")
+		return fmt.Errorf("no name given: antibot-admin api-token revoke NAME")
 	}
 	name := args[0]
 

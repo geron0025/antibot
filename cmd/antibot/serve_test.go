@@ -21,14 +21,14 @@ func TestATakenPortStopsTheStart(t *testing.T) {
 	cfg.Listen.HTTP = "127.0.0.1:0"
 	cfg.Listen.Admin = held.Addr().String()
 
-	_, err = takePorts(cfg, nil)
+	_, err = takePorts(cfg)
 	if err == nil || !strings.Contains(err.Error(), "listen.admin "+held.Addr().String()) {
 		t.Fatalf("err = %v", err)
 	}
 
 	// Everything free: every port is taken and none is left out.
 	cfg.Listen.Admin = "127.0.0.1:0"
-	p, err := takePorts(cfg, nil)
+	p, err := takePorts(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
