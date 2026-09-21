@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 // traffic of the customer's domains, and /healthz on them would turn into
 // a page that does not exist on every protected site. This port is not
 // published outwards.
-func serveService(ctx context.Context, addr string, log *events.Log, agg *aggregateSink, logger *slog.Logger) error {
+func serveService(ctx context.Context, ln net.Listener, log *events.Log, agg *aggregateSink, logger *slog.Logger) error {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +53,6 @@ func serveService(ctx context.Context, addr string, log *events.Log, agg *aggreg
 	})
 
 	srv := &http.Server{
-		Addr:              addr,
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
@@ -61,8 +61,8 @@ func serveService(ctx context.Context, addr string, log *events.Log, agg *aggreg
 		shutdown(srv)
 	}()
 
-	logger.Info("listening on the service port", "address", addr)
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	logger.Info("listening on the service port", "address", ln.Addr().String())
+	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("service port: %w", err)
 	}
 	return nil

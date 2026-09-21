@@ -115,6 +115,9 @@ type Server struct {
 	// and the interfaces of the machine the tests run on.
 	lookupHost func(context.Context, string) ([]string, error)
 	ownAddrs   func() []netip.Addr
+
+	// The ports, taken by Listen before anything is served.
+	listener, redirectListener net.Listener
 }
 
 // New validates the options and assembles the admin UI.
@@ -191,9 +194,46 @@ func notLoopback(addr string) (bool, error) {
 
 // Serve brings the listeners up and works for as long as the context
 // lives.
+// Listen takes the admin UI's ports, and the redirect's when there is
+// one. Separate from Serve so that the node takes every port it has
+// before it serves on any: a port somebody else holds is a refusal to
+// start, said at once, rather than an admin UI that silently is not
+// there while the proxy runs.
+func (s *Server) Listen() error {
+	if s.listener != nil {
+		return nil
+	}
+	ln, err := net.Listen("tcp", s.o.Addr)
+	if err != nil {
+		return fmt.Errorf("admin_ui.listen %s: %w", s.o.Addr, err)
+	}
+	if s.o.HTTPAddr != "" {
+		redirect, err := net.Listen("tcp", s.o.HTTPAddr)
+		if err != nil {
+			ln.Close()
+			return fmt.Errorf("admin_ui.redirect_from %s: %w", s.o.HTTPAddr, err)
+		}
+		s.redirectListener = redirect
+	}
+	s.listener = ln
+	return nil
+}
+
+// Close gives the ports back when the node stops before serving.
+func (s *Server) Close() {
+	if s.listener != nil {
+		s.listener.Close()
+	}
+	if s.redirectListener != nil {
+		s.redirectListener.Close()
+	}
+}
+
 func (s *Server) Serve(ctx context.Context) error {
+	if err := s.Listen(); err != nil {
+		return err
+	}
 	srv := &http.Server{
-		Addr:              s.o.Addr,
 		Handler:           s.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
@@ -204,8 +244,8 @@ func (s *Server) Serve(ctx context.Context) error {
 	}()
 
 	withTLS := s.o.Cert != "" && s.o.Key != ""
-	if s.o.HTTPAddr != "" {
-		go s.redirectHTTP(ctx)
+	if s.redirectListener != nil {
+		go s.redirectHTTP(ctx, s.redirectListener)
 	}
 
 	s.o.Log.Info("listening for the admin UI", "address", s.o.Addr, "tls", withTLS)
@@ -215,9 +255,9 @@ func (s *Server) Serve(ctx context.Context) error {
 		// The pair comes from the reloader rather than from the files
 		// named here: a renewed certificate is taken up on the fly.
 		srv.TLSConfig = &tls.Config{GetCertificate: s.cert.get, MinVersion: tls.VersionTLS12}
-		err = srv.ListenAndServeTLS("", "")
+		err = srv.ServeTLS(s.listener, "", "")
 	} else {
-		err = srv.ListenAndServe()
+		err = srv.Serve(s.listener)
 	}
 	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("admin UI: %w", err)
@@ -230,9 +270,8 @@ func (s *Server) Serve(ctx context.Context) error {
 // 308 rather than 301: 301 allows the browser to change the method to
 // GET, and a submitted login form would silently turn into an empty
 // request.
-func (s *Server) redirectHTTP(ctx context.Context) {
+func (s *Server) redirectHTTP(ctx context.Context, ln net.Listener) {
 	srv := &http.Server{
-		Addr:              s.o.HTTPAddr,
 		ReadHeaderTimeout: 5 * time.Second,
 		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			host := r.Host
@@ -250,7 +289,7 @@ func (s *Server) redirectHTTP(ctx context.Context) {
 		<-ctx.Done()
 		shutdown(srv)
 	}()
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		s.o.Log.Error("admin UI redirect", "err", err)
 	}
 }

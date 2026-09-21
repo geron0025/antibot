@@ -270,6 +270,15 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		}
 	}
 
+	// Every port is taken before anything is served. A port somebody
+	// else holds is a refusal to start, naming the key and the address:
+	// a node that comes up without one of its doors looks alive, and
+	// the missing door is found out only when somebody needs it.
+	ports, err := takePorts(cfg, adminUI)
+	if err != nil {
+		return err
+	}
+
 	// The link starts after every early return: on the way out the
 	// process waits for the aggregator to save the open window, and it
 	// must not wait for one that never started.
@@ -278,45 +287,30 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 
 	var group sync.WaitGroup
 	errs := make(chan error, 4)
-
-	if cfg.Listen.HTTP != "" {
+	run := func(serve func() error) {
 		group.Add(1)
 		go func() {
 			defer group.Done()
-			if err := serveHTTP(ctx, cfg.Listen.HTTP, handler, log); err != nil {
+			// Said the moment it happens: the rest of the node goes on
+			// serving, and its log is where the owner looks.
+			if err := serve(); err != nil {
+				log.Error("a listener stopped", "err", err)
 				errs <- err
 			}
 		}()
 	}
 
-	if cfg.Listen.HTTPS != "" {
-		group.Add(1)
-		go func() {
-			defer group.Done()
-			if err := serveHTTPS(ctx, cfg.Listen.HTTPS, handler, certs, log); err != nil {
-				errs <- err
-			}
-		}()
+	if ports.http != nil {
+		run(func() error { return serveHTTP(ctx, ports.http, handler, log) })
 	}
-
+	if ports.https != nil {
+		run(func() error { return serveHTTPS(ctx, ports.https, handler, certs, log) })
+	}
 	if adminUI != nil {
-		group.Add(1)
-		go func() {
-			defer group.Done()
-			if err := adminUI.Serve(ctx); err != nil {
-				errs <- err
-			}
-		}()
+		run(func() error { return adminUI.Serve(ctx) })
 	}
-
-	if cfg.Listen.Admin != "" {
-		group.Add(1)
-		go func() {
-			defer group.Done()
-			if err := serveService(ctx, cfg.Listen.Admin, eventLog, aggSink, log); err != nil {
-				errs <- err
-			}
-		}()
+	if ports.service != nil {
+		run(func() error { return serveService(ctx, ports.service, eventLog, aggSink, log) })
 	}
 
 	log.Info("the node has started", "http", cfg.Listen.HTTP, "https", cfg.Listen.HTTPS,
@@ -334,9 +328,54 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 	return nil
 }
 
-func serveHTTP(ctx context.Context, addr string, h http.Handler, log *slog.Logger) error {
+// portSet is the node's listeners, taken before any of them serves.
+type portSet struct {
+	http, https, service net.Listener
+}
+
+// takePorts takes every port the settings name. On a refusal the ones
+// already taken are given back, so that a supervisor restarting the node
+// does not find its own ports held by the attempt before.
+func takePorts(cfg config.Config, adminUI *admin.Server) (p portSet, err error) {
+	var taken []net.Listener
+	defer func() {
+		if err != nil {
+			for _, ln := range taken {
+				ln.Close()
+			}
+		}
+	}()
+	take := func(key, addr string) (net.Listener, error) {
+		if addr == "" {
+			return nil, nil
+		}
+		ln, err := net.Listen("tcp", addr)
+		if err != nil {
+			return nil, fmt.Errorf("%s %s: %w", key, addr, err)
+		}
+		taken = append(taken, ln)
+		return ln, nil
+	}
+
+	if p.http, err = take("listen.http", cfg.Listen.HTTP); err != nil {
+		return p, err
+	}
+	if p.https, err = take("listen.https", cfg.Listen.HTTPS); err != nil {
+		return p, err
+	}
+	if p.service, err = take("listen.admin", cfg.Listen.Admin); err != nil {
+		return p, err
+	}
+	if adminUI != nil {
+		if err = adminUI.Listen(); err != nil {
+			return p, err
+		}
+	}
+	return p, nil
+}
+
+func serveHTTP(ctx context.Context, ln net.Listener, h http.Handler, log *slog.Logger) error {
 	srv := &http.Server{
-		Addr:              addr,
 		Handler:           h,
 		ReadHeaderTimeout: 10 * time.Second,
 		IdleTimeout:       120 * time.Second,
@@ -347,8 +386,8 @@ func serveHTTP(ctx context.Context, addr string, h http.Handler, log *slog.Logge
 		shutdown(srv)
 	}()
 
-	log.Info("listening for HTTP", "address", addr)
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	log.Info("listening for HTTP", "address", ln.Addr().String())
+	if err := srv.Serve(ln); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		return fmt.Errorf("HTTP: %w", err)
 	}
 	return nil
@@ -361,11 +400,7 @@ func serveHTTP(ctx context.Context, addr string, h http.Handler, log *slog.Logge
 // before the handshake by intercepting the ClientHello, and after it with
 // the frame sniffer. The standard server allows neither: it performs the
 // handshake inside itself and hands out a ready-made request.
-func serveHTTPS(ctx context.Context, addr string, h http.Handler, certs *edgetls.Set, log *slog.Logger) error {
-	listener, err := net.Listen("tcp", addr)
-	if err != nil {
-		return fmt.Errorf("HTTPS: %w", err)
-	}
+func serveHTTPS(ctx context.Context, listener net.Listener, h http.Handler, certs *edgetls.Set, log *slog.Logger) error {
 	defer listener.Close()
 
 	go func() {
@@ -379,7 +414,7 @@ func serveHTTPS(ctx context.Context, addr string, h http.Handler, certs *edgetls
 		NextProtos:     []string{"h2", "http/1.1"},
 	}
 
-	log.Info("listening for HTTPS", "address", addr)
+	log.Info("listening for HTTPS", "address", listener.Addr().String())
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
