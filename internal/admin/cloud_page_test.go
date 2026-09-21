@@ -69,11 +69,11 @@ func TestTheFirstLoginAsksTheTwoQuestions(t *testing.T) {
 
 	resp := get(t, s, "/", cookies)
 	if resp.StatusCode != http.StatusSeeOther ||
-		resp.Header.Get("Location") != "/cloud?welcome=1" {
+		resp.Header.Get("Location") != "/settings/cloud?welcome=1" {
 		t.Fatalf("%d to %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
 
-	body, _ := io.ReadAll(get(t, s, "/cloud?welcome=1", cookies).Body)
+	body, _ := io.ReadAll(get(t, s, "/settings/cloud?welcome=1", cookies).Body)
 	page := string(body)
 	for _, want := range []string{"Receive security updates", "Send statistics"} {
 		if !strings.Contains(page, want) {
@@ -94,7 +94,7 @@ func TestNoToBothIsAnAnswerAndTheNodeStopsAsking(t *testing.T) {
 	s := withCloud(t, state, control)
 	cookies := logIn(t, s)
 
-	resp := postCloud(t, s, "/cloud/save", cookies, url.Values{})
+	resp := postCloud(t, s, "/settings/cloud/save", cookies, url.Values{})
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("%d", resp.StatusCode)
 	}
@@ -106,7 +106,7 @@ func TestNoToBothIsAnAnswerAndTheNodeStopsAsking(t *testing.T) {
 	}
 
 	if resp := get(t, s, "/", cookies); resp.StatusCode == http.StatusSeeOther &&
-		resp.Header.Get("Location") == "/cloud?welcome=1" {
+		resp.Header.Get("Location") == "/settings/cloud?welcome=1" {
 		t.Error("the owner is asked again after answering")
 	}
 }
@@ -119,7 +119,7 @@ func TestTickingABoxTakesAToken(t *testing.T) {
 	s := withCloud(t, state, control)
 	cookies := logIn(t, s)
 
-	resp := postCloud(t, s, "/cloud/save", cookies, url.Values{"facts": {"1"}})
+	resp := postCloud(t, s, "/settings/cloud/save", cookies, url.Values{"facts": {"1"}})
 	if resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("%d", resp.StatusCode)
 	}
@@ -131,7 +131,7 @@ func TestTickingABoxTakesAToken(t *testing.T) {
 	}
 
 	// With a token in hand the next change does not register again.
-	postCloud(t, s, "/cloud/save", cookies, url.Values{"facts": {"1"}, "aggregates": {"1"}})
+	postCloud(t, s, "/settings/cloud/save", cookies, url.Values{"facts": {"1"}, "aggregates": {"1"}})
 	if control.registered != 1 {
 		t.Errorf("registered again: %d", control.registered)
 	}
@@ -145,7 +145,7 @@ func TestARefusalIsShownToTheOwner(t *testing.T) {
 	s := withCloud(t, state, control)
 	cookies := logIn(t, s)
 
-	resp := postCloud(t, s, "/cloud/save", cookies, url.Values{"facts": {"1"}})
+	resp := postCloud(t, s, "/settings/cloud/save", cookies, url.Values{"facts": {"1"}})
 	to := resp.Header.Get("Location")
 	if !strings.Contains(to, "already+took+a+token") {
 		t.Fatalf("the owner was sent to %q", to)
@@ -160,13 +160,13 @@ func TestASettingsFileTokenIsNotOverridden(t *testing.T) {
 	s := withCloud(t, state, nil)
 	cookies := logIn(t, s)
 
-	body, _ := io.ReadAll(get(t, s, "/cloud", cookies).Body)
+	body, _ := io.ReadAll(get(t, s, "/settings/cloud", cookies).Body)
 	page := string(body)
 	if !strings.Contains(page, "config.yaml") || !strings.Contains(page, "disabled") {
 		t.Error("the page does not say the settings file decides")
 	}
 
-	resp := postCloud(t, s, "/cloud/save", cookies, url.Values{"facts": {"1"}})
+	resp := postCloud(t, s, "/settings/cloud/save", cookies, url.Values{"facts": {"1"}})
 	if to := resp.Header.Get("Location"); !strings.Contains(to, "config.yaml") {
 		t.Errorf("a save against a settings file token went to %q", to)
 	}
@@ -185,7 +185,7 @@ func TestForgettingClearsEverything(t *testing.T) {
 	s := withCloud(t, state, control)
 	cookies := logIn(t, s)
 
-	if resp := postCloud(t, s, "/cloud/forget", cookies, url.Values{}); resp.StatusCode != http.StatusSeeOther {
+	if resp := postCloud(t, s, "/settings/cloud/forget", cookies, url.Values{}); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("%d", resp.StatusCode)
 	}
 	if control.forgotten != 1 || state.Token {
@@ -199,7 +199,33 @@ func TestThePageStandsWithoutALink(t *testing.T) {
 	s, _ := newServer(t)
 	cookies := logIn(t, s)
 
-	if resp := get(t, s, "/cloud", cookies); resp.StatusCode != http.StatusOK {
+	if resp := get(t, s, "/settings/cloud", cookies); resp.StatusCode != http.StatusOK {
 		t.Fatalf("%d", resp.StatusCode)
+	}
+}
+
+// The cloud is a tab of the settings: the menu has no item of its own for
+// it, and the old address still leads there.
+func TestTheCloudIsATabOfTheSettings(t *testing.T) {
+	s, _ := newServer(t)
+	cookies := logIn(t, s)
+
+	body, _ := io.ReadAll(get(t, s, "/settings/cloud", cookies).Body)
+	page := string(body)
+	for _, want := range []string{`href="/settings" class="current">Settings</a>`,
+		`href="/settings/cloud" class="current"`} {
+		if !strings.Contains(page, want) {
+			t.Errorf("the page has no %q", want)
+		}
+	}
+	start := strings.Index(page, "<nav>")
+	if nav := page[start : start+strings.Index(page[start:], "</nav>")]; strings.Contains(nav, "/cloud") {
+		t.Error("the menu still has an item for the cloud")
+	}
+
+	resp := get(t, s, "/cloud?welcome=1", cookies)
+	if resp.StatusCode != http.StatusMovedPermanently ||
+		resp.Header.Get("Location") != "/settings/cloud?welcome=1" {
+		t.Fatalf("/cloud: %d to %q", resp.StatusCode, resp.Header.Get("Location"))
 	}
 }

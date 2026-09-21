@@ -67,17 +67,26 @@ func TestAlertsPage(t *testing.T) {
 
 	page := get(t, s, "/alerts", cookies)
 	body, _ := io.ReadAll(page.Body)
-	for _, want := range []string{"the site does not answer", "a rule cuts off a lot", "Delivery",
-		"No command yet", "nothing since the start"} {
+	for _, want := range []string{"the site does not answer", "a rule cuts off a lot",
+		"No command yet", `href="/settings/alerts"`, "nothing since the start"} {
 		if !strings.Contains(string(body), want) {
 			t.Errorf("the page does not contain %q", want)
+		}
+	}
+
+	// Delivery is a tab of the settings, not a part of the alerts page.
+	body, _ = io.ReadAll(get(t, s, "/settings/alerts", cookies).Body)
+	for _, want := range []string{"Delivery", `action="/settings/alerts/command"`,
+		`href="/settings" class="current">Settings</a>`, `href="/settings/alerts" class="current"`} {
+		if !strings.Contains(string(body), want) {
+			t.Errorf("the delivery tab does not contain %q", want)
 		}
 	}
 
 	marker := filepath.Join(dir, "delivered")
 	command := `printf '%s' "$ANTIBOT_ALERT_STATE" > '` + marker + `'`
 
-	rec := alertsPost(t, s, cookies, "/alerts/command", url.Values{"command": {command}, "password": {"not the password"}})
+	rec := alertsPost(t, s, cookies, "/settings/alerts/command", url.Values{"command": {command}, "password": {"not the password"}})
 	if rec.Code != http.StatusSeeOther || !strings.Contains(rec.Header().Get("Location"), "error") {
 		t.Fatalf("a wrong password: %d %v", rec.Code, rec.Header())
 	}
@@ -85,7 +94,7 @@ func TestAlertsPage(t *testing.T) {
 		t.Fatal("the command was set against a wrong password")
 	}
 
-	rec = alertsPost(t, s, cookies, "/alerts/command", url.Values{"command": {command}, "password": {password}})
+	rec = alertsPost(t, s, cookies, "/settings/alerts/command", url.Values{"command": {command}, "password": {password}})
 	if rec.Code != http.StatusSeeOther || strings.Contains(rec.Header().Get("Location"), "error") {
 		t.Fatalf("set: %d %v", rec.Code, rec.Header())
 	}
@@ -93,7 +102,7 @@ func TestAlertsPage(t *testing.T) {
 		t.Fatalf("%+v", c)
 	}
 
-	rec = alertsPost(t, s, cookies, "/alerts/test", url.Values{})
+	rec = alertsPost(t, s, cookies, "/settings/alerts/test", url.Values{})
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "handed to the command") {
 		t.Fatalf("test: %d %s", rec.Code, rec.Body)
 	}
@@ -101,7 +110,7 @@ func TestAlertsPage(t *testing.T) {
 		t.Fatalf("the command got %q", got)
 	}
 
-	if rec := alertsPost(t, s, cookies, "/alerts/test", url.Values{"csrf": {"forged"}}); rec.Code != http.StatusForbidden {
+	if rec := alertsPost(t, s, cookies, "/settings/alerts/test", url.Values{"csrf": {"forged"}}); rec.Code != http.StatusForbidden {
 		t.Fatalf("a forged form: %d", rec.Code)
 	}
 }
@@ -165,11 +174,11 @@ func TestConfigAlertCommandWins(t *testing.T) {
 	s, _ := newAlertsServer(t, "logger antibot")
 	cookies := logIn(t, s)
 
-	body, _ := io.ReadAll(get(t, s, "/alerts", cookies).Body)
-	if !strings.Contains(string(body), "changed only there") || strings.Contains(string(body), `action="/alerts/command"`) {
+	body, _ := io.ReadAll(get(t, s, "/settings/alerts", cookies).Body)
+	if !strings.Contains(string(body), "changed only there") || strings.Contains(string(body), `action="/settings/alerts/command"`) {
 		t.Fatalf("%s", body)
 	}
-	rec := alertsPost(t, s, cookies, "/alerts/command", url.Values{"command": {"true"}, "password": {password}})
+	rec := alertsPost(t, s, cookies, "/settings/alerts/command", url.Values{"command": {"true"}, "password": {password}})
 	if !strings.Contains(rec.Header().Get("Location"), "error") {
 		t.Fatalf("%d %v", rec.Code, rec.Header())
 	}

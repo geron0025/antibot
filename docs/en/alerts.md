@@ -91,8 +91,8 @@ path, a `User-Agent`. The shell expands `"$ANTIBOT_ALERT_TEXT"` into one
 argument and never parses it again, so a `$(…)` inside a message stays
 text. The variables go in double quotes, always.
 
-**Where it is set.** In `config.yaml`, the `alerts.command` key, or on
-the admin UI's "Alerts" page. The configuration's command wins: the admin
+**Where it is set.** In `config.yaml`, the `alerts.command` key, or in the
+admin UI's settings, on the "Alert delivery" tab. The configuration's command wins: the admin
 UI shows it but does not change it — what the machine's owner wrote by
 hand is not replaced through a stolen session. Changing the command in
 the admin UI asks for the password once more: the command runs on the

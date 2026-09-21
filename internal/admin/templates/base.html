@@ -47,7 +47,7 @@
           </a>
           {{end}}
           {{end}}
-          <a class="bell-all" href="/alerts">All alerts, thresholds and delivery →</a>
+          <a class="bell-all" href="/alerts">All alerts and thresholds →</a>
         </div>
       </details>
       {{end}}
@@ -86,8 +86,15 @@
       <a href="/rules" {{if eq .Section "rules"}}class="current"{{end}}>Rules</a>
       <a href="/domains" {{if eq .Section "domains"}}class="current"{{end}}>Domains</a>
       {{if .APITokens}}<a href="/tokens" {{if eq .Section "tokens"}}class="current"{{end}}>API tokens</a>{{end}}
-      <a href="/cloud" {{if eq .Section "cloud"}}class="current"{{end}}>Cloud</a>
       <a href="/settings" {{if eq .Section "settings"}}class="current"{{end}}>Settings</a>
+{{end}}
+
+{{define "settings-tabs"}}
+<nav class="tabs" aria-label="Settings">
+  <a href="/settings/cloud" {{if eq .Tab "cloud"}}class="current"{{end}}>Cloud</a>
+  {{if .Bell}}<a href="/settings/alerts" {{if eq .Tab "alerts"}}class="current"{{end}}>Alert delivery</a>{{end}}
+  <a href="/settings" {{if eq .Tab "certificate"}}class="current"{{end}}>Admin certificate</a>
+</nav>
 {{end}}
 
 {{define "period-picker"}}

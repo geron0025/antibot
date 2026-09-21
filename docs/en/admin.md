@@ -44,10 +44,11 @@ the documentation says.
 | `/rules` | rules in the order of application, with how often they fired |
 | `/rule?id=…` | one rule: its firings over time, whom it touched, the latest events |
 | `/domains` | domains, their sites' addresses, certificates and terms |
-| `/alerts` | alerts: the triggers and their thresholds, what is firing now, the messages, the delivery command |
+| `/alerts` | alerts: the triggers and their thresholds, what is firing now, the messages |
 | `/tokens` | API tokens: issuing, terms, the last use, revoking |
-| `/cloud` | the cloud: two checkboxes, the token, how both arrows fare |
-| `/settings` | settings: the admin UI's own certificate — names, term, files, replacing |
+| `/settings/cloud` | settings, the cloud: two checkboxes, the token, how both arrows fare |
+| `/settings/alerts` | settings, alert delivery: the command and a test message |
+| `/settings` | settings, the admin UI's own certificate: names, term, files, replacing |
 | `/login` | the login |
 
 ### Overview
@@ -232,8 +233,10 @@ The page is shown only when `admin_ui.tokens_file` is set.
 ### Alerts
 
 Every trigger with the thresholds in force and its state: fine, or firing
-since such a time and why. Below — the delivery command and the messages
-since the start: what was said and what became of the delivery. The
+since such a time and why. Below — the messages since the start: what
+was said and what became of the delivery. The delivery command is set in
+the settings, on the "Alert delivery" tab; while there is none, the page
+says so above the table. The
 firing triggers show on the overview too, as a warning at the top.
 
 **The bell** in the header is on every page: the number of firing
@@ -246,7 +249,14 @@ screen the menu's items fold into a "burger" on the left — a `<details>`
 too: otherwise they would push the bell and the name off the edge. What
 is checked and how a message comes — [alerts.md](alerts.md).
 
-### The cloud
+### Settings
+
+Everything that is set once and then left alone is on one page, in tabs:
+**Cloud**, **Alert delivery**, **Admin certificate**. None of them has a
+menu item of its own. A node without alerts has no delivery tab. The old
+address `/cloud` leads to `/settings/cloud`: bookmarks do not break.
+
+#### The cloud
 
 Two checkboxes — "receive security updates" and "send statistics" — and
 what has come of them: whether there is a token, what the tenant is
@@ -263,11 +273,17 @@ token": it clears both boxes and wipes the token.
 If `cloud.token` is set in `config.yaml`, that decides: the boxes are
 shown but cannot be changed. In detail — [cloud.md](cloud.md).
 
-### Settings
+#### Alert delivery
 
-For now there is one thing here — **the admin UI's own certificate**, the
-one it answers the browser with; the sites' certificates live on the
-domains page. It shows the names, who issued it (a self-signed one is
+The command the node sends alerts with, where it comes from
+(`config.yaml` or set here), who changed it and when, and the test
+message button. How changing it is guarded — below, under "The alerts
+command".
+
+#### The admin UI's certificate
+
+**The admin UI's own certificate** is the one it answers the browser
+with; the sites' certificates live on the domains page. It shows the names, who issued it (a self-signed one is
 called so), the term, the files and where they come from: named in
 `config.yaml` or added here. If the certificate does not cover the name
 the page was opened with, the page says so: the browser complains about
@@ -444,8 +460,8 @@ level=WARN msg="the admin UI certificate was replaced from the admin UI"
   else's site, it has no business in search results;
 - **the write paths are listed**: `POST /rules/toggle`, `/rules/mode`, `/domains/add`,
   `/domains/remove`, `/domains/certificate`, `/settings/certificate`,
-  `/tokens/issue`, `/tokens/revoke`, `/alerts/command`, `/alerts/test`,
-  `/cloud/save`, `/cloud/forget`. Any method other
+  `/tokens/issue`, `/tokens/revoke`, `/settings/alerts/command`,
+  `/settings/alerts/test`, `/settings/cloud/save`, `/settings/cloud/forget`. Any method other
   than GET is not handled on the pages themselves;
 - **the API on the same address, through another door**: under
   `/api/v1/` only a token in a header lets in, the API does not take the

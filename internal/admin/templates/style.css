@@ -212,6 +212,12 @@ pre.value { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; }
 
 .periods { margin-bottom: 16px; display: flex; gap: 10px; align-items: baseline; }
 
+/* The tabs inside a section, settings for now: a row of links over a rule. */
+.tabs { margin-bottom: 16px; display: flex; gap: 20px; border-bottom: 1px solid var(--border); }
+.tabs a { padding: 6px 0; margin-bottom: -1px; border-bottom: 2px solid transparent; color: var(--dim); }
+.tabs a:hover { color: var(--text); text-decoration: none; }
+.tabs a.current { color: var(--text); border-bottom-color: var(--text); }
+
 .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
 .tile {
   padding: 14px 16px;

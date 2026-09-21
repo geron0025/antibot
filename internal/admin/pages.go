@@ -45,8 +45,6 @@ func parseTemplates() (*template.Template, error) {
 				return "API tokens"
 			case "alerts":
 				return "Alerts"
-			case "cloud":
-				return "Cloud"
 			case "settings":
 				return "Settings"
 			default:
@@ -75,6 +73,10 @@ type pageCommon struct {
 	Section string
 	Period  string
 	Error   string
+
+	// Tab is the tab within the section, for the sections that have
+	// them: settings.
+	Tab string
 
 	// APITokens shows the tokens page in the menu: without a tokens file
 	// the API is off and the page has nothing to manage.
@@ -265,7 +267,7 @@ func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request, user strin
 	// this node is the owner's decision, and a decision nobody was
 	// offered is made by whoever wrote the defaults.
 	if s.o.CloudControl != nil && s.o.Cloud != nil && !s.o.Cloud().Answered {
-		http.Redirect(w, r, "/cloud?welcome=1", http.StatusSeeOther)
+		http.Redirect(w, r, "/settings/cloud?welcome=1", http.StatusSeeOther)
 		return
 	}
 

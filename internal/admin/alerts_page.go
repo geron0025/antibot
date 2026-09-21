@@ -22,6 +22,16 @@ type alertsData struct {
 	Rows    []alertRow
 	History []alerts.Entry
 
+	// Delivering says a command is set: without one the alerts go only
+	// to the log and to this page.
+	Delivering bool
+}
+
+// deliveryData is the settings tab that says where the alerts go.
+type deliveryData struct {
+	pageCommon
+	CSRF string
+
 	// Command is the command in force and Source where it comes from:
 	// "config" — config.yaml, changed only there; "admin" — set here.
 	Command   string
@@ -34,10 +44,6 @@ type alertsData struct {
 }
 
 func (s *Server) alertsPage(w http.ResponseWriter, r *http.Request, user string) {
-	s.renderAlerts(w, r, user, r.URL.Query().Get("error"), "")
-}
-
-func (s *Server) renderAlerts(w http.ResponseWriter, r *http.Request, user, message, test string) {
 	firing := s.o.Alerts.Firing()
 	var rows []alertRow
 	for _, t := range s.o.Alerts.Triggers() {
@@ -51,12 +57,34 @@ func (s *Server) renderAlerts(w http.ResponseWriter, r *http.Request, user, mess
 	}
 
 	data := alertsData{
-		pageCommon: s.common(user, "alerts", 0, message),
+		pageCommon: s.common(user, "alerts", 0, r.URL.Query().Get("error")),
 		CSRF:       s.csrfToken(r),
 		Rows:       rows,
 		History:    s.o.Alerts.History(),
+	}
+	if s.o.ConfigAlertCommand != "" {
+		data.Delivering = true
+	} else if s.o.AlertCommand != nil {
+		c, err := s.o.AlertCommand.Get()
+		if err != nil && data.Error == "" {
+			data.Error = err.Error()
+		}
+		data.Delivering = c.Command != ""
+	}
+	s.render(w, "alerts.html", data)
+}
+
+func (s *Server) deliveryPage(w http.ResponseWriter, r *http.Request, user string) {
+	s.renderDelivery(w, r, user, r.URL.Query().Get("error"), "")
+}
+
+func (s *Server) renderDelivery(w http.ResponseWriter, r *http.Request, user, message, test string) {
+	data := deliveryData{
+		pageCommon: s.common(user, "settings", 0, message),
+		CSRF:       s.csrfToken(r),
 		TestResult: test,
 	}
+	data.Tab = "alerts"
 	switch {
 	case s.o.ConfigAlertCommand != "":
 		data.Command, data.Source = s.o.ConfigAlertCommand, "config"
@@ -70,7 +98,7 @@ func (s *Server) renderAlerts(w http.ResponseWriter, r *http.Request, user, mess
 			data.Source = "admin"
 		}
 	}
-	s.render(w, "alerts.html", data)
+	s.render(w, "delivery.html", data)
 }
 
 // setAlertCommand asks for the password once more. The command runs on
@@ -114,7 +142,7 @@ func (s *Server) setAlertCommand(w http.ResponseWriter, r *http.Request, who str
 	sum := sha256.Sum256([]byte(command))
 	s.o.Log.Warn("the alert command was changed from the admin UI",
 		"who", who, "address", clientAddr(r), "bytes", len(command), "sha256", hex.EncodeToString(sum[:6]))
-	http.Redirect(w, r, "/alerts", http.StatusSeeOther)
+	http.Redirect(w, r, "/settings/alerts", http.StatusSeeOther)
 }
 
 func (s *Server) testAlert(w http.ResponseWriter, r *http.Request, who string) {
@@ -128,9 +156,9 @@ func (s *Server) testAlert(w http.ResponseWriter, r *http.Request, who string) {
 	}
 	result := s.o.Alerts.Test(r.Context())
 	s.o.Log.Info("a test alert was sent from the admin UI", "who", who, "address", clientAddr(r), "result", result)
-	s.renderAlerts(w, r, who, "", result)
+	s.renderDelivery(w, r, who, "", result)
 }
 
 func (s *Server) alertsError(w http.ResponseWriter, r *http.Request, message string) {
-	http.Redirect(w, r, "/alerts?error="+url.QueryEscape(message), http.StatusSeeOther)
+	http.Redirect(w, r, "/settings/alerts?error="+url.QueryEscape(message), http.StatusSeeOther)
 }

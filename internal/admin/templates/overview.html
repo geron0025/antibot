@@ -138,14 +138,14 @@
       <tr>
         <td>fact set</td>
         <td>{{if .FactsVersion}}version {{.FactsVersion}}, built {{time .FactsBuilt}}{{else}}none yet{{end}}
-          {{if not .Fetching}}<span class="dim">· not fetched: switched off on the <a href="/cloud">cloud page</a></span>{{end}}</td>
+          {{if not .Fetching}}<span class="dim">· not fetched: switched off in the <a href="/settings/cloud">cloud settings</a></span>{{end}}</td>
       </tr>
       <tr>
         <td>aggregates</td>
         <td>{{if .Sending}}
             {{if .Outbox}}{{.Outbox}} waiting to be sent{{else}}nothing waiting{{end}}
             · {{if .LastSent.IsZero}}none accepted since the start{{else}}the last accepted {{time .LastSent}}{{end}}
-          {{else}}not sent: switched off on the <a href="/cloud">cloud page</a>{{end}}
+          {{else}}not sent: switched off in the <a href="/settings/cloud">cloud settings</a>{{end}}
           {{with .LastProblem}}<div class="warning">{{.}}</div>{{end}}</td>
       </tr>
     </tbody>
@@ -158,7 +158,7 @@
   aggregates, no requests for the bases.{{if .FactsVersion}}
   It works on the fact set applied from disk, version {{.FactsVersion}}.{{end}}
   The two things it could do with the cloud, and what each of them sends,
-  are on the <a href="/cloud">cloud page</a>.</p>
+  are in the <a href="/settings/cloud">cloud settings</a>.</p>
   {{end}}
 </section>
 {{end}}

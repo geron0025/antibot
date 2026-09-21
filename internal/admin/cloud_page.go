@@ -45,11 +45,12 @@ type cloudData struct {
 // cloudPage shows the two checkboxes and the state of both directions.
 func (s *Server) cloudPage(w http.ResponseWriter, r *http.Request, user string) {
 	data := cloudData{
-		pageCommon: s.common(user, "cloud", 0, r.URL.Query().Get("error")),
+		pageCommon: s.common(user, "settings", 0, r.URL.Query().Get("error")),
 		CSRF:       s.csrfToken(r),
 		Welcome:    r.URL.Query().Get("welcome") == "1",
 		Done:       r.URL.Query().Get("done"),
 	}
+	data.Tab = "cloud"
 	if s.o.Cloud != nil {
 		state := s.o.Cloud()
 		data.State = &state
@@ -65,7 +66,7 @@ func (s *Server) cloudPage(w http.ResponseWriter, r *http.Request, user string) 
 // no token would be a lie at the worst possible moment.
 func (s *Server) saveCloud(w http.ResponseWriter, r *http.Request, user string) {
 	if s.o.CloudControl == nil {
-		http.Redirect(w, r, "/cloud?error="+
+		http.Redirect(w, r, "/settings/cloud?error="+
 			url.QueryEscape("this node's link to the cloud is set in config.yaml"), http.StatusSeeOther)
 		return
 	}
@@ -87,32 +88,32 @@ func (s *Server) saveCloud(w http.ResponseWriter, r *http.Request, user string) 
 
 		if err := s.o.CloudControl.Register(ctx, facts, aggregates); err != nil {
 			s.o.Log.Error("the node did not register with the cloud", "err", err)
-			http.Redirect(w, r, "/cloud?error="+url.QueryEscape(cloudFailure(err)), http.StatusSeeOther)
+			http.Redirect(w, r, "/settings/cloud?error="+url.QueryEscape(cloudFailure(err)), http.StatusSeeOther)
 			return
 		}
-		http.Redirect(w, r, "/cloud?done="+url.QueryEscape("registered"), http.StatusSeeOther)
+		http.Redirect(w, r, "/settings/cloud?done="+url.QueryEscape("registered"), http.StatusSeeOther)
 		return
 	}
 
 	if err := s.o.CloudControl.Answer(facts, aggregates); err != nil {
-		http.Redirect(w, r, "/cloud?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, "/settings/cloud?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, "/cloud?done="+url.QueryEscape("saved"), http.StatusSeeOther)
+	http.Redirect(w, r, "/settings/cloud?done="+url.QueryEscape("saved"), http.StatusSeeOther)
 }
 
 // forgetCloud drops the token. For the owner who wants the node to stop
 // talking to the cloud at all rather than merely stop sending.
 func (s *Server) forgetCloud(w http.ResponseWriter, r *http.Request, user string) {
 	if s.o.CloudControl == nil {
-		http.Redirect(w, r, "/cloud", http.StatusSeeOther)
+		http.Redirect(w, r, "/settings/cloud", http.StatusSeeOther)
 		return
 	}
 	if err := s.o.CloudControl.Forget(); err != nil {
-		http.Redirect(w, r, "/cloud?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
+		http.Redirect(w, r, "/settings/cloud?error="+url.QueryEscape(err.Error()), http.StatusSeeOther)
 		return
 	}
-	http.Redirect(w, r, "/cloud?done="+url.QueryEscape("forgotten"), http.StatusSeeOther)
+	http.Redirect(w, r, "/settings/cloud?done="+url.QueryEscape("forgotten"), http.StatusSeeOther)
 }
 
 // cloudFailure turns what went wrong into what the owner can do about

@@ -290,22 +290,33 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /domains/remove", s.requireLogin(s.removeDomain))
 	mux.Handle("POST /domains/certificate", s.requireLogin(s.uploadCertificate))
 
+	// The link to the cloud is a tab of the settings. /cloud is where it
+	// lived before, and bookmarks of it still arrive.
+	mux.Handle("GET /settings/cloud", s.requireLogin(s.cloudPage))
+	mux.Handle("POST /settings/cloud/save", s.requireLogin(s.saveCloud))
+	mux.Handle("POST /settings/cloud/forget", s.requireLogin(s.forgetCloud))
+	mux.HandleFunc("GET /cloud", func(w http.ResponseWriter, r *http.Request) {
+		target := "/settings/cloud"
+		if r.URL.RawQuery != "" {
+			target += "?" + r.URL.RawQuery
+		}
+		http.Redirect(w, r, target, http.StatusMovedPermanently)
+	})
+
 	// The admin UI's own certificate. Replacing it asks for the password
 	// once more: whoever holds its key reads the admin UI's traffic, and a
 	// stolen session must not be enough to put the thief's key there.
-	mux.Handle("GET /cloud", s.requireLogin(s.cloudPage))
-	mux.Handle("POST /cloud/save", s.requireLogin(s.saveCloud))
-	mux.Handle("POST /cloud/forget", s.requireLogin(s.forgetCloud))
-
 	mux.Handle("GET /settings", s.requireLogin(s.settingsPage))
 	mux.Handle("POST /settings/certificate", s.requireLogin(s.uploadAdminCertificate))
 
 	// The alert command runs on the node's machine, so changing it asks
-	// for the password once more, like issuing a token.
+	// for the password once more, like issuing a token. Where alerts go is
+	// a setting; what fires and what was sent is on the alerts page.
 	if s.o.Alerts != nil {
 		mux.Handle("GET /alerts", s.requireLogin(s.alertsPage))
-		mux.Handle("POST /alerts/command", s.requireLogin(s.setAlertCommand))
-		mux.Handle("POST /alerts/test", s.requireLogin(s.testAlert))
+		mux.Handle("GET /settings/alerts", s.requireLogin(s.deliveryPage))
+		mux.Handle("POST /settings/alerts/command", s.requireLogin(s.setAlertCommand))
+		mux.Handle("POST /settings/alerts/test", s.requireLogin(s.testAlert))
 	}
 
 	// API tokens are issued and revoked here, and the password is asked

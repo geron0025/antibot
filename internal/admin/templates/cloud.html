@@ -1,4 +1,5 @@
 {{template "header" .}}
+{{template "settings-tabs" .}}
 
 {{if .Welcome}}
 <section class="card">
@@ -26,7 +27,7 @@
 </section>
 {{end}}
 
-<form method="post" action="/cloud/save">
+<form method="post" action="/settings/cloud/save">
   <input type="hidden" name="csrf" value="{{.CSRF}}">
 
   <section class="card">
@@ -118,7 +119,7 @@
   </table></div>
 
   {{if and .Token (not .FromConfig)}}
-  <form method="post" action="/cloud/forget" class="inline">
+  <form method="post" action="/settings/cloud/forget" class="inline">
     <input type="hidden" name="csrf" value="{{$.CSRF}}">
     <button type="submit" class="quiet">Forget the token</button>
     <span class="dim">clears both answers; the node stops talking to the cloud

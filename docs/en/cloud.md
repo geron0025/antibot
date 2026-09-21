@@ -73,7 +73,7 @@ compiled in: moving the service must not require a release of the node.
 ## On and off at once
 
 Tick it and it starts, clear it and it stops; the node needs no restart.
-The Cloud page shows what is going on: whether there is a token, what
+The Cloud tab of the admin UI's settings shows what is going on: whether there is a token, what
 the tenant is called in the cloud, which version of the set is applied,
 when the last batch went and what went wrong with it.
 

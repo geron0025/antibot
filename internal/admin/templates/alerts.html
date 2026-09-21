@@ -4,9 +4,10 @@
 without waiting for you to open this page. A trigger only tells: it changes
 neither the rules nor their mode. Each sends one message when it fires and
 one when things have been back to normal for a whole window; the message
-goes to your command below.</p>
+goes to the command set in <a href="/settings/alerts">alert delivery</a>.</p>
 
-{{if .TestResult}}<div class="warning">The test message: {{.TestResult}}</div>{{end}}
+{{if not .Delivering}}<div class="warning">No command yet: the alerts go only
+to the node's log and to this page. <a href="/settings/alerts">Set one →</a></div>{{end}}
 
 <div class="scroll"><table>
   <thead><tr><th>trigger</th><th>fires when</th><th>now</th></tr></thead>
@@ -26,44 +27,6 @@ goes to your command below.</p>
   </tbody>
 </table></div>
 
-<section class="card add-domain">
-  <h2>Delivery</h2>
-  {{if eq .Source "config"}}
-  <p class="dim">The command is set in config.yaml, in
-  <span class="value">alerts.command</span>, and is changed only there.</p>
-  <pre class="value">{{.Command}}</pre>
-  {{else if .CanEdit}}
-  <p class="dim">A shell command the node runs with its own user. The
-  message arrives in <span class="value">$ANTIBOT_ALERT_TEXT</span> and the
-  other <span class="value">ANTIBOT_ALERT_*</span> variables, and as JSON on
-  stdin — never pasted into the command's text. Templates for Telegram, a
-  webhook and mail are in the documentation, alerts.md. Your password is
-  asked once more: the command runs on this machine.</p>
-  <form method="post" action="/alerts/command" class="fields">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <label>command
-      <textarea name="command" rows="5" cols="90" spellcheck="false">{{.Command}}</textarea>
-    </label>
-    <label>your password
-      <input type="password" name="password" autocomplete="current-password" required>
-    </label>
-    <button type="submit">save</button>
-  </form>
-  {{if .UpdatedBy}}<p class="dim">Set by {{.UpdatedBy}}, {{time .UpdatedAt}}.</p>{{end}}
-  {{else}}
-  <p class="dim">No place to keep a command: <span class="value">alerts.file</span>
-  is empty in the settings. The alerts are written to the node's log.</p>
-  {{end}}
-  {{if .Command}}
-  <form method="post" action="/alerts/test">
-    <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <button type="submit">send a test message</button>
-  </form>
-  {{else}}
-  <p class="dim">No command yet: the alerts go only to the node's log and
-  to this page.</p>
-  {{end}}
-</section>
 
 <h2>Messages since the start</h2>
 <div class="scroll"><table>

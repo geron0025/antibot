@@ -78,6 +78,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, user strin
 		CSRF:       s.csrfToken(r),
 		Host:       requestHost(r),
 	}
+	data.Tab = "certificate"
 	now := time.Now()
 	switch {
 	case s.cert != nil:
