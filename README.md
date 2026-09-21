@@ -1,8 +1,10 @@
 # antibot
 
 A reverse proxy in Go that takes the network fingerprint of a client and
-tells a browser from an automated client by it. One binary, no external
-dependencies: no database, no cache, no queue.
+tells a browser from an automated client by it. The core is one binary
+with no external dependencies: no database, no cache, no queue. The admin
+UI is a second one, optional: a process of its own, under a user of its
+own.
 
 > Документация на русском — [docs/ru/README.md](docs/ru/README.md).
 
@@ -59,7 +61,7 @@ and [configuration](docs/en/configuration.md).
 | [rules.md](docs/en/rules.md) | rules: the model, the fields, the order, replaying over history |
 | [facts.md](docs/en/facts.md) | the network and fingerprint bases: applying, rolling back, the border |
 | [cloud.md](docs/en/cloud.md) | the cloud: two checkboxes, the token, what goes out |
-| [admin.md](docs/en/admin.md) | the admin UI: pages, login, the writing actions |
+| [admin.md](docs/en/admin.md) | the admin UI: a program of its own, pages, login, the writing actions |
 | [api.md](docs/en/api.md) | the API: tokens, the summary, events and rules for a program |
 | [alerts.md](docs/en/alerts.md) | alerts: the node tells you the site is in trouble, through your command |
 | [operations.md](docs/en/operations.md) | running it: events, rotation, working out what broke |
@@ -83,7 +85,9 @@ and [configuration](docs/en/configuration.md).
   fly;
 - **replaying over history** — with the same matcher the hot path uses;
 - **a rate limiter** — a sliding window in the process's memory;
-- **an admin UI**: events, statistics and rules;
+- **an admin UI** — a program of its own, `antibot-admin`: events,
+  statistics and rules; it talks to the core over a socket, and the core
+  works without it;
 - **fact bases**: parsing, signature, applying from disk, fetching over
   the network, rollback;
 - **sending aggregates** to the cloud — only with a token;

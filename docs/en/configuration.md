@@ -16,7 +16,13 @@ Two things settled on day one:
 
 The validation runs **before the ports are taken**. An invalid setting
 stops the startup rather than bringing an already-working node down a
-second after it started.
+second after it started. A taken port is a refusal to start too, with the
+key's name and the address: a node that came up without one of its doors
+looks alive, and the missing door is found only when it is needed.
+
+These are the settings of the **core**. The admin UI, a separate program
+`antibot-admin`, has its own — [admin.yaml](#adminyaml--the-admin-uis-settings),
+and it does not read `config.yaml`: the cloud token is in it.
 
 ## listen
 
@@ -25,6 +31,7 @@ listen:
   http: ":8080"
   https: ":8443"
   admin: "127.0.0.1:8091"
+  control: "/var/lib/antibot/core.sock"
 ```
 
 | Key | Default | What |
@@ -32,6 +39,7 @@ listen:
 | `http` | `:80` | traffic of the customer domains |
 | `https` | `:443` | the same with TLS |
 | `admin` | `127.0.0.1:8091` | service port: `/healthz` and `/stats` |
+| `control` | `/var/lib/antibot/core.sock` | the control socket for the admin UI; empty means no socket |
 
 The service port is separate from 80 and 443 because those serve the
 traffic of the customer domains, and `/healthz` on them would turn into a
@@ -42,15 +50,25 @@ At least one of `http` and `https` must be set, otherwise the startup
 stops: a node with no listeners does nothing.
 
 The name `listen.admin` is left over from an early version and means the
-**service** port, not the admin UI — that one is configured under
-`admin_ui`.
+**service** port, not the admin UI — that one is a separate program with
+settings of its own.
+
+`listen.control` is a unix socket through which the admin UI asks the
+core about what lives only in its memory: the alerts, the link to the
+cloud, the certificates, the version and the start time; through it, too,
+the admin UI asks the core to reread a changed file or to restart. Mode
+`0660`: the core's user and the group the admin UI belongs to. A core
+with rules already written and no admin UI does not need the socket — an
+empty value turns it off. A socket left over from a core that fell is
+replaced at startup; a socket someone answers on is a refusal to start:
+that is a second core.
 
 ## tls
 
 ```yaml
 tls:
   certificates_dir: "/etc/letsencrypt/live"
-  uploaded_dir: "/var/lib/antibot/certificates"
+  uploaded_dir: "/var/lib/antibot/shared/certificates"
   self_signed_dir: "/var/lib/antibot/certs"
   reload_interval: 30s
 ```
@@ -58,7 +76,7 @@ tls:
 | Key | Default | What |
 |---|---|---|
 | `certificates_dir` | empty | the certificate directory led by hand or by certbot |
-| `uploaded_dir` | `/var/lib/antibot/certificates` | where certificates uploaded through the admin UI land; empty turns uploads off |
+| `uploaded_dir` | `/var/lib/antibot/shared/certificates` | where certificates uploaded through the admin UI land; empty turns uploads off |
 | `self_signed_dir` | `/var/lib/antibot/certs` | where the fallback is kept |
 | `reload_interval` | `30s` | how often to rescan the directories |
 
@@ -189,61 +207,40 @@ The event format is in [operations.md](operations.md).
 
 ## admin_ui
 
-```yaml
-admin_ui:
-  enabled: true
-  listen: "127.0.0.1:8090"
-  users_file: "/var/lib/antibot/admin.json"
-  tokens_file: "/var/lib/antibot/api-tokens.json"
-  session_ttl: 12h
-  uploaded_dir: "/var/lib/antibot/admin-ui"
-  # certificate: "/etc/letsencrypt/live/admin.example.ru/fullchain.pem"
-  # key: "/etc/letsencrypt/live/admin.example.ru/privkey.pem"
-  # redirect_from: ":8089"
-```
+The section is no more: the admin UI is a separate program with settings
+of its own, [admin.yaml](#adminyaml--the-admin-uis-settings). If the
+section is left in `config.yaml` from an earlier version, the core will
+not start and will say where to move it — ignored silently, it would
+leave the owner guessing why there is no admin UI.
 
-| Key | Default | What |
-|---|---|---|
-| `enabled` | `true` | whether to bring the admin UI up |
-| `listen` | `127.0.0.1:8090` | the address |
-| `certificate`, `key` | empty | set **together** |
-| `uploaded_dir` | `/var/lib/antibot/admin-ui` | where a pair added on the Settings page lands when `certificate` and `key` are empty; it serves from the next start. Empty turns adding off |
-| `redirect_from` | empty | an address where HTTP answers with 308 |
-| `users_file` | `/var/lib/antibot/admin.json` | the accounts |
-| `tokens_file` | `/var/lib/antibot/api-tokens.json` | the [API](api.md)'s tokens, as hashes; empty turns the API off |
-| `session_ttl` | `12h` | the session lifetime |
+## The shared directory
 
-**A non-loopback address without a certificate is a refusal at startup.**
-Not a warning: the password would travel the network in clear text, and
-that is not an inconvenience but access already granted. If you want the
-admin UI exposed, set a certificate first, or add a pair on the Settings
-page. It is reread on the fly, at most once every 30 seconds: one renewed
-by certbot is taken up without a restart.
+What the admin UI writes — the rules, the domains, the alerts command,
+the uploaded site certificates — lies by default in
+`/var/lib/antibot/shared`. The admin UI runs under another user, and an
+atomic file replacement needs write permission on the file's directory.
+Granting that permission on the whole of `/var/lib/antibot` would let the
+admin UI replace the cloud token and the node's identifier. So the group
+may write only in `shared`, and the rest of the directory is read-only to
+it — for the sake of the events and the socket.
 
-`redirect_from` works only together with a certificate. Code 308 and not
-301: 301 allows the browser to change the method to GET, and a submitted
-login form would silently turn into an empty request.
-
-The accounts are a separate file rather than these settings: the
-configuration is often mounted read-only, while a password is changed
-without restarting the node. Without a single account the admin UI does
-not come up, but **the node works**: it must serve traffic with no human
-anywhere near it.
-
-The API tokens live next to them for the same reason. The API lives on
-the admin UI's address, under `/api/v1/`, and does not come up without
-it; issuing, scopes and answers — [api.md](api.md).
+An installation from before the split kept these files right in
+`/var/lib/antibot`. It works that way too: the paths are set in its
+`config.yaml`. They need moving to `shared` when `antibot-admin` is
+installed — [install.md](install.md).
 
 ## rules
 
 ```yaml
 rules:
-  file: "/var/lib/antibot/rules.json"
+  file: "/var/lib/antibot/shared/rules.json"
   reload_interval: 5s
 ```
 
 The file is reread on the fly: a change is noticed by its time and size.
-The check is cheap — one look at the file's metadata.
+The check is cheap — one look at the file's metadata. An edit from the
+admin UI the core takes at once: the admin UI asks it through the socket
+to reread the file.
 
 A broken rule discards the **whole** set, and the previous one stays in
 force. A half-applied set looks like it works and is therefore more
@@ -253,7 +250,7 @@ dangerous than a refusal.
 
 ```yaml
 domains:
-  file: "/var/lib/antibot/domains.json"
+  file: "/var/lib/antibot/shared/domains.json"
   reload_interval: 5s
 ```
 
@@ -346,7 +343,7 @@ built with. In detail —
 alerts:
   enabled: true
   command: ""
-  file: "/var/lib/antibot/alerts.json"
+  file: "/var/lib/antibot/shared/alerts.json"
   timeout: 30s
   window: 5m
   site_error_share: 0.5
@@ -365,7 +362,7 @@ alerts:
 |---|---|---|
 | `enabled` | `true` | whether to count the triggers at all |
 | `command` | empty | the delivery command, through `sh -c`; set here, it wins over the one set in the admin UI |
-| `file` | `/var/lib/antibot/alerts.json` | where the admin UI keeps its command; empty — the command only from the configuration |
+| `file` | `/var/lib/antibot/shared/alerts.json` | where the admin UI keeps its command; empty — the command only from the configuration |
 | `timeout` | `30s` | how long to wait for the command, from `1s` to `5m` |
 | `window` | `5m` | the stretch every traffic trigger looks at; whole minutes, from `1m` to `1h` |
 | `site_error_share` | `0.5` | the share of the site's 5xx at which it "does not answer" |
@@ -391,8 +388,7 @@ ready templates — [alerts.md](alerts.md).
 - `trusted_proxies` and `own_networks` are networks like `10.0.0.0/8`,
   not addresses;
 - every `upstreams` entry has both `host` and `to`;
-- `admin_ui.enabled` without `listen` is an error;
-- `certificate` and `key` are set together;
+- an `admin_ui` section is an error, with a hint where to move it;
 - `cloud.token` without `cloud.url` is an error: nowhere to send;
 - `cloud.token` without `cloud.state_dir` is an error: nowhere to keep what is not sent yet;
 - `facts.url` without `facts.dir` is an error: nowhere to put it;
@@ -407,3 +403,72 @@ A duration type of our own is needed because YAML would read `30` as
 thirty nanoseconds. That is worse than a parse error: a check interval of
 thirty nanoseconds does not break the startup, it just burns the CPU in
 production.
+
+## admin.yaml — the admin UI's settings
+
+The file of `antibot-admin`, by default `/etc/antibot/admin.yaml`; the
+path is given by the `-config` flag. A commented example lives in
+[deploy/admin.example.yaml](../../deploy/admin.example.yaml), also under
+a test. A typo in a field name is an error, as in `config.yaml`.
+
+```yaml
+listen: "127.0.0.1:8090"
+# certificate: "/etc/letsencrypt/live/admin.example.ru/fullchain.pem"
+# key: "/etc/letsencrypt/live/admin.example.ru/privkey.pem"
+# redirect_from: ":8089"
+uploaded_dir: "/var/lib/antibot-admin/admin-ui"
+users_file: "/var/lib/antibot-admin/admin.json"
+tokens_file: "/var/lib/antibot-admin/api-tokens.json"
+session_ttl: 12h
+
+core:
+  socket: "/var/lib/antibot/core.sock"
+  events_dir: "/var/lib/antibot/events"
+  rules_file: "/var/lib/antibot/shared/rules.json"
+  domains_file: "/var/lib/antibot/shared/domains.json"
+  certificates_dir: "/var/lib/antibot/shared/certificates"
+  alerts_file: "/var/lib/antibot/shared/alerts.json"
+```
+
+| Key | Default | What |
+|---|---|---|
+| `listen` | `127.0.0.1:8090` | the address |
+| `certificate`, `key` | empty | set **together** |
+| `redirect_from` | empty | an address where HTTP answers with 308 |
+| `uploaded_dir` | `/var/lib/antibot-admin/admin-ui` | where a pair added on the Settings page lands when `certificate` and `key` are empty; it serves from the next start. Empty turns adding off |
+| `users_file` | `/var/lib/antibot-admin/admin.json` | the accounts |
+| `tokens_file` | `/var/lib/antibot-admin/api-tokens.json` | the [API](api.md)'s tokens, as hashes; empty turns the API off |
+| `session_ttl` | `12h` | the session lifetime |
+| `core.socket` | `/var/lib/antibot/core.sock` | the core's `listen.control` |
+| `core.events_dir` | `/var/lib/antibot/events` | the core's `events.dir`; read only |
+| `core.rules_file` | `/var/lib/antibot/shared/rules.json` | the core's `rules.file` |
+| `core.domains_file` | `/var/lib/antibot/shared/domains.json` | the core's `domains.file` |
+| `core.certificates_dir` | `/var/lib/antibot/shared/certificates` | the core's `tls.uploaded_dir`; empty means no uploads |
+| `core.alerts_file` | `/var/lib/antibot/shared/alerts.json` | the core's `alerts.file`; empty means the alerts command cannot be changed from the admin UI |
+
+The paths under `core` are the same as in the core's `config.yaml`: the
+admin UI does not read it, so they are named here a second time.
+
+**A non-loopback address without a certificate is a refusal at startup.**
+Not a warning: the password would travel the network in clear text, and
+that is not an inconvenience but access already granted. If you want the
+admin UI exposed, set a certificate first, or add a pair on the Settings
+page. It is reread on the fly, at most once every 30 seconds: one renewed
+by certbot is taken up without a restart.
+
+`redirect_from` works only together with a certificate. Code 308 and not
+301: 301 allows the browser to change the method to GET, and a submitted
+login form would silently turn into an empty request.
+
+The accounts are a separate file rather than these settings: the
+settings are often mounted read-only, while a password is changed without
+a restart. Without a single account the admin UI does not start; the
+core does not depend on that.
+
+The API tokens live next to them for the same reason. The API lives on
+the admin UI's address, under `/api/v1/`, and does not come up without
+it; issuing, scopes and answers — [api.md](api.md).
+
+Checked at startup: `listen` is set, `certificate` and `key` are set
+together, `core.socket` and `core.events_dir` are not empty, there is at
+least one account, a non-loopback address only with a certificate.

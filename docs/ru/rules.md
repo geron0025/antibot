@@ -225,10 +225,10 @@ antibot rules fields                    # поля и операторы
 в рабочий файл положить уже проверенное:
 
 ```bash
-cp /var/lib/antibot/rules.json /var/lib/antibot/rules.draft.json
+cp /var/lib/antibot/shared/rules.json /var/lib/antibot/shared/rules.draft.json
 # правим черновик: mode, условия, приоритеты
-antibot replay -rules /var/lib/antibot/rules.draft.json -for 24h
-mv /var/lib/antibot/rules.draft.json /var/lib/antibot/rules.json
+antibot replay -rules /var/lib/antibot/shared/rules.draft.json -for 24h
+mv /var/lib/antibot/shared/rules.draft.json /var/lib/antibot/shared/rules.json
 ```
 
 `-rules` берёт набор из указанного файла вместо названного в настройках;

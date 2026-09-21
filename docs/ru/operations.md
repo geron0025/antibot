@@ -140,11 +140,28 @@ bind-mount одиночного файла в Linux привязан к инод
 
 | Сообщение | Что делать |
 |---|---|
-| `admin UI on … without a certificate` | задать `certificate`/`key` или слушать loopback |
-| `admin_ui.enabled without admin_ui.listen` | задать адрес |
+| `listen.https :8443: … address already in use` | порт занят другим процессом — освободить или сменить адрес |
+| `control.socket …: another core answers on it` | второе ядро на том же сокете — остановить лишнее |
+| `admin_ui: the admin UI is a separate program now` | перенести секцию в `admin.yaml` — [install.md](install.md) |
 | `cloud.token is set and cloud.url is not` | или убрать токен, или задать адрес |
 | `no listener is configured` | задать `listen.http` или `listen.https` |
 | `is not a network like 10.0.0.0/8` | в `trusted_proxies`/`own_networks` адрес вместо сети |
+
+### Админка не поднимается
+
+Это отдельная программа, `antibot-admin`, и её причины — в её журнале;
+ядро от неё не зависит и работает дальше.
+
+| Сообщение | Что делать |
+|---|---|
+| `there are no accounts` | `antibot-admin accounts passwd ИМЯ` |
+| `admin UI on … without a certificate` | задать `certificate`/`key` в `admin.yaml` или слушать loopback |
+| `admin_ui.listen …: address already in use` | порт занят — освободить или сменить `listen` |
+| `rules …: permission denied` | права на `/var/lib/antibot/shared` — [install.md](install.md) |
+
+Админка поднялась, но на каждой странице «The core does not answer» —
+ядро лежит или не слушает сокет. Проверить `listen.control` в
+`config.yaml` и `core.socket` в `admin.yaml`: пути должны совпадать.
 
 ### Отпечатки не снимаются
 
@@ -169,9 +186,11 @@ antibot aggregate show     # старейшая неотправленная п�
 
 ## Обновление ноды
 
-Состояние — файлы в `/var/lib/antibot`, они переживают замену бинарника и
-образа. Правила, учётки, наборы фактов и события останутся на месте, а
-с токеном облака — открытое окно агрегата и неотправленные пачки.
+Состояние — файлы в `/var/lib/antibot` и `/var/lib/antibot-admin`, они
+переживают замену бинарников и образов. Правила, учётки, наборы фактов и
+события останутся на месте, а с токеном облака — открытое окно агрегата
+и неотправленные пачки. Ядро и админка обновляются независимо; версия
+ядра видна на вкладке Core админки.
 
 ```bash
 docker pull ghcr.io/geron0025/antibot:latest
@@ -186,18 +205,20 @@ docker rm -f antibot
 через compose.
 
 `latest` едет за последним выпуском. Закрепить версию — тег выпуска:
-`ghcr.io/geron0025/antibot:v0.2.0`; есть и `0.2.0`, и `0.2`.
+`ghcr.io/geron0025/antibot:v0.2.0`; есть и `0.2.0`, и `0.2`. Образ
+админки — `ghcr.io/geron0025/antibot-admin` с теми же тегами.
 
-Перезапуск разлогинивает всех в админке (сессии живут в памяти) и
-обнуляет счётчики ограничителя частоты. Это осознанно.
+Перезапуск ядра обнуляет счётчики ограничителя частоты и историю
+оповещений. Перезапуск админки разлогинивает всех (сессии живут в её
+памяти); ядро его не замечает. Это осознанно.
 
 ## Резервная копия
 
 ```bash
 tar czf antibot-$(date +%F).tar.gz \
-  /etc/antibot/config.yaml \
-  /var/lib/antibot/rules.json \
-  /var/lib/antibot/admin.json
+  /etc/antibot/config.yaml /etc/antibot/admin.yaml \
+  /var/lib/antibot/shared \
+  /var/lib/antibot-admin
 ```
 
 События в копию обычно не нужны — их много и они устаревают. Наборы

@@ -231,10 +231,10 @@ It is convenient to make the edit in a draft first, replay the draft over
 history, and put into the live file only what has been checked:
 
 ```bash
-cp /var/lib/antibot/rules.json /var/lib/antibot/rules.draft.json
+cp /var/lib/antibot/shared/rules.json /var/lib/antibot/shared/rules.draft.json
 # edit the draft: mode, conditions, priorities
-antibot replay -rules /var/lib/antibot/rules.draft.json -for 24h
-mv /var/lib/antibot/rules.draft.json /var/lib/antibot/rules.json
+antibot replay -rules /var/lib/antibot/shared/rules.draft.json -for 24h
+mv /var/lib/antibot/shared/rules.draft.json /var/lib/antibot/shared/rules.json
 ```
 
 `-rules` takes the set from the given file instead of the one named in

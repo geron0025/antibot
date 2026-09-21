@@ -13,15 +13,15 @@ loopback, наружу — только с сертификатом. Второ�
 ## Токены
 
 ```bash
-antibot api-token issue monitoring                # только чтение, 90 дней
-antibot api-token issue ci -scope write -days 30
-antibot api-token list
-antibot api-token revoke monitoring
+antibot-admin api-token issue monitoring                # только чтение, 90 дней
+antibot-admin api-token issue ci -scope write -days 30
+antibot-admin api-token list
+antibot-admin api-token revoke monitoring
 ```
 
-В stdout команда печатает одно значение — `TOKEN=$(antibot api-token
+В stdout команда печатает одно значение — `TOKEN=$(antibot-admin api-token
 issue monitoring)` берёт ровно его, слова уходят в stderr. То же умеет
-страница «API tokens» админки; там выпуск требует пароль ещё раз, потому
+вкладка «API tokens» в настройках админки; там выпуск требует пароль ещё раз, потому
 что токен живёт месяцами дольше сессии ([admin.md](admin.md)).
 
 - **Права**: `read` — сводка, события, правила и прогон черновика по
@@ -29,7 +29,7 @@ issue monitoring)` берёт ровно его, слова уходят в stde
   мониторинга должен только читать: он не должен уметь выключить защиту.
 - **Срок** — от 1 до 365 дней, по умолчанию 90. Бессрочного нет: «пока»
   у бессрочного токена длится годами.
-- **Хранится хешем** — SHA-256 в `admin_ui.tokens_file`, права `0600`.
+- **Хранится хешем** — SHA-256 в `tokens_file` из `admin.yaml`, права `0600`.
   Значение показывается один раз, при выпуске; украденная копия файла
   доступа не даёт. SHA-256, а не PBKDF2, как у паролей: токен — 256
   случайных бит, и замедлять перебор того, что не перебирается, значит
@@ -333,7 +333,9 @@ level=INFO msg="a rule's mode was changed through the API"
 
 - **тот же адрес и те же правила, что у админки**: loopback по умолчанию,
   наружу — только с сертификатом. Без учёток админка не поднимается, а с
-  ней и API; без `admin_ui.tokens_file` API выключен;
+  ней и API; без `tokens_file` в `admin.yaml` API выключен. API — часть
+  админки, `antibot-admin`, а не ядра: в процессе, который держит трафик,
+  его нет;
 - **токен — только в заголовке `Authorization`**. В адресе он осел бы в
   журналах прокси и в истории оболочки;
 - **кука сессии в API не действует, токен в формах админки не действует**;

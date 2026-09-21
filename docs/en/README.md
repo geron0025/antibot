@@ -11,7 +11,7 @@ to get it running. This directory holds the rest.
 | [rules.md](rules.md) | rules: the model, the fields, the order, replaying over history |
 | [facts.md](facts.md) | the network and fingerprint bases: applying, rolling back, the border |
 | [cloud.md](cloud.md) | the cloud: two checkboxes, the token, what goes out and what the settings decide |
-| [admin.md](admin.md) | the admin UI: pages, login, the writing actions |
+| [admin.md](admin.md) | the admin UI: a program of its own, pages, login, the writing actions |
 | [api.md](api.md) | the API: tokens, the summary, events and rules for a program |
 | [alerts.md](alerts.md) | alerts: the node tells you the site is in trouble, through your command |
 | [operations.md](operations.md) | running it: events, rotation, working out what broke |

@@ -142,11 +142,28 @@ is always in the very first line of the log. Most often:
 
 | Message | What to do |
 |---|---|
-| `admin UI on … without a certificate` | set `certificate`/`key` or listen on loopback |
-| `admin_ui.enabled without admin_ui.listen` | set the address |
+| `listen.https :8443: … address already in use` | the port is taken by another process — free it or change the address |
+| `control.socket …: another core answers on it` | a second core on the same socket — stop the extra one |
+| `admin_ui: the admin UI is a separate program now` | move the section to `admin.yaml` — [install.md](install.md) |
 | `cloud.token is set and cloud.url is not` | either remove the token or set the address |
 | `no listener is configured` | set `listen.http` or `listen.https` |
 | `is not a network like 10.0.0.0/8` | an address instead of a network in `trusted_proxies`/`own_networks` |
+
+### The admin UI does not come up
+
+It is a separate program, `antibot-admin`, and its reasons are in its own
+log; the core does not depend on it and keeps working.
+
+| Message | What to do |
+|---|---|
+| `there are no accounts` | `antibot-admin accounts passwd NAME` |
+| `admin UI on … without a certificate` | set `certificate`/`key` in `admin.yaml` or listen on loopback |
+| `admin_ui.listen …: address already in use` | the port is taken — free it or change `listen` |
+| `rules …: permission denied` | the permissions on `/var/lib/antibot/shared` — [install.md](install.md) |
+
+The admin UI is up, but every page says "The core does not answer" — the
+core is down or not listening on the socket. Check `listen.control` in
+`config.yaml` and `core.socket` in `admin.yaml`: the paths must match.
 
 ### The fingerprints are not being taken
 
@@ -173,10 +190,12 @@ What a batch may contain is written in [protocol/aggregate.md](protocol/aggregat
 
 ## Updating the node
 
-The state is files in `/var/lib/antibot`; they survive a replacement of
-the binary and of the image. Rules, accounts, fact sets and events stay
-where they are, and with a cloud token so do the open aggregate window
-and the unsent batches.
+The state is files in `/var/lib/antibot` and `/var/lib/antibot-admin`;
+they survive a replacement of the binaries and of the images. Rules,
+accounts, fact sets and events stay where they are, and with a cloud
+token so do the open aggregate window and the unsent batches. The core
+and the admin UI are updated independently; the core's version is shown
+on the admin UI's Core tab.
 
 ```bash
 docker pull ghcr.io/geron0025/antibot:latest
@@ -191,18 +210,20 @@ applied. The container is recreated — with the command from
 under compose.
 
 `latest` follows the newest release. To pin a version, use the release
-tag: `ghcr.io/geron0025/antibot:v0.2.0`; `0.2.0` and `0.2` exist too.
+tag: `ghcr.io/geron0025/antibot:v0.2.0`; `0.2.0` and `0.2` exist too. The
+admin UI's image is `ghcr.io/geron0025/antibot-admin`, with the same tags.
 
-A restart logs everybody out of the admin UI (the sessions live in
-memory) and resets the rate limiter's counters. That is deliberate.
+A restart of the core resets the rate limiter's counters and the alerts'
+history. A restart of the admin UI logs everybody out (the sessions live
+in its memory); the core does not notice it. That is deliberate.
 
 ## Backups
 
 ```bash
 tar czf antibot-$(date +%F).tar.gz \
-  /etc/antibot/config.yaml \
-  /var/lib/antibot/rules.json \
-  /var/lib/antibot/admin.json
+  /etc/antibot/config.yaml /etc/antibot/admin.yaml \
+  /var/lib/antibot/shared \
+  /var/lib/antibot-admin
 ```
 
 Events are usually not needed in a backup — there are many and they go

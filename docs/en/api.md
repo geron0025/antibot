@@ -14,15 +14,16 @@ forge.
 ## Tokens
 
 ```bash
-antibot api-token issue monitoring                # read only, 90 days
-antibot api-token issue ci -scope write -days 30
-antibot api-token list
-antibot api-token revoke monitoring
+antibot-admin api-token issue monitoring                # read only, 90 days
+antibot-admin api-token issue ci -scope write -days 30
+antibot-admin api-token list
+antibot-admin api-token revoke monitoring
 ```
 
-The command prints the value alone to stdout — `TOKEN=$(antibot
+The command prints the value alone to stdout — `TOKEN=$(antibot-admin
 api-token issue monitoring)` takes exactly it, and the words go to
-stderr. The admin UI's "API tokens" page can do the same; there an issue
+stderr. The "API tokens" tab of the admin UI's settings can do the same;
+there an issue
 asks for the password once more, because a token outlives a session by
 months ([admin.md](admin.md)).
 
@@ -32,7 +33,7 @@ months ([admin.md](admin.md)).
   switch the protection off.
 - **Term** — from 1 to 365 days, 90 by default. There is no token without
   an end: "for now" on such a token lasts years.
-- **Kept as a hash** — SHA-256 in `admin_ui.tokens_file`, mode `0600`. The
+- **Kept as a hash** — SHA-256 in `tokens_file` from `admin.yaml`, mode `0600`. The
   value is shown once, at issue; a stolen copy of the file lets nobody
   in. SHA-256 rather than PBKDF2 as for passwords: a token is 256 random
   bits, and slowing down the guessing of something that cannot be guessed
@@ -347,8 +348,10 @@ schema does not describe does not pass.
 
 - **the same address and the same rules as the admin UI**: loopback by
   default, outward only with a certificate. Without accounts the admin UI
-  does not come up, and neither does the API; without
-  `admin_ui.tokens_file` the API is off;
+  does not come up, and neither does the API; without `tokens_file` in
+  `admin.yaml` the API is off. The API is a part of the admin UI,
+  `antibot-admin`, not of the core: the process that carries the traffic
+  does not have it;
 - **a token only in the `Authorization` header**. In an address it would
   settle in proxy logs and in the shell history;
 - **the session cookie does nothing in the API, and a token does nothing
