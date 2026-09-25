@@ -69,6 +69,16 @@ type Decision struct {
 // Pass is the default decision.
 func Pass() Decision { return Decision{Action: ActionPass} }
 
+// VerifiedCrawler names the decision for a verified crawler let past the
+// rules, in the event and in the aggregate.
+const VerifiedCrawler = "verified crawler"
+
+// Crawlers answers whether a request is a verified crawler the owner
+// lets past the rules.
+type Crawlers interface {
+	Passes(r *facts.Request) bool
+}
+
 // Handler is the hot path of a single request.
 type Handler struct {
 	Routes         *RouteTable
@@ -77,7 +87,10 @@ type Handler struct {
 	Facts          Facts
 	TrustedProxies []netip.Prefix
 	OwnNetworks    []netip.Prefix
-	Log            *slog.Logger
+	// Crawlers lets the verified crawlers past the rules; see the
+	// crawlers package. Nil lets nobody past.
+	Crawlers Crawlers
+	Log      *slog.Logger
 
 	// An ordinary map here would be a race: requests are served each in
 	// its own goroutine, and the first two requests to a new upstream
@@ -113,12 +126,19 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	addr, _ := netip.ParseAddr(req.IP)
 	own := InOwnNetworks(addr, h.OwnNetworks)
 
-	if !own && h.Decider != nil {
-		decision = h.Decider.Decide(&req)
-	}
-	if own {
+	// A verified crawler passes before the rules too, unless its owner
+	// held it back: a rule written in a hurry must not cost the site its
+	// place in the results.
+	crawler := !own && h.Crawlers != nil && h.Crawlers.Passes(&req)
+
+	switch {
+	case own:
 		decision.Rule = "own network"
 		decision.RuleHash = "own network"
+	case crawler:
+		decision = Decision{Action: ActionAllow, Rule: VerifiedCrawler, RuleHash: VerifiedCrawler}
+	case h.Decider != nil:
+		decision = h.Decider.Decide(&req)
 	}
 
 	req.Decision = decision.Action

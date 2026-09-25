@@ -156,6 +156,20 @@ own_networks:
 исключением в десять правил, однажды окажется забытой в одиннадцатом — и
 собственный мониторинг попадёт под запрет ровно тогда, когда он нужен.
 
+## crawlers_file
+
+```yaml
+crawlers_file: "/var/lib/antibot/shared/crawlers.json"
+```
+
+Решение владельца о **проверенных роботах** — сетях, которые набор фактов
+называет сетями робота и помечает `protected`. Они проверяются **раньше
+правил**, сразу после своих сетей, и пропускаются; в событии —
+`rule: "verified crawler"`. Файл пишет админка, вкладка «Правила →
+Проверенные роботы»: там пропуск выключается целиком или для одного
+владельца сетей. Файла нет — пропуск включён. Пусто — пропуска нет
+вовсе. Подробно — [facts.md](facts.md#проверенные-роботы).
+
 ## node_id_file
 
 ```yaml
@@ -410,6 +424,7 @@ core:
   domains_file: "/var/lib/antibot/shared/domains.json"
   certificates_dir: "/var/lib/antibot/shared/certificates"
   alerts_file: "/var/lib/antibot/shared/alerts.json"
+  crawlers_file: "/var/lib/antibot/shared/crawlers.json"
 ```
 
 | Ключ | Умолчание | Что |
@@ -428,6 +443,7 @@ core:
 | `core.domains_file` | `/var/lib/antibot/shared/domains.json` | `domains.file` ядра |
 | `core.certificates_dir` | `/var/lib/antibot/shared/certificates` | `tls.uploaded_dir` ядра; пусто — загрузки нет |
 | `core.alerts_file` | `/var/lib/antibot/shared/alerts.json` | `alerts.file` ядра; пусто — команду оповещений из админки не поменять |
+| `core.crawlers_file` | `/var/lib/antibot/shared/crawlers.json` | `crawlers_file` ядра; пусто — пропуск проверенных роботов из админки не поменять |
 
 Пути в `core` — те же, что в `config.yaml` ядра: админка его не читает,
 поэтому они названы здесь второй раз.

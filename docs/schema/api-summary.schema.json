@@ -81,13 +81,14 @@
     },
     "crawler": {
       "type": "object",
-      "required": ["value", "count", "ips", "verified"],
+      "required": ["value", "count", "ips", "verified", "cut"],
       "additionalProperties": false,
       "properties": {
         "value": {"type": "string"},
         "count": {"type": "integer", "minimum": 0},
         "ips": {"type": "integer", "minimum": 0},
-        "verified": {"type": "integer", "minimum": 0}
+        "verified": {"type": "integer", "minimum": 0},
+        "cut": {"type": "integer", "minimum": 0}
       }
     },
     "point": {

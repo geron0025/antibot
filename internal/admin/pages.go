@@ -81,13 +81,18 @@ func named(p *i18n.Printer, table map[string]string, word string) string {
 
 func templateFuncs(p *i18n.Printer) template.FuncMap {
 	return template.FuncMap{
-		"t":        func(key string, args ...any) any { return localize(p, key, args...) },
-		"tn":       func(key string, n int, args ...any) any { return localizeN(p, key, n, args...) },
-		"lang":     func() string { return string(p.Lang()) },
-		"share":    p.Percent,
-		"time":     p.Time,
-		"date":     p.Date,
-		"count":    func(n int) string { return p.Number(int64(n)) },
+		"t":     func(key string, args ...any) any { return localize(p, key, args...) },
+		"tn":    func(key string, n int, args ...any) any { return localizeN(p, key, n, args...) },
+		"lang":  func() string { return string(p.Lang()) },
+		"share": p.Percent,
+		"time":  p.Time,
+		"date":  p.Date,
+		"count": func(n int) string { return p.Number(int64(n)) },
+		// crawlerForm hands a form of the crawlers tab what it needs from
+		// inside a range, where the page's own data is out of reach.
+		"crawlerForm": func(csrf, owner string) map[string]string {
+			return map[string]string{"CSRF": csrf, "Owner": owner}
+		},
 		"bytes":    func(n int64) string { return formatBytes(p, n) },
 		"latency":  func(d time.Duration) string { return formatLatency(p, d) },
 		"truncate": truncate,
@@ -445,6 +450,7 @@ func (s *Server) rulesPage(w http.ResponseWriter, r *http.Request, user string) 
 		pageCommon: s.common(r, user, "rules", period, r.URL.Query().Get("error")),
 		CSRF:       s.csrfToken(r),
 	}
+	data.Tab = "rules"
 	rows, events, err := s.ruleRows(time.Now(), period)
 	data.Rules, data.Events = rows, events
 	if err != nil {

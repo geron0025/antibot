@@ -130,6 +130,7 @@ translations.
 | `/events/export` | a download of the events with the same filters, as the log's lines |
 | `/rules` | rules in the order of application, with how often they fired |
 | `/rule?id=…` | one rule: its firings over time, whom it touched, the latest events |
+| `/rules/crawlers` | rules, verified crawlers: whether they pass before the rules, who came, what was cut |
 | `/domains` | domains, their sites' addresses, certificates and terms |
 | `/alerts` | alerts: the triggers and their thresholds, what is firing now, the messages |
 | `/settings/core` | settings, the core: whether it answers, the version, the start time, a restart |
@@ -184,8 +185,10 @@ self-declared crawler has two columns: **from a crawler network** — the
 request came from a range the crawler's owner publishes about itself,
 which arrives with the fact set — and **not confirmed**. Without a set
 there is nothing to confirm against, and the admin UI says so plainly
-instead of pretending it recognized anybody. How to exempt verified
-crawlers from blocks with a single rule — [facts.md](facts.md).
+instead of pretending it recognized anybody. The **cut off** column is
+how many requests from crawler networks the node did not let through.
+Whether verified crawlers pass before the rules — the tab "Rules →
+Verified crawlers".
 
 The **cloud** block says what leaves the node. Without `cloud.token` —
 plainly: the node talks to nobody, nothing leaves it. With a token — the
@@ -227,6 +230,22 @@ restart the counters reset while the log stays.
 Two things can be done to a rule here: enable or disable it, and move it
 from `shadow` to `active` and back. The count of firings next to it —
 in shadow too — is what the move is based on.
+
+### Verified crawlers
+
+The second tab of the rules. A verified crawler is a network the fact
+set names a crawler's and marks `protected`: search engines, Google's
+checks, chat assistants. The node lets them through **before the
+rules**, like your own networks — until the owner decides otherwise;
+what this is and why — [facts.md](facts.md#verified-crawlers).
+
+This is where that decision is made: the pass is turned off wholly, or
+one owner of networks is held back — its crawlers go through the rules
+like everyone. Next to it — who came over the period, how many requests,
+how many were cut; which rules touched verified crawlers, held back or
+with the pass off — in `shadow` too; and the self-declared crawlers, as
+on the overview. Collectors of training data are named, but offered no
+pass: the rules decide about them.
 
 ### One rule
 
@@ -415,15 +434,16 @@ only its owner knows.
 
 ## The writing actions
 
-There are thirteen and no others: enable or disable a rule, move it
-between `shadow` and `active`, add a domain, remove a domain, upload a
+There are fourteen and no others: enable or disable a rule, move it
+between `shadow` and `active`, decide whether verified crawlers pass,
+add a domain, remove a domain, upload a
 site's certificate, replace the admin UI's certificate, issue an API
 token, revoke an API token, change the alerts command, send a test
 alert, answer the two questions about the cloud, forget the cloud
 token, restart the core.
 
-Everything that changes a file of the core's — the rules, the domains, a
-site's certificate, the alerts command — the admin UI writes itself and
+Everything that changes a file of the core's — the rules, the crawlers'
+pass, the domains, a site's certificate, the alerts command — the admin UI writes itself and
 right away asks the core to reread the file; the core notes it in its
 log:
 
@@ -438,12 +458,13 @@ not the core.
 
 ### The password once more
 
-Eight of the thirteen ask for the password once more, although the login
+Nine of the fourteen ask for the password once more, although the login
 is done: a stolen session must not be enough for them.
 
 | Action | Why |
 |---|---|
 | move a rule to `active` | from then on it acts on live traffic |
+| turn the verified crawlers' pass off, or hold an owner back | a block written in a hurry reaches a search engine |
 | remove a domain | the node stops serving it at once |
 | replace the admin UI's certificate | whoever holds its key reads the admin UI's traffic |
 | issue an API token | a token outlives the session by months |
@@ -452,7 +473,8 @@ is done: a stolen session must not be enough for them.
 | forget the cloud token | only a new registration brings it back |
 | restart the core | every site behind the node is cut off for seconds |
 
-Moving back to `shadow` and disabling a rule ask for nothing: that is a
+Moving back to `shadow`, disabling a rule and giving crawlers their pass
+back ask for nothing: that is a
 step towards safety, and it must be quick. The attempts are counted
 together with the login form — ten per five minutes from one address.
 

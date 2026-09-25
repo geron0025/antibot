@@ -35,9 +35,11 @@ const (
 	// rest marks the row the smallest ones are folded into.
 	rest = "~rest"
 
-	// ownNetwork names the decision for the owner's own networks,
-	// taken before any rule.
-	ownNetwork = "own network"
+	// ownNetwork and verifiedCrawler name the decisions taken before
+	// any rule: the owner's own networks, and a verified crawler let
+	// past.
+	ownNetwork      = "own network"
+	verifiedCrawler = proxy.VerifiedCrawler
 
 	// maxShadow bounds how many shadow rules one row names.
 	maxShadow = 16
@@ -188,10 +190,10 @@ func clip(s string, n int) string {
 }
 
 // ruleName lets through only what may name a rule on the wire: a rule
-// hash or "own network". Anything else — an owner's id that slipped in
+// hash, "own network" or "verified crawler". Anything else — an owner's id that slipped in
 // by a mistake elsewhere — becomes empty rather than leaving the node.
 func ruleName(s string) string {
-	if s == ownNetwork || isRuleHash(s) {
+	if s == ownNetwork || s == verifiedCrawler || isRuleHash(s) {
 		return s
 	}
 	return ""

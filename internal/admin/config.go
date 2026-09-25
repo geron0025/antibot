@@ -77,6 +77,10 @@ type CoreFiles struct {
 	// AlertsFile is where the delivery tab keeps the alert command: the
 	// core's alerts.file. Empty turns changing it off.
 	AlertsFile string `yaml:"alerts_file"`
+
+	// CrawlersFile is where the verified crawlers tab keeps the owner's
+	// decision: the core's crawlers_file. Empty turns changing it off.
+	CrawlersFile string `yaml:"crawlers_file"`
 }
 
 // DefaultConfig is an admin UI installed next to a core with its
@@ -97,6 +101,7 @@ func DefaultConfig() Config {
 			DomainsFile:     "/var/lib/antibot/shared/domains.json",
 			CertificatesDir: "/var/lib/antibot/shared/certificates",
 			AlertsFile:      "/var/lib/antibot/shared/alerts.json",
+			CrawlersFile:    "/var/lib/antibot/shared/crawlers.json",
 		},
 	}
 }

@@ -74,6 +74,7 @@ const (
 	ReloadRules        Reloadable = "rules"
 	ReloadDomains      Reloadable = "domains"
 	ReloadCertificates Reloadable = "certificates"
+	ReloadCrawlers     Reloadable = "crawlers"
 )
 
 // Health is how the core is doing.

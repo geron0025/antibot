@@ -9,6 +9,7 @@ import (
 	"github.com/geron0025/antibot/internal/admin"
 	"github.com/geron0025/antibot/internal/alerts"
 	"github.com/geron0025/antibot/internal/control"
+	"github.com/geron0025/antibot/internal/crawlers"
 	"github.com/geron0025/antibot/internal/domains"
 	"github.com/geron0025/antibot/internal/i18n"
 	"github.com/geron0025/antibot/internal/rules"
@@ -68,6 +69,12 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 			return err
 		}
 	}
+	var crawlerPass *crawlers.File
+	if cfg.Core.CrawlersFile != "" {
+		if crawlerPass, err = crawlers.Open(cfg.Core.CrawlersFile); err != nil {
+			return err
+		}
+	}
 
 	// A pair added on the settings page serves when the settings name
 	// none; when they name one, the settings win.
@@ -85,6 +92,7 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		Core:             control.NewClient(cfg.Core.Socket),
 		Tokens:           tokens,
 		AlertCommand:     alertCommand,
+		Crawlers:         crawlerPass,
 		Addr:             cfg.Listen,
 		HTTPAddr:         cfg.RedirectFrom,
 		Cert:             cert,

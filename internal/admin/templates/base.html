@@ -120,6 +120,13 @@ first: Enter in the field presses the first button. */}}
       <a href="/settings" {{if eq .Section "settings"}}class="current"{{end}}>{{t "nav.settings"}}</a>
 {{end}}
 
+{{define "rules-tabs"}}
+<nav class="tabs" aria-label="{{t "nav.rules"}}">
+  <a href="/rules" {{if eq .Tab "rules"}}class="current"{{end}}>{{t "tabs.rules"}}</a>
+  <a href="/rules/crawlers" {{if eq .Tab "crawlers"}}class="current"{{end}}>{{t "tabs.crawlers"}}</a>
+</nav>
+{{end}}
+
 {{define "settings-tabs"}}
 <nav class="tabs" aria-label="{{t "nav.settings"}}">
   <a href="/settings/core" {{if eq .Tab "core"}}class="current"{{end}}>{{t "tabs.core"}}</a>

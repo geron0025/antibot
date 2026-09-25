@@ -163,6 +163,20 @@ A separate layer, not a high-priority rule. An own network written as an
 exception into ten rules will one day be forgotten in the eleventh — and
 your own monitoring falls under a block exactly when you need it.
 
+## crawlers_file
+
+```yaml
+crawlers_file: "/var/lib/antibot/shared/crawlers.json"
+```
+
+The owner's decision about **verified crawlers** — networks the fact set
+names a crawler's and marks `protected`. They are checked **before the
+rules**, right after your own networks, and let through; marked
+`rule: "verified crawler"` in the event. The admin UI writes the file, on
+the tab "Rules → Verified crawlers": there the pass is turned off wholly
+or for one owner of networks. No file — the pass is on. Empty — no pass
+at all. In detail — [facts.md](facts.md#verified-crawlers).
+
 ## node_id_file
 
 ```yaml
@@ -431,6 +445,7 @@ core:
   domains_file: "/var/lib/antibot/shared/domains.json"
   certificates_dir: "/var/lib/antibot/shared/certificates"
   alerts_file: "/var/lib/antibot/shared/alerts.json"
+  crawlers_file: "/var/lib/antibot/shared/crawlers.json"
 ```
 
 | Key | Default | What |
@@ -449,6 +464,7 @@ core:
 | `core.domains_file` | `/var/lib/antibot/shared/domains.json` | the core's `domains.file` |
 | `core.certificates_dir` | `/var/lib/antibot/shared/certificates` | the core's `tls.uploaded_dir`; empty means no uploads |
 | `core.alerts_file` | `/var/lib/antibot/shared/alerts.json` | the core's `alerts.file`; empty means the alerts command cannot be changed from the admin UI |
+| `core.crawlers_file` | `/var/lib/antibot/shared/crawlers.json` | the core's `crawlers_file`; empty means the pass of verified crawlers cannot be changed from the admin UI |
 
 The paths under `core` are the same as in the core's `config.yaml`: the
 admin UI does not read it, so they are named here a second time.

@@ -129,6 +129,35 @@ func TestAnOwnNetworkBypassesTheRules(t *testing.T) {
 	}
 }
 
+type stubFacts struct{ class, owner string }
+
+func (f stubFacts) Apply(r *facts.Request) {
+	r.NetClass, r.NetOwner, r.NetProtected = f.class, f.owner, f.class == "crawler"
+}
+
+type passAll struct{}
+
+func (passAll) Passes(r *facts.Request) bool { return r.NetClass == "crawler" && r.NetProtected }
+
+// A verified crawler goes past a decider that forbids everything, and
+// the event says why; a request from anywhere else meets the rules.
+func TestAVerifiedCrawlerBypassesTheRules(t *testing.T) {
+	for class, want := range map[string]int{"crawler": http.StatusOK, "hosting": http.StatusForbidden} {
+		h, l := testBench(t, stubDecider{Decision{Action: "block", Rule: "block-all"}}, nil)
+		h.Facts, h.Crawlers = stubFacts{class, "Google"}, passAll{}
+
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, requestTo("shop.example.ru"))
+		if w.Code != want {
+			t.Errorf("%s: code %d", class, w.Code)
+		}
+		e := l.last(t)
+		if class == "crawler" && (e.Rule != VerifiedCrawler || e.Decision != ActionAllow) {
+			t.Errorf("the event does not show why it was let through: %q %q", e.Decision, e.Rule)
+		}
+	}
+}
+
 func TestAnUnknownDomainIsNotProxied(t *testing.T) {
 	h, l := testBench(t, nil, nil)
 

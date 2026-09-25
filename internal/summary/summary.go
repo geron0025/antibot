@@ -162,6 +162,10 @@ type Unknown struct {
 type Crawler struct {
 	Row
 	Verified int `json:"verified"`
+
+	// Cut is how many of the verified requests the node did not let
+	// through: a real crawler turned away by a rule.
+	Cut int `json:"cut"`
 }
 
 // Unverified is what nobody checked: an impostor and a real crawler
@@ -256,7 +260,7 @@ func Build(o Options) (*Summary, error) {
 		"server_errors": newBreakdown(), "client_errors": newBreakdown(),
 	}
 	ips := map[string]struct{}{}
-	verified := map[string]int{}
+	verified, cut := map[string]int{}, map[string]int{}
 	var latency histogram
 
 	// A histogram by minutes rather than a list of times: over a day that
@@ -313,6 +317,9 @@ func Build(o Options) (*Summary, error) {
 				breakdowns["crawlers"].add(name, r.IP)
 				if r.NetClass == crawlerClass {
 					verified[name]++
+					if answer == AnswerBlocked {
+						cut[name]++
+					}
 				}
 			}
 
@@ -359,7 +366,7 @@ func Build(o Options) (*Summary, error) {
 	s.ClientErrorPaths = breakdowns["client_errors"].top(o.Top)
 	for _, row := range breakdowns["crawlers"].top(o.Top) {
 		s.Unknown.SelfDeclaredCrawlers = append(s.Unknown.SelfDeclaredCrawlers,
-			Crawler{Row: row, Verified: verified[row.Value]})
+			Crawler{Row: row, Verified: verified[row.Value], Cut: cut[row.Value]})
 	}
 
 	for _, b := range breakdowns {

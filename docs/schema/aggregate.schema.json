@@ -41,7 +41,7 @@
         },
         "ua_matches_ja4": {"type": "boolean"},
         "net": {"type": "string", "maxLength": 64},
-        "rule": {"type": "string", "pattern": "^([0-9a-f]{16}|own network|~rest)?$"},
+        "rule": {"type": "string", "pattern": "^([0-9a-f]{16}|own network|verified crawler|~rest)?$"},
         "shadow": {
           "type": "array",
           "maxItems": 16,

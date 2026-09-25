@@ -51,3 +51,6 @@ core:
   # alerts.file ядра: команда доставки оповещений со вкладки настроек.
   # Пусто — менять её из админки нельзя.
   alerts_file: "/var/lib/antibot/shared/alerts.json"
+  # crawlers_file ядра: пропуск проверенных роботов со вкладки правил.
+  # Пусто — менять его из админки нельзя.
+  crawlers_file: "/var/lib/antibot/shared/crawlers.json"

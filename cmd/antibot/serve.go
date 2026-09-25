@@ -20,6 +20,7 @@ import (
 	"github.com/geron0025/antibot/internal/cloudlink"
 	"github.com/geron0025/antibot/internal/config"
 	"github.com/geron0025/antibot/internal/control"
+	"github.com/geron0025/antibot/internal/crawlers"
 	"github.com/geron0025/antibot/internal/domains"
 	"github.com/geron0025/antibot/internal/edgetls"
 	"github.com/geron0025/antibot/internal/events"
@@ -172,6 +173,15 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		sink = sinks
 	}
 
+	// The verified crawlers pass before the rules unless the owner held
+	// them back; the admin UI keeps that decision in a file of its own.
+	var crawlerPass *crawlers.File
+	if cfg.CrawlersFile != "" {
+		if crawlerPass, err = crawlers.Open(cfg.CrawlersFile); err != nil {
+			return err
+		}
+	}
+
 	handler := proxy.New(&proxy.Handler{
 		Routes:         router,
 		Events:         sink,
@@ -181,10 +191,18 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		OwnNetworks:    config.Prefixes(cfg.OwnNetworks),
 		Log:            log,
 	})
+	if crawlerPass != nil {
+		handler.Crawlers = crawlerPass
+	}
 
 	stop := make(chan struct{})
 	defer close(stop)
 	go certs.Watch(cfg.TLS.ReloadInterval.Duration(), stop)
+	if crawlerPass != nil {
+		// A hand edit of the file is taken up too, not only a word from
+		// the admin UI.
+		go watchCrawlers(crawlerPass, 30*time.Second, stop, log)
+	}
 
 	if watcher != nil {
 		go watcher.Run(ctx)
@@ -240,6 +258,18 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 				certs.Reload()
 				log.Info("the certificates were reread at the admin UI's word", "certificates", certs.Len())
 				return nil
+			},
+			control.ReloadCrawlers: func() error {
+				if crawlerPass == nil {
+					return errors.New("crawlers_file is empty in the core's settings: there is no pass to change")
+				}
+				changed, err := crawlerPass.Reload()
+				if changed {
+					s := crawlerPass.Get()
+					log.Info("the verified crawlers' pass was reread at the admin UI's word",
+						"pass", s.Pass, "held", s.Held)
+				}
+				return err
 			},
 		},
 		Shutdown: shutdown,
@@ -529,5 +559,31 @@ type fanOut []proxy.EventLog
 func (f fanOut) Write(r facts.Request) {
 	for _, sink := range f {
 		sink.Write(r)
+	}
+}
+
+// watchCrawlers rereads the verified crawlers' settings when the file
+// changes. A broken file keeps what was in force and is said once per
+// change, not every tick.
+func watchCrawlers(f *crawlers.File, every time.Duration, stop <-chan struct{}, log *slog.Logger) {
+	t := time.NewTicker(every)
+	defer t.Stop()
+	last := ""
+	for {
+		select {
+		case <-stop:
+			return
+		case <-t.C:
+			changed, err := f.Reload()
+			switch {
+			case err != nil && err.Error() != last:
+				last = err.Error()
+				log.Error("the verified crawlers' settings are unreadable; the ones in force stay", "err", err)
+			case err == nil && changed:
+				last = ""
+				s := f.Get()
+				log.Info("the verified crawlers' settings were reread", "pass", s.Pass, "held", s.Held)
+			}
+		}
 	}
 }

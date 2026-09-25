@@ -1,0 +1,135 @@
+{{template "header" .}}
+
+{{template "rules-tabs" .}}
+
+{{template "period-picker" .}}
+
+<p class="dim">{{t "crawlers.intro"}}</p>
+{{if .Report.NoFacts}}<p class="dim">{{t "crawlers.no_facts"}}</p>{{end}}
+
+<section class="card">
+  <h2>{{t "crawlers.pass"}}</h2>
+  {{with .Settings}}
+    {{if .Pass}}
+    <p>{{t "crawlers.pass_is_on"}}</p>
+    <form method="post" action="/rules/crawlers" data-confirm="{{t "confirm.crawlers_off"}}">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <input type="hidden" name="do" value="pass_off">
+      <label class="password-field">{{t "form.your_password"}}
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <button type="submit">{{t "crawlers.turn_off"}}</button>
+    </form>
+    {{else}}
+    <p>{{t "crawlers.pass_is_off"}}</p>
+    <form method="post" action="/rules/crawlers">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <input type="hidden" name="do" value="pass_on">
+      <button type="submit">{{t "crawlers.turn_on"}}</button>
+    </form>
+    {{end}}
+    {{with .UpdatedBy}}<p class="dim">{{t "crawlers.decided_by" .}}</p>{{end}}
+  {{else}}
+  <p class="dim">{{t "crawlers.no_file"}}</p>
+  {{end}}
+</section>
+
+<h2>{{t "crawlers.owners"}}</h2>
+<p class="dim">{{t "crawlers.owners_intro"}}</p>
+{{if or .Report.Owners .Held}}
+<div class="scroll"><table>
+  <thead><tr>
+    <th>{{t "crawlers.owner"}}</th><th class="num">{{t "breakdown.requests"}}</th><th class="num">{{t "crawlers.cut"}}</th><th>{{t "crawlers.state"}}</th>
+  </tr></thead>
+  <tbody>
+  {{range .Report.Owners}}
+    <tr>
+      <td>{{if .Owner}}{{.Owner}}{{else}}—{{end}}</td>
+      <td class="num">{{count .Requests}}</td>
+      <td class="num">{{count .Cut}}</td>
+      <td>
+      {{if not .Protected}}
+        <span class="dim">{{t "crawlers.named_only"}}</span>
+      {{else if not $.Settings}}
+        {{t "crawlers.verified"}}
+      {{else if $.Settings.Holds .Owner}}
+        {{t "crawlers.held"}}
+        {{template "crawler-release" (crawlerForm $.CSRF .Owner)}}
+      {{else if $.Settings.Pass}}
+        {{t "crawlers.passes"}}
+        {{template "crawler-hold" (crawlerForm $.CSRF .Owner)}}
+      {{else}}
+        {{t "crawlers.through_rules"}}
+      {{end}}
+      </td>
+    </tr>
+  {{end}}
+  {{range .Held}}
+    <tr>
+      <td>{{.}}</td><td class="num">0</td><td class="num">0</td>
+      <td>{{t "crawlers.held"}} {{template "crawler-release" (crawlerForm $.CSRF .)}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table></div>
+{{else}}
+<p class="dim">{{t "crawlers.none_seen"}}</p>
+{{end}}
+
+{{with .Report.Rules}}
+<h2>{{t "crawlers.rules"}}</h2>
+<p class="dim">{{t "crawlers.rules_intro"}}</p>
+<div class="scroll"><table>
+  <thead><tr><th>{{t "rules.id"}}</th><th class="num">{{t "crawlers.cut"}}</th><th class="num">{{t "crawlers.would_cut"}}</th></tr></thead>
+  <tbody>
+  {{range .}}
+    <tr><td><a href="/rule?id={{urlquery .Rule}}">{{.Rule}}</a></td><td class="num">{{count .Cut}}</td><td class="num">{{count .Shadow}}</td></tr>
+  {{end}}
+  </tbody>
+</table></div>
+{{end}}
+
+{{with .Report.Declared}}
+<h2>{{t "overview.crawlers"}}</h2>
+<p class="dim">{{t "overview.crawlers_intro"}}</p>
+<div class="scroll"><table>
+  <thead><tr><th>{{t "overview.called_itself"}}</th><th class="num">{{t "breakdown.requests"}}</th><th class="num">{{t "overview.from_crawler_network"}}</th><th class="num">{{t "crawlers.cut"}}</th><th class="num">{{t "overview.not_confirmed"}}</th><th class="num">{{t "breakdown.addresses"}}</th></tr></thead>
+  <tbody>
+  {{range .}}
+    <tr>
+      <td><a href="/events?q={{.Value}}">{{.Value}}</a></td>
+      <td class="num">{{count .Count}}</td>
+      <td class="num">{{count .Verified}}</td>
+      <td class="num">{{count .Cut}}</td>
+      <td class="num">{{count .Unverified}}</td>
+      <td class="num">{{count .IPs}}</td>
+    </tr>
+  {{end}}
+  </tbody>
+</table></div>
+{{end}}
+
+<p class="dim">{{t "crawlers.cloud_names_html" "/events?rule=verified%20crawler"}}</p>
+
+{{template "footer" .}}
+
+{{define "crawler-hold"}}
+<form method="post" action="/rules/crawlers" data-confirm="{{t "confirm.crawlers_hold" .Owner}}">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <input type="hidden" name="do" value="hold">
+  <input type="hidden" name="owner" value="{{.Owner}}">
+  <label class="password-field">{{t "form.your_password"}}
+    <input type="password" name="password" autocomplete="current-password" required>
+  </label>
+  <button type="submit">{{t "crawlers.hold"}}</button>
+</form>
+{{end}}
+
+{{define "crawler-release"}}
+<form method="post" action="/rules/crawlers">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <input type="hidden" name="do" value="release">
+  <input type="hidden" name="owner" value="{{.Owner}}">
+  <button type="submit">{{t "crawlers.release"}}</button>
+</form>
+{{end}}

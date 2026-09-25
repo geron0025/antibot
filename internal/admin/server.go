@@ -37,6 +37,7 @@ import (
 
 	"github.com/geron0025/antibot/internal/alerts"
 	"github.com/geron0025/antibot/internal/control"
+	"github.com/geron0025/antibot/internal/crawlers"
 	"github.com/geron0025/antibot/internal/domains"
 	"github.com/geron0025/antibot/internal/i18n"
 	"github.com/geron0025/antibot/internal/rules"
@@ -90,6 +91,11 @@ type Options struct {
 	// Whether the alerts are on at all, and the command from the core's
 	// settings file, which wins and is never changed here, come from Core.
 	AlertCommand *alerts.CommandFile
+
+	// Crawlers is the file the verified crawlers tab keeps the owner's
+	// decision in: whether they pass before the rules, and who is held
+	// back. Nil shows the tab without a switch.
+	Crawlers *crawlers.File
 
 	// Core is the node's core: what exists only in its memory, asked over
 	// its control socket. The admin UI works while the core is down, and
@@ -330,6 +336,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /events/export", s.requireLogin(s.exportEvents))
 	mux.Handle("GET /rules", s.requireLogin(s.rulesPage))
 	mux.Handle("GET /rule", s.requireLogin(s.rulePage))
+	mux.Handle("GET /rules/crawlers", s.requireLogin(s.crawlersPage))
 	mux.Handle("GET /domains", s.requireLogin(s.domainsPage))
 
 	// The writing actions, all of them. Composing a rule here is
@@ -340,6 +347,7 @@ func (s *Server) Handler() http.Handler {
 	// commands, and lands in the node's log with a name and an address.
 	mux.Handle("POST /rules/toggle", s.requireLogin(s.toggleRule))
 	mux.Handle("POST /rules/mode", s.requireLogin(s.setRuleMode))
+	mux.Handle("POST /rules/crawlers", s.requireLogin(s.setCrawlers))
 	mux.Handle("POST /domains/add", s.requireLogin(s.addDomain))
 	mux.Handle("POST /domains/remove", s.requireLogin(s.removeDomain))
 	mux.Handle("POST /domains/certificate", s.requireLogin(s.uploadCertificate))

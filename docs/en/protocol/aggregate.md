@@ -71,7 +71,7 @@ Rows are grouped by a key; everything that is not the key is a counter.
 | `ua_family` | string | `chrome`, `firefox`, `safari`, `curl`, `python`, `go`, `bot`, `unknown` |
 | `ua_matches_ja4` | boolean | whether the claimed client agrees with the TLS fingerprint |
 | `net` | string | the network prefix: `203.0.113.0/24`, `2001:db8::/48` |
-| `rule` | string | the hash of the rule that decided, 16 hex characters; empty when none did; `own network` — a request from the own networks |
+| `rule` | string | the hash of the rule that decided, 16 hex characters; empty when none did; `own network` — a request from the own networks; `verified crawler` — a verified crawler let past the rules ([facts.md](../facts.md#verified-crawlers)) |
 | `shadow` | array of strings | the hashes of rules in `shadow` mode that fired, alphabetically; an empty array when none did |
 
 **The counters:**

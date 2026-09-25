@@ -353,3 +353,47 @@ func TestNoDirectory(t *testing.T) {
 		t.Error("the directory created itself")
 	}
 }
+
+// The crawlers tab: owners of crawler networks with what was cut, the
+// rules that cut protected ones or would in shadow, and the names.
+func TestBuildCrawlers(t *testing.T) {
+	t0 := start()
+	list := []facts.Request{
+		{Time: t0, IP: "66.249.66.1", UA: "Googlebot/2.1", NetClass: "crawler", NetProtected: true, NetOwner: "Google"},
+		{Time: t0, IP: "66.249.66.2", UA: "Googlebot/2.1", NetClass: "crawler", NetProtected: true, NetOwner: "Google",
+			Decision: proxy.ActionBlock, Rule: "block-all", Status: 403},
+		{Time: t0, IP: "20.1.1.1", UA: "ChatGPT-User/1.0", NetClass: "crawler", NetProtected: true, NetOwner: "OpenAI",
+			Shadow: []string{"watch-azure"}},
+		{Time: t0, IP: "20.1.1.2", UA: "GPTBot/1.0", NetClass: "crawler", NetOwner: "OpenAI",
+			Decision: proxy.ActionBlock, Rule: "no-training", Status: 403},
+		{Time: t0, IP: "203.0.113.9", UA: "Googlebot/2.1", NetClass: "hosting"},
+	}
+	c, err := BuildCrawlers(logDir(t, list), t0.Add(-time.Hour), t0.Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.NoFacts || len(c.Owners) != 3 {
+		t.Fatalf("%+v", c)
+	}
+	if o := c.Owners[0]; o.Owner != "Google" || !o.Protected || o.Requests != 2 || o.Cut != 1 {
+		t.Errorf("first owner %+v", o)
+	}
+	if o := c.Owners[2]; o.Owner != "OpenAI" || o.Protected || o.Cut != 1 {
+		t.Errorf("the collector %+v", o)
+	}
+	// The rule that cut the collector is not a worry and is not listed.
+	if len(c.Rules) != 2 || c.Rules[0].Rule != "block-all" || c.Rules[0].Cut != 1 ||
+		c.Rules[1].Rule != "watch-azure" || c.Rules[1].Shadow != 1 {
+		t.Errorf("rules %+v", c.Rules)
+	}
+	for _, d := range c.Declared {
+		if d.Value == "googlebot" && (d.Count != 3 || d.Verified != 2 || d.Cut != 1) {
+			t.Errorf("googlebot %+v", d)
+		}
+	}
+
+	none, _ := BuildCrawlers(logDir(t, []facts.Request{{Time: t0, UA: "Googlebot"}}), t0.Add(-time.Hour), t0.Add(time.Hour))
+	if !none.NoFacts {
+		t.Error("a log without network classes is not said to have no facts")
+	}
+}

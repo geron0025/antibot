@@ -38,6 +38,12 @@ type Config struct {
 	// written into ten rules will one day be forgotten in the eleventh.
 	OwnNetworks []string `yaml:"own_networks"`
 
+	// CrawlersFile keeps the owner's decision about the verified
+	// crawlers: whether they pass before the rules, and which owners of
+	// crawler networks are held back. Without the file they pass; the
+	// admin UI writes it. Empty turns the pass off altogether.
+	CrawlersFile string `yaml:"crawlers_file"`
+
 	// NodeIDFile holds the identifier of this installation — the one the
 	// cloud uses to tell installations apart. A separate file rather
 	// than a setting: it is created by the node itself on the first run,
@@ -195,7 +201,8 @@ func Defaults() Config {
 	return Config{
 		Listen: Listen{HTTP: ":80", HTTPS: ":443", Admin: "127.0.0.1:8091",
 			Control: "/var/lib/antibot/core.sock"},
-		NodeIDFile: "/var/lib/antibot/node.id",
+		NodeIDFile:   "/var/lib/antibot/node.id",
+		CrawlersFile: "/var/lib/antibot/shared/crawlers.json",
 		TLS: TLS{
 			UploadedDir:    "/var/lib/antibot/shared/certificates",
 			SelfSignedDir:  "/var/lib/antibot/certs",

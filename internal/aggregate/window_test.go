@@ -281,9 +281,11 @@ func TestRulesGoOutAsHashes(t *testing.T) {
 		t.Errorf("rule %q, shadow %s", k.Rule, raw)
 	}
 
-	r.RuleHash = ownNetwork
-	if k := keyOf(&r, nil); k.Rule != ownNetwork {
-		t.Errorf("own network went out as %q", k.Rule)
+	for _, name := range []string{ownNetwork, verifiedCrawler} {
+		r.RuleHash = name
+		if k := keyOf(&r, nil); k.Rule != name {
+			t.Errorf("%s went out as %q", name, k.Rule)
+		}
 	}
 
 	// The key comes back from the saved state as it was.

@@ -98,19 +98,21 @@
   <p class="dim">{{t "overview.crawlers_no_facts"}}</p>
   {{end}}
   <div class="scroll"><table>
-    <thead><tr><th>{{t "overview.called_itself"}}</th><th class="num">{{t "breakdown.requests"}}</th><th class="num">{{t "overview.from_crawler_network"}}</th><th class="num">{{t "overview.not_confirmed"}}</th><th class="num">{{t "breakdown.addresses"}}</th></tr></thead>
+    <thead><tr><th>{{t "overview.called_itself"}}</th><th class="num">{{t "breakdown.requests"}}</th><th class="num">{{t "overview.from_crawler_network"}}</th><th class="num">{{t "crawlers.cut"}}</th><th class="num">{{t "overview.not_confirmed"}}</th><th class="num">{{t "breakdown.addresses"}}</th></tr></thead>
     <tbody>
     {{range .}}
       <tr>
         <td><a href="/events?q={{.Value}}">{{.Value}}</a></td>
         <td class="num">{{count .Count}}</td>
         <td class="num">{{count .Verified}}</td>
+        <td class="num">{{count .Cut}}</td>
         <td class="num">{{count .Unverified}}</td>
         <td class="num">{{count .IPs}}</td>
       </tr>
     {{end}}
     </tbody>
   </table></div>
+  <p class="dim">{{t "overview.crawlers_tab_html" "/rules/crawlers"}}</p>
   {{end}}
 
   <p class="dim">{{t "overview.facts_only"}}</p>

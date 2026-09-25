@@ -90,41 +90,36 @@ the admin UI shows "called themselves crawlers" as a separate block and
 splits them into those from a crawler network and the unchecked; without
 a base, all of them are unchecked.
 
-### An exception for crawlers
+### Verified crawlers
 
-Crawlers are exempted from blocks by **one allowing rule above all
-others**, not by a clause in every block: an exception written into ten
-blocks will one day be forgotten in the eleventh ([rules.md](rules.md)).
+A **verified crawler** is a network the fact set names a crawler's
+(`network.class == "crawler"`) and marks `protected`. `protected` is set
+on those that work for a person: search crawlers (Googlebot, Bingbot,
+Applebot, DuckDuckBot, Yandex), Google's checks of ads and of Search
+Console, fetches a person asked for, and chat assistants reading a page
+for their user (OAI-SearchBot, ChatGPT-User, PerplexityBot,
+Perplexity-User). Collectors of training data — GPTBot — get the class
+`crawler` but not `protected`: they are named, and what to do with them
+is up to your rules.
 
-```json
-{
-  "id": "allow-protected-crawlers",
-  "name": "verified crawlers — past the blocks",
-  "scope": ["*"],
-  "mode": "active",
-  "priority": 1000,
-  "condition": {"all": [
-    {"field": "network.class", "op": "eq", "value": "crawler"},
-    {"field": "network.protected", "op": "eq", "value": true}
-  ]},
-  "action": {"type": "allow"}
-}
-```
+The node lets a verified crawler through **before the rules**, right
+after [your own networks](configuration.md#own_networks) — as a layer of
+its own, not a rule: an exception written into ten blocks will one day
+be forgotten in the eleventh, and a block written in a hurry must not
+cost the site its place in the results. The event marks such a request
+`rule: "verified crawler"`.
 
-Two conditions, not one. The class `crawler` goes to every network from
-the lists crawler owners publish about themselves — search engines and
-the collectors of training data for models like GPTBot alike. Of them,
-`protected` is set on those that work for a person: search crawlers
-(Googlebot, Bingbot, Applebot, DuckDuckBot, Yandex), Google's checks of
-ads and of Search Console, fetches a person asked for, and chat
-assistants reading a page for their user (OAI-SearchBot, ChatGPT-User,
-PerplexityBot, Perplexity-User). Collectors of training data — GPTBot —
-are named, but without `protected`. A rule with `network.class == "crawler"` alone lets every
-named crawler past the blocks; whom to let through is the owner's call.
+The pass is on by default, and it is the **node owner's** decision: on the
+admin UI tab "Rules → Verified crawlers" it is turned off wholly, or one
+owner of networks is held back — to keep a chat assistant from going past
+your rules, say. The decision lives in
+[`crawlers_file`](configuration.md#crawlers_file). The cloud only
+delivers the list of who is a verified crawler; what happens to them is
+not its decision.
 
-Without a fact set a request has no network class, and the rule matches
-nobody: a self-declared Googlebot from somebody else's network never
-falls under it.
+Without a fact set a request has no network class, and there are no
+verified crawlers: a self-declared Googlebot from somebody else's network
+goes through the rules like everyone.
 
 ### Country
 
