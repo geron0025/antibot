@@ -7,12 +7,11 @@ import (
 	"sort"
 	"strings"
 	"time"
-	"unicode"
-	"unicode/utf8"
 
 	"github.com/geron0025/antibot/internal/catalog"
 	"github.com/geron0025/antibot/internal/facts"
 	"github.com/geron0025/antibot/internal/proxy"
+	"github.com/geron0025/antibot/internal/rules"
 )
 
 const (
@@ -36,9 +35,11 @@ const (
 	// rest marks the row the smallest ones are folded into.
 	rest = "~rest"
 
-	// maxRuleID and maxShadow bound what rule ids add to a row. An id is
-	// the owner's free text, and the rules engine does not limit it.
-	maxRuleID = 64
+	// ownNetwork names the decision for the owner's own networks,
+	// taken before any rule.
+	ownNetwork = "own network"
+
+	// maxShadow bounds how many shadow rules one row names.
 	maxShadow = 16
 )
 
@@ -52,8 +53,9 @@ type Key struct {
 	UAMatchesJA4 bool   `json:"ua_matches_ja4"`
 	Net          string `json:"net"`
 
-	// Rule is the id of the rule that decided, empty when none did;
-	// Shadow is the rules that matched in shadow mode. Both are in the
+	// Rule is the rule that decided, empty when none did; Shadow is the
+	// rules that matched in shadow mode. A rule is named by its hash,
+	// never by the owner's id (rules.Rule.Hash). Both are in the
 	// key rather than counted beside it: every request of a row was then
 	// decided the same way, and what the row says about a rule — the
 	// cookies, the paths, the answers — is exact rather than a share of
@@ -125,8 +127,8 @@ func keyOf(r *facts.Request, served func(string) bool) Key {
 		UAFamily:     catalog.UAFamily(r.UA),
 		UAMatchesJA4: r.UAMatchesJA4,
 		Net:          prefixOf(r.IP),
-		Rule:         ruleID(r.Rule),
-		Shadow:       makeRuleIDs(r.Shadow),
+		Rule:         ruleName(r.RuleHash),
+		Shadow:       makeRuleIDs(r.ShadowHashes),
 	}
 }
 
@@ -185,21 +187,40 @@ func clip(s string, n int) string {
 	return s
 }
 
-// ruleID makes a rule id fit the wire: valid UTF-8, no control
-// characters, at most maxRuleID characters. The id is the owner's text
-// and may be anything; the batch it would break is everybody's.
-func ruleID(s string) string {
-	s = strings.ToValidUTF8(s, "")
-	s = strings.Map(func(r rune) rune {
-		if unicode.IsControl(r) {
-			return -1
-		}
-		return r
-	}, s)
-	if utf8.RuneCountInString(s) > maxRuleID {
-		s = string([]rune(s)[:maxRuleID])
+// ruleName lets through only what may name a rule on the wire: a rule
+// hash or "own network". Anything else — an owner's id that slipped in
+// by a mistake elsewhere — becomes empty rather than leaving the node.
+func ruleName(s string) string {
+	if s == ownNetwork || isRuleHash(s) {
+		return s
 	}
-	return s
+	return ""
+}
+
+func isRuleHash(s string) bool {
+	if len(s) != rules.HashLen {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		if !('0' <= s[i] && s[i] <= '9' || 'a' <= s[i] && s[i] <= 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+// wireNames reports whether a saved key names its rules the way this
+// node sends them. A state saved before rule hashes carries ids.
+func (k Key) wireNames() bool {
+	if k.Rule != "" && k.Rule != rest && ruleName(k.Rule) == "" {
+		return false
+	}
+	for _, h := range k.Shadow.list() {
+		if h != rest && !isRuleHash(h) {
+			return false
+		}
+	}
+	return true
 }
 
 // ruleIDs is a set of rule ids, sorted and kept as one string so that a
@@ -207,7 +228,7 @@ func ruleID(s string) string {
 // state, it is an array.
 type ruleIDs string
 
-// idSep cannot occur inside an id: ruleID removes control characters.
+// idSep cannot occur inside a hash.
 const idSep = "\n"
 
 func makeRuleIDs(ids []string) ruleIDs {
@@ -216,7 +237,12 @@ func makeRuleIDs(ids []string) ruleIDs {
 	}
 	clean := make([]string, 0, len(ids))
 	for _, id := range ids {
-		clean = append(clean, ruleID(id))
+		if isRuleHash(id) {
+			clean = append(clean, id)
+		}
+	}
+	if len(clean) == 0 {
+		return ""
 	}
 	sort.Strings(clean)
 	clean = slices.Compact(clean)

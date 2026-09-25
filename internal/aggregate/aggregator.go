@@ -456,6 +456,20 @@ func (a *Aggregator) load() {
 		return
 	}
 
+	// A state saved before rules were named by hashes carries the
+	// owner's ids, and those must not leave the node. Its counts are
+	// lost, as with a broken file; the file is kept.
+	for _, sw := range s.Windows {
+		for _, r := range sw.Rows {
+			if !r.Key.wireNames() {
+				a.o.Log.Warn("the saved aggregate window names rules by id, not by hash; "+
+					"counting starts afresh", "file", path)
+				os.Rename(path, path+".ids")
+				return
+			}
+		}
+	}
+
 	a.openFrom = s.OpenFrom
 	a.pending = s.Pending
 	for _, sw := range s.Windows {

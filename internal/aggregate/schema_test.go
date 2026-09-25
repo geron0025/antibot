@@ -62,12 +62,14 @@ func TestSchemaCheckerCatches(t *testing.T) {
 		"bad node":         func(d map[string]any) { d["node"] = "NODE" },
 		"wrong format":     func(d map[string]any) { d["format"] = 2.0 },
 		"missing rule":     func(d map[string]any) { delete(row(d), "rule") },
-		"long rule":        func(d map[string]any) { row(d)["rule"] = strings.Repeat("r", 65) },
+		"rule by id":       func(d map[string]any) { row(d)["rule"] = "block-hosting" },
+		"long rule":        func(d map[string]any) { row(d)["rule"] = strings.Repeat("a", 17) },
+		"shadow by id":     func(d map[string]any) { row(d)["shadow"] = []any{"watch-1"} },
 		"shadow not array": func(d map[string]any) { row(d)["shadow"] = "watch-1" },
 		"too many shadow": func(d map[string]any) {
 			list := make([]any, maxShadow+1)
 			for i := range list {
-				list[i] = "watch"
+				list[i] = "0123456789abcdef"
 			}
 			row(d)["shadow"] = list
 		},

@@ -68,6 +68,13 @@ type Request struct {
 	// decide by.
 	Shadow []string `json:"shadow,omitempty"`
 
+	// RuleHash and ShadowHashes name the same rules for the aggregate,
+	// which carries a hash instead of the owner's id (rules.Rule.Hash).
+	// They are not written into events: the log is the owner's, and it
+	// keeps the ids.
+	RuleHash     string   `json:"-"`
+	ShadowHashes []string `json:"-"`
+
 	Status   int           `json:"status,omitempty"`
 	Bytes    int64         `json:"bytes,omitempty"`
 	Duration time.Duration `json:"dur,omitempty"`

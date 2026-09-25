@@ -41,11 +41,11 @@
         },
         "ua_matches_ja4": {"type": "boolean"},
         "net": {"type": "string", "maxLength": 64},
-        "rule": {"type": "string", "maxLength": 64},
+        "rule": {"type": "string", "pattern": "^([0-9a-f]{16}|own network|~rest)?$"},
         "shadow": {
           "type": "array",
           "maxItems": 16,
-          "items": {"type": "string", "maxLength": 64}
+          "items": {"type": "string", "pattern": "^([0-9a-f]{16}|~rest)$"}
         },
         "requests": {"$ref": "#/$defs/counter"},
         "with_cookie": {"$ref": "#/$defs/counter"},

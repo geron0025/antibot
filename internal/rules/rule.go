@@ -83,6 +83,7 @@ type compiled struct {
 	matches Matcher
 	inScope func(host string) bool
 	window  time.Duration
+	hash    string
 }
 
 // Compile validates the rule as a whole. Everything that can be caught
@@ -114,7 +115,7 @@ func (r *Rule) Compile() (*compiled, error) {
 		return nil, fmt.Errorf("rule %q: %w", name, err)
 	}
 
-	c := &compiled{rule: *r, matches: matches, inScope: inScope}
+	c := &compiled{rule: *r, matches: matches, inScope: inScope, hash: r.Hash()}
 
 	switch r.Action.Type {
 	case Allow:

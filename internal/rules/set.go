@@ -100,6 +100,7 @@ func (s *Set) Decide(r *facts.Request) proxy.Decision {
 		}
 		if c.rule.Mode == Shadow {
 			r.Shadow = append(r.Shadow, c.rule.ID)
+			r.ShadowHashes = append(r.ShadowHashes, c.hash)
 			continue
 		}
 		return s.decision(c, r)
@@ -111,14 +112,15 @@ func (s *Set) decision(c *compiled, r *facts.Request) proxy.Decision {
 	rule := c.rule
 	switch rule.Action.Type {
 	case Allow:
-		return proxy.Decision{Action: proxy.ActionAllow, Rule: rule.ID}
+		return proxy.Decision{Action: proxy.ActionAllow, Rule: rule.ID, RuleHash: c.hash}
 
 	case Block:
 		return proxy.Decision{
-			Action: proxy.ActionBlock,
-			Rule:   rule.ID,
-			Status: rule.Action.Status,
-			Body:   rule.Action.Body,
+			Action:   proxy.ActionBlock,
+			Rule:     rule.ID,
+			RuleHash: c.hash,
+			Status:   rule.Action.Status,
+			Body:     rule.Action.Body,
 		}
 
 	case Ratelimit:
@@ -126,14 +128,14 @@ func (s *Set) decision(c *compiled, r *facts.Request) proxy.Decision {
 		// request through and saying so in the event is more honest than
 		// blocking by a count that does not exist.
 		if s.limiter == nil {
-			return proxy.Decision{Action: proxy.ActionPass, Rule: rule.ID}
+			return proxy.Decision{Action: proxy.ActionPass, Rule: rule.ID, RuleHash: c.hash}
 		}
 		read, _ := fieldForKey(rule.limiterKey())
 		key := rule.ID + "\x00" + read(r)
 		if s.limiter.Exceeded(key, rule.Action.Limit, c.window, r.Time) {
 			return proxy.Decision{
 				Action: proxy.ActionRatelimit,
-				Rule:   rule.ID,
+				Rule:   rule.ID, RuleHash: c.hash,
 				Status: rule.Action.Status,
 				Body:   rule.Action.Body,
 			}
@@ -142,7 +144,7 @@ func (s *Set) decision(c *compiled, r *facts.Request) proxy.Decision {
 		// further. A prohibition of lower priority over the same clients
 		// will not apply in this case; that cost a post-mortem in the
 		// previous project, hence it is said out loud.
-		return proxy.Decision{Action: proxy.ActionPass, Rule: rule.ID}
+		return proxy.Decision{Action: proxy.ActionPass, Rule: rule.ID, RuleHash: c.hash}
 	}
 	return proxy.Pass()
 }

@@ -123,15 +123,17 @@ func rulesList(args []string) error {
 	})
 
 	t := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-	fmt.Fprintln(t, "PRIORITY\tID\tMODE\tACTION\tSCOPE\tSTATE")
+	// HASH is how the rule is named in the aggregate the node sends:
+	// the owner reading a batch has to be able to tell which rule it is.
+	fmt.Fprintln(t, "PRIORITY\tID\tMODE\tACTION\tSCOPE\tSTATE\tHASH")
 	for _, r := range ordered {
 		state := "enabled"
 		if r.Enabled != nil && !*r.Enabled {
 			state = "disabled"
 		}
-		fmt.Fprintf(t, "%d\t%s\t%s\t%s\t%s\t%s\n",
+		fmt.Fprintf(t, "%d\t%s\t%s\t%s\t%s\t%s\t%s\n",
 			r.Priority, r.ID, r.Mode, r.Action.Type,
-			strings.Join(r.Scope, ","), state)
+			strings.Join(r.Scope, ","), state, r.Hash())
 	}
 	return t.Flush()
 }

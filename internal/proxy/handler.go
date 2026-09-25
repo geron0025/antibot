@@ -60,8 +60,10 @@ const (
 type Decision struct {
 	Action string
 	Rule   string
-	Status int
-	Body   string
+	// RuleHash names the rule in the aggregate: see rules.Rule.Hash.
+	RuleHash string
+	Status   int
+	Body     string
 }
 
 // Pass is the default decision.
@@ -116,10 +118,12 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if own {
 		decision.Rule = "own network"
+		decision.RuleHash = "own network"
 	}
 
 	req.Decision = decision.Action
 	req.Rule = decision.Rule
+	req.RuleHash = decision.RuleHash
 
 	switch decision.Action {
 	case ActionBlock, ActionRatelimit:

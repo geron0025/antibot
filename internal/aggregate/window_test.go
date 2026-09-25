@@ -6,7 +6,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"unicode/utf8"
 
 	"github.com/geron0025/antibot/internal/facts"
 	"github.com/geron0025/antibot/internal/proxy"
@@ -220,6 +219,10 @@ func TestLiveLimitBoundsMemory(t *testing.T) {
 	}
 }
 
+// hashOf is a stand-in rule hash for the tests: the aggregator checks
+// the shape, not where the hash came from.
+func hashOf(n int) string { return fmt.Sprintf("%016x", n) }
+
 // The rule that decided and the shadow rules are in the key: every row
 // is decided one way, so its cookie count belongs to one rule.
 func TestRulesSplitRows(t *testing.T) {
@@ -229,13 +232,18 @@ func TestRulesSplitRows(t *testing.T) {
 		mut(&r)
 		w.add(keyOf(&r, nil), &r)
 	}
+	block := func(r *facts.Request) {
+		r.Decision, r.Rule, r.RuleHash, r.Status = proxy.ActionBlock, "block-hosting", hashOf(1), 403
+	}
 	add(func(r *facts.Request) { r.Cookie = true })
-	add(func(r *facts.Request) { r.Decision, r.Rule, r.Status = proxy.ActionBlock, "block-hosting", 403 })
+	add(block)
+	add(func(r *facts.Request) { block(r); r.Cookie = true })
 	add(func(r *facts.Request) {
-		r.Decision, r.Rule, r.Status, r.Cookie = proxy.ActionBlock, "block-hosting", 403, true
+		r.Shadow, r.ShadowHashes = []string{"watch-b", "watch-a"}, []string{hashOf(3), hashOf(2)}
 	})
-	add(func(r *facts.Request) { r.Shadow = []string{"watch-b", "watch-a"} })
-	add(func(r *facts.Request) { r.Shadow = []string{"watch-a", "watch-b", "watch-a"} })
+	add(func(r *facts.Request) {
+		r.Shadow, r.ShadowHashes = []string{"watch-a", "watch-b", "watch-a"}, []string{hashOf(2), hashOf(3), hashOf(2)}
+	})
 
 	rows := map[string]Row{}
 	for _, row := range w.close() {
@@ -248,48 +256,58 @@ func TestRulesSplitRows(t *testing.T) {
 	if r := rows[" []"]; r.Requests != 1 || r.WithCookie != 1 {
 		t.Errorf("undecided: %+v", r)
 	}
-	if r := rows["block-hosting []"]; r.Requests != 2 || r.Blocked != 2 || r.WithCookie != 1 {
+	if r := rows[hashOf(1)+" []"]; r.Requests != 2 || r.Blocked != 2 || r.WithCookie != 1 {
 		t.Errorf("block-hosting: %+v", r)
 	}
-	if r := rows[` ["watch-a","watch-b"]`]; r.Requests != 2 || r.Shadowed != 2 || r.WithCookie != 0 {
+	if r := rows[` ["`+hashOf(2)+`","`+hashOf(3)+`"]`]; r.Requests != 2 || r.Shadowed != 2 || r.WithCookie != 0 {
 		t.Errorf("shadow: %+v", r)
 	}
 }
 
-// A rule id is the owner's free text. It goes out clipped and without
-// control characters, and it cannot break the list it is part of.
-func TestRuleIDsAreCleaned(t *testing.T) {
+// A rule id is the owner's text and never leaves the node: the row
+// names a rule by its hash, and whatever is not a hash goes out empty.
+func TestRulesGoOutAsHashes(t *testing.T) {
 	r := request("203.0.113.1", "shop.example.ru")
-	r.Rule = strings.Repeat("я", 100) + "\xff"
-	r.Shadow = []string{"a\nb", "c"}
+	r.Rule, r.Shadow = "block-office-ip", []string{"watch-office"}
 	k := keyOf(&r, nil)
-	if n := utf8.RuneCountInString(k.Rule); n != maxRuleID || !utf8.ValidString(k.Rule) {
-		t.Errorf("rule of %d characters, valid %v", n, utf8.ValidString(k.Rule))
+	if k.Rule != "" || k.Shadow != "" {
+		t.Errorf("ids without hashes went into the key: %+v", k)
 	}
-	if raw, _ := json.Marshal(k.Shadow); string(raw) != `["ab","c"]` {
-		t.Errorf("shadow %s", raw)
+
+	r.RuleHash = "block-office-ip"
+	r.ShadowHashes = []string{"watch-office", hashOf(7), "ABCDEF0123456789"}
+	k = keyOf(&r, nil)
+	if raw, _ := json.Marshal(k.Shadow); k.Rule != "" || string(raw) != `["`+hashOf(7)+`"]` {
+		t.Errorf("rule %q, shadow %s", k.Rule, raw)
+	}
+
+	r.RuleHash = ownNetwork
+	if k := keyOf(&r, nil); k.Rule != ownNetwork {
+		t.Errorf("own network went out as %q", k.Rule)
 	}
 
 	// The key comes back from the saved state as it was.
+	r.RuleHash = hashOf(1)
+	k = keyOf(&r, nil)
 	var back Key
 	raw, _ := json.Marshal(k)
-	if err := json.Unmarshal(raw, &back); err != nil || back != k {
+	if err := json.Unmarshal(raw, &back); err != nil || back != k || !back.wireNames() {
 		t.Errorf("state round trip: %v, %+v", err, back)
 	}
 
 	many := make([]string, 40)
 	for i := range many {
-		many[i] = fmt.Sprintf("watch-%02d", i)
+		many[i] = hashOf(i)
 	}
-	r.Shadow = many
+	r.ShadowHashes = many
 	var list []string
 	raw, _ = json.Marshal(keyOf(&r, nil).Shadow)
 	json.Unmarshal(raw, &list)
-	if len(list) != maxShadow || list[0] != "watch-00" {
+	if len(list) != maxShadow || list[0] != hashOf(0) {
 		t.Errorf("shadow rules %v", list)
 	}
 
-	r.Shadow = nil
+	r.ShadowHashes = nil
 	if raw, _ := json.Marshal(keyOf(&r, nil).Shadow); string(raw) != "[]" {
 		t.Errorf("no shadow rules is %s, want an empty array", raw)
 	}

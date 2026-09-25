@@ -238,6 +238,26 @@ func TestBrokenStateIsSetAside(t *testing.T) {
 	}
 }
 
+// A window saved before rules were named by hashes carries the owner's
+// ids; it is set aside rather than sent.
+func TestStateWithRuleIDsIsSetAside(t *testing.T) {
+	dir := t.TempDir()
+	key := Key{Domain: "shop.example.ru", Net: "203.0.113.0/24", Rule: "block-office-ip"}
+	old := snapshot{Format: FormatVersion, Windows: []savedWindow{{
+		Start: t0, Rows: []savedRow{{Key: key, Counts: &counts{Requests: 3}}},
+	}}}
+	raw, _ := json.Marshal(old)
+	os.WriteFile(filepath.Join(dir, stateFile), raw, 0o640)
+
+	a := testAggregator(t, dir, &clock{})
+	if len(a.windows) != 0 {
+		t.Fatal("a window with rule ids was restored")
+	}
+	if _, err := os.Stat(filepath.Join(dir, stateFile+".ids")); err != nil {
+		t.Fatal("the old file was not kept")
+	}
+}
+
 // Run saves on the way out, and what was queued is counted.
 func TestRunSavesOnStop(t *testing.T) {
 	dir := t.TempDir()
@@ -283,8 +303,8 @@ func TestBatchMatchesTheSchema(t *testing.T) {
 	fill(a, t0, MaxRows+2)
 	plain := at(t0.Add(time.Minute), "2001:db8::1")
 	plain.JA4, plain.H2, plain.UA, plain.Status = "", "", "", 0
-	plain.Decision, plain.Rule, plain.Cookie = proxy.ActionBlock, "block-hosting", true
-	plain.Shadow = []string{"watch-2", "watch-1"}
+	plain.Decision, plain.Rule, plain.RuleHash, plain.Cookie = proxy.ActionBlock, "block-hosting", hashOf(1), true
+	plain.Shadow, plain.ShadowHashes = []string{"watch-2", "watch-1"}, []string{hashOf(3), hashOf(2)}
 	a.add(plain)
 	junk := at(t0.Add(time.Minute), "")
 	junk.Host = strings.Repeat("x", 300)

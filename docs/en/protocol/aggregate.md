@@ -6,6 +6,11 @@ The `rule`, `shadow` and `with_cookie` fields were added on
 12 September 2026 — before any node had sent an aggregate, so the format
 version stayed the first.
 
+On 25 September 2026 the values of `rule` and `shadow` changed: the
+rule's hash instead of its `id`. The cloud had no subscribers yet, so the
+format version is the same; a node of the previous version now gets
+`400` on such a batch.
+
 This document was fixed before the first line of code. The reason is
 plain: once there are many installations the format can no longer be
 changed — history in the old shape will have accumulated on the far side,
@@ -39,7 +44,7 @@ fivefold for a precision nobody uses.
 | Headers and their values | cookies, tokens and authorization live there |
 | The cookie value | only a counter of requests that came with a cookie goes out — `with_cookie` |
 | Request and response bodies | the same, and worse |
-| Rule conditions | they may hold office addresses, paths, names; only the `id` of the rule that fired goes out |
+| Rule conditions and their `id`s | conditions may hold office addresses, paths, names, and an `id` is the owner's text too (`block-office-ip`); only the hash of the rule that fired goes out |
 
 What is sent is the **composition** of the headers as a hash rather than
 the headers themselves; the client's **family** rather than its string;
@@ -66,8 +71,8 @@ Rows are grouped by a key; everything that is not the key is a counter.
 | `ua_family` | string | `chrome`, `firefox`, `safari`, `curl`, `python`, `go`, `bot`, `unknown` |
 | `ua_matches_ja4` | boolean | whether the claimed client agrees with the TLS fingerprint |
 | `net` | string | the network prefix: `203.0.113.0/24`, `2001:db8::/48` |
-| `rule` | string | the `id` of the rule that decided; empty when none did; `own network` — a request from the own networks |
-| `shadow` | array of strings | the `id`s of rules in `shadow` mode that fired, alphabetically; an empty array when none did |
+| `rule` | string | the hash of the rule that decided, 16 hex characters; empty when none did; `own network` — a request from the own networks |
+| `shadow` | array of strings | the hashes of rules in `shadow` mode that fired, alphabetically; an empty array when none did |
 
 **The counters:**
 
@@ -102,10 +107,37 @@ Clarifications on what the node puts into the key and the counters:
   about a rule — cookies, paths, answers — is exact rather than a share
   of a mix. That is what they are for: the cloud analyses the statistics
   and tells the owner that a rule has started cutting people, and for
-  that it has to know which rule. An `id` is the owner's text, and the
-  rules engine does not limit it; it goes over the wire at most
-  64 characters long and without control characters, and `shadow` holds
-  at most 16 rules.
+  that it has to know which rule. `shadow` holds at most 16 rules.
+- A rule is named by a **hash**, not by its `id`: the `id` is the
+  owner's text and tells about the site more than the cloud needs. The
+  hash is taken over what the rule does — its condition and action — and
+  nothing else: changing the `id`, name, `mode`, `enabled`, priority or
+  scope keeps the name, and the cloud sees one rule all the way from
+  `shadow` to being turned off. A rule the cloud proposed itself it
+  recognizes by the hash; an owner's rule is a hash and counters to it.
+
+  How it is computed: the object `{"action": …, "condition": …}` as they
+  lie in `rules.json`, empty fields left out, object keys sorted, no
+  whitespace, no HTML escaping, numbers as written; `sha256` of those
+  bytes, the first 16 characters in lower case. The test vector — the
+  rule
+
+  ```json rule-hash
+  {"id": "block-hosting-go", "mode": "shadow", "priority": 10, "scope": ["*"],
+   "condition": {"all": [
+     {"field": "network.class", "op": "eq", "value": "hosting"},
+     {"field": "family", "op": "eq", "value": "go"}]},
+   "action": {"type": "block", "status": 403}}
+  ```
+
+  gives the bytes
+  `{"action":{"status":403,"type":"block"},"condition":{"all":[{"field":"network.class","op":"eq","value":"hosting"},{"field":"family","op":"eq","value":"go"}]}}`
+  and the hash `50c32b7c35cdaae8`. Tests on both sides check it.
+
+  A hash is not a cipher: a rule of a couple of conditions can be
+  guessed from it. It hides what the cloud does not know — addresses,
+  paths, names in a condition; a rule made of obvious parts is
+  recognizable anyway.
 - `domain` is only a domain the node serves. `Host` is sent by the
   client, and a scanner writes whatever it likes there. A name not named
   by a route, exactly or by a pattern (the default route `*` does not
@@ -169,7 +201,7 @@ node itself.
       "ua_matches_ja4": false,
       "net": "203.0.113.0/24",
       "rule": "",
-      "shadow": ["watch-hosting-go"],
+      "shadow": ["50c32b7c35cdaae8"],
       "requests": 412,
       "with_cookie": 0,
       "blocked": 0,
