@@ -100,15 +100,16 @@ English comes with US formats: `09/25/2026`, `1,234`, `12.5%`. Russian —
 `25.09.2026`, `1 234`, `12,5 %`. The time of day is 24-hour in both: it is
 a log, and AM and PM get in the way there.
 
-What the admin UI itself writes is translated. These stay as they are:
+What the admin UI itself writes is translated, and so are the core's
+alerts: the bell, the overview and the alerts page show them in the
+language of whoever looks, while the delivery command gets them in a
+language of its own — see [Alerts](alerts.md#language). These stay as
+they are:
 
 - **errors from the code** — of parsing a rule, a domain, a certificate,
   the core's answers. They land in the log too, and are easier to search
   for there in one spelling. The frame around them is translated:
   "the certificate chain: …";
-- **the texts of alerts** — the core writes them, and the same texts go
-  to the delivery command. The titles of the triggers and their conditions
-  on the alerts page are translated;
 - **values from the files and the protocol** — the modes `shadow` and
   `active`, rule actions, decisions in events, the token scopes `read` and
   `write`;
@@ -331,7 +332,7 @@ triggers in red, and on a click — what is firing, since when and why,
 the five latest messages and a link here. This page has no menu item of
 its own — the way to it is the bell, and here the bell is highlighted
 like the current item. It is a `<details>`: it opens
-without a line of JavaScript, like the rest of the admin UI. On a narrow
+without a line of JavaScript. On a narrow
 screen the menu's items fold into a "burger" on the left — a `<details>`
 too: otherwise they would push the bell and the name off the edge. What
 is checked and how a message comes — [alerts.md](alerts.md).
@@ -434,6 +435,32 @@ If the core did not answer, the edit is on disk all the same, and the
 core takes it up at its next check of the file or at startup. Who changed
 what is written to the **admin UI's** log: it is the admin UI that acts,
 not the core.
+
+### The password once more
+
+Eight of the thirteen ask for the password once more, although the login
+is done: a stolen session must not be enough for them.
+
+| Action | Why |
+|---|---|
+| move a rule to `active` | from then on it acts on live traffic |
+| remove a domain | the node stops serving it at once |
+| replace the admin UI's certificate | whoever holds its key reads the admin UI's traffic |
+| issue an API token | a token outlives the session by months |
+| revoke an API token | the programs that use it lose access at once |
+| change the alerts command | the command runs on the node's machine |
+| forget the cloud token | only a new registration brings it back |
+| restart the core | every site behind the node is cut off for seconds |
+
+Moving back to `shadow` and disabling a rule ask for nothing: that is a
+step towards safety, and it must be quick. The attempts are counted
+together with the login form — ten per five minutes from one address.
+
+The password is asked in a dialog over the page: its question says what
+exactly is about to happen. The dialog is the admin UI's only script,
+`/confirm.js`; its words come from the page, in the page's language.
+Without JavaScript the dialog never opens, and each such form shows its
+own password field — it works the same.
 
 ### A rule: enable and disable
 
@@ -573,9 +600,11 @@ level=WARN msg="the admin UI certificate was replaced from the admin UI"
   already granted;
 - **CSRF by double submission**: a random value in a cookie and in a
   hidden form field. Together with `SameSite=Strict` that is enough;
-- **no JavaScript of our own at all**, the CSP forbids everything
-  external, the pages are assembled on the server, the templates and the
-  stylesheet are compiled into the binary;
+- **one file of JavaScript of our own**, the password dialog
+  (`/confirm.js`); the CSP lets scripts in only from the admin UI's own
+  address and none inline, and forbids everything external; the pages are
+  assembled on the server, the templates, the stylesheet and the script
+  are compiled into the binary, and everything works without the script;
 - **sessions in the process's memory** — a restart logs everybody out,
   and that is more correct than keeping on disk something that can be
   logged in with;

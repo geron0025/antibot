@@ -12,6 +12,7 @@ import (
 	"github.com/geron0025/antibot/internal/alerts"
 	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/facts"
+	"github.com/geron0025/antibot/internal/i18n"
 	"github.com/geron0025/antibot/internal/replay"
 	"github.com/geron0025/antibot/internal/rules"
 	"github.com/geron0025/antibot/internal/summary"
@@ -244,9 +245,25 @@ type apiAlertTrigger struct {
 	Firing []apiAlertFiring `json:"firing"`
 }
 
+// apiAlertMessage is a message as the API has always given it: in
+// English, whatever the language of the delivery.
 type apiAlertMessage struct {
-	alerts.Alert
-	Delivery string `json:"delivery"`
+	ID       string    `json:"id"`
+	Kind     string    `json:"kind"`
+	State    string    `json:"state"`
+	Text     string    `json:"text"`
+	Host     string    `json:"host"`
+	Time     time.Time `json:"time"`
+	Delivery string    `json:"delivery"`
+}
+
+// englishText is a message of the core in English; a core that sends no
+// key gives its own words.
+func englishText(text string, m alerts.Message) string {
+	if m.Key == "" {
+		return text
+	}
+	return m.In(i18n.EN)
 }
 
 type apiAlertsAnswer struct {
@@ -275,14 +292,15 @@ func (s *Server) apiAlerts(w http.ResponseWriter, r *http.Request, _ *Token) {
 		for _, f := range firing {
 			if f.Kind == t.Kind {
 				trigger.Firing = append(trigger.Firing, apiAlertFiring{
-					ID: f.ID, Text: f.Text, Since: f.Since.UTC(), Clearing: f.Clearing})
+					ID: f.ID, Text: englishText(f.Text, f.Message), Since: f.Since.UTC(), Clearing: f.Clearing})
 			}
 		}
 		answer.Triggers = append(answer.Triggers, trigger)
 	}
 	for _, e := range state.History {
-		e.Alert.Time = e.Alert.Time.UTC()
-		answer.History = append(answer.History, apiAlertMessage{Alert: e.Alert, Delivery: e.Delivery})
+		answer.History = append(answer.History, apiAlertMessage{
+			ID: e.ID, Kind: e.Kind, State: e.State, Text: englishText(e.Text, e.Message),
+			Host: e.Host, Time: e.Time.UTC(), Delivery: e.Delivery})
 	}
 	apiRespond(w, http.StatusOK, answer)
 }

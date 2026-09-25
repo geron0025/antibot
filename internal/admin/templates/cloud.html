@@ -92,8 +92,11 @@
   </table></div>
 
   {{if and .Token (not .FromConfig)}}
-  <form method="post" action="/settings/cloud/forget" class="inline">
+  <form method="post" action="/settings/cloud/forget" class="inline" data-confirm="{{t "confirm.forget_cloud"}}">
     <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <label class="password-field">{{t "form.your_password"}}
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
     <button type="submit" class="quiet">{{t "cloud.forget"}}</button>
     <span class="dim">{{t "cloud.forget_note"}}</span>
   </form>

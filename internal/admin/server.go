@@ -323,6 +323,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /logout", s.logout)
 	mux.HandleFunc("GET /style.css", s.style)
 	mux.HandleFunc("POST /language", s.setLanguage)
+	mux.HandleFunc("GET /confirm.js", s.confirmScript)
 
 	mux.Handle("GET /{$}", s.requireLogin(s.overviewPage))
 	mux.Handle("GET /events", s.requireLogin(s.eventsPage))
@@ -394,14 +395,14 @@ func (s *Server) Handler() http.Handler {
 
 // securityHeaders closes what headers can close.
 //
-// A strict CSP is cheap here: the pages are assembled on the server,
-// there is no JavaScript of our own at all, and forbidding everything
-// external breaks nothing.
+// A strict CSP is cheap here: the pages are assembled on the server, the
+// only script is our own file — the password dialog — and forbidding
+// everything external and everything inline breaks nothing.
 func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()
 		h.Set("Content-Security-Policy",
-			"default-src 'none'; style-src 'self'; img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
+			"default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; form-action 'self'; frame-ancestors 'none'; base-uri 'none'")
 		h.Set("X-Content-Type-Options", "nosniff")
 		h.Set("X-Frame-Options", "DENY")
 		h.Set("Referrer-Policy", "no-referrer")

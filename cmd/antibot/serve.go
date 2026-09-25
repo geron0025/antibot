@@ -217,7 +217,7 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 	}
 	core := &control.Local{
 		Version: Version, Started: time.Now(),
-		Watcher: watcher, ConfigCommand: cfg.Alerts.Command,
+		Watcher: watcher, ConfigCommand: cfg.Alerts.Command, ConfigLanguage: cfg.Alerts.Language,
 		CloudState: cloudState, Link: cloudLink,
 		Certs: certs, ConfigRoute: configRoutes,
 		Reloaders: map[control.Reloadable]func() error{

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -256,7 +257,7 @@ func TestTheCommandGetsTheAlertAsData(t *testing.T) {
 	}
 	var back Alert
 	raw, _ := os.ReadFile(filepath.Join(dir, "stdin.json"))
-	if err := json.Unmarshal(raw, &back); err != nil || back != a {
+	if err := json.Unmarshal(raw, &back); err != nil || !reflect.DeepEqual(back, a) {
 		t.Fatalf("stdin: %s %v", raw, err)
 	}
 }

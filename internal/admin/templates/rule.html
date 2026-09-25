@@ -13,7 +13,7 @@
     <dt>{{t "rules.scope"}}</dt><dd class="value">{{range .Rule.Scope}}{{.}} {{end}}</dd>
   </dl>
   <div class="fields">
-    <form method="post" action="/rules/mode">
+    <form method="post" action="/rules/mode"{{if ne .Rule.Mode "active"}} data-confirm="{{t "confirm.to_active" .Rule.ID}}"{{end}}>
       <input type="hidden" name="csrf" value="{{.CSRF}}">
       <input type="hidden" name="id" value="{{.Rule.ID}}">
       <input type="hidden" name="back" value="{{.Rule.ID}}">
@@ -22,6 +22,9 @@
       <button type="submit">{{t "rules.to_shadow"}}</button>
       {{else}}
       <input type="hidden" name="mode" value="active">
+      <label class="password-field">{{t "form.your_password"}}
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
       <button type="submit">{{t "rules.to_active"}}</button>
       {{end}}
     </form>

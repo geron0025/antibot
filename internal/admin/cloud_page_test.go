@@ -187,7 +187,7 @@ func TestForgettingClearsEverything(t *testing.T) {
 	s := withCloud(t, state, link)
 	cookies := logIn(t, s)
 
-	if resp := postCloud(t, s, "/settings/cloud/forget", cookies, url.Values{}); resp.StatusCode != http.StatusSeeOther {
+	if resp := postCloud(t, s, "/settings/cloud/forget", cookies, url.Values{"password": {password}}); resp.StatusCode != http.StatusSeeOther {
 		t.Fatalf("%d", resp.StatusCode)
 	}
 	if link.forgotten != 1 || state.Token {

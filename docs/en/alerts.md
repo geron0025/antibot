@@ -76,13 +76,16 @@ The message comes in environment variables:
 | `ANTIBOT_ALERT_TEXT` | the message in words |
 | `ANTIBOT_ALERT_HOST` | the machine's name — to tell one node from another |
 | `ANTIBOT_ALERT_TIME` | when, in RFC 3339, UTC |
+| `ANTIBOT_ALERT_LANGUAGE` | the language of `ANTIBOT_ALERT_TEXT`: `en` or `ru` |
 
 and the same as JSON on stdin:
 
 ```json
 {"id": "site_down", "kind": "site_down", "state": "firing",
  "text": "the site answers with errors: 412 of 530 requests that reached it got a 5xx over the last 5m",
- "host": "web-1", "time": "2026-09-13T12:05:00Z"}
+ "host": "web-1", "time": "2026-09-13T12:05:00Z", "language": "en",
+ "message": {"key": "alert.site_down",
+             "args": [{"number": 412}, {"number": 530}, {"seconds": 300}]}}
 ```
 
 **Nothing of the message is pasted into the command's text.** The text
@@ -102,6 +105,29 @@ its length and a fingerprint.
 
 Without a command the alerts go to the node's log and to the "Alerts"
 page.
+
+## Language
+
+The messages go to the command in English or in Russian. The language
+is chosen on the same tab as the command and saved with it; until it is
+saved, the admin UI's own language from `admin.yaml` is offered.
+`alerts.language` in `config.yaml` wins, as `alerts.command` does, and a
+command from `config.yaml` takes its language from there only. Nothing
+set is English. A change takes effect with the next message, without a
+restart.
+
+Everything the node writes is translated: a firing message, "back to
+normal" and the test message. Numbers and dates follow the language:
+`1,234` and `09/25/2026` in English, `1 234` and `25.09.2026` in Russian.
+The outcome of a delivery ("handed to the command", the output of a
+failed command) and the node's log stay in English.
+
+Besides the ready text, the JSON carries `message` — the message's key
+and its arguments: numbers, seconds, dates, strings. From them the admin
+UI shows the same message in the language of whoever looks, and a
+program of your own can word it itself. The `language` and `message`
+fields were added on 25 September 2026; the earlier fields did not
+change.
 
 ## Templates
 

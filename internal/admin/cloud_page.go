@@ -49,6 +49,14 @@ func (s *Server) cloudPage(w http.ResponseWriter, r *http.Request, user string) 
 // the bases, and a page that says "saved" while the node silently has
 // no token would be a lie at the worst possible moment.
 func (s *Server) saveCloud(w http.ResponseWriter, r *http.Request, user string) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, s.t(r, "error.invalid_form"), http.StatusBadRequest)
+		return
+	}
+	if !s.checkCSRF(r) {
+		http.Error(w, s.t(r, "error.foreign_form"), http.StatusForbidden)
+		return
+	}
 	state := s.coreCloud(r.Context())
 	if state == nil {
 		s.cloudError(w, r, s.t(r, "error.core_down_unchanged"))
@@ -90,6 +98,19 @@ func (s *Server) saveCloud(w http.ResponseWriter, r *http.Request, user string) 
 // forgetCloud drops the token. For the owner who wants the node to stop
 // talking to the cloud at all rather than merely stop sending.
 func (s *Server) forgetCloud(w http.ResponseWriter, r *http.Request, user string) {
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, s.t(r, "error.invalid_form"), http.StatusBadRequest)
+		return
+	}
+	if !s.checkCSRF(r) {
+		http.Error(w, s.t(r, "error.foreign_form"), http.StatusForbidden)
+		return
+	}
+	// Forgetting cannot be undone from here: the node would have to
+	// register anew.
+	if !s.recheck(w, r, user, "forget the cloud token", func(m string) { s.cloudError(w, r, m) }) {
+		return
+	}
 	ctx, cancel := s.coreContext(r.Context())
 	defer cancel()
 	if err := s.o.Core.CloudForget(ctx); err != nil {

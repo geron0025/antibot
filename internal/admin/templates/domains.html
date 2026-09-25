@@ -42,9 +42,12 @@
 
     <div class="domain-actions">
       {{if not .FromConfig}}
-      <form method="post" action="/domains/remove">
+      <form method="post" action="/domains/remove" data-confirm="{{t "confirm.remove_domain" .Host}}">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
         <input type="hidden" name="host" value="{{.Host}}">
+        <label class="password-field">{{t "form.your_password"}}
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
         <button type="submit">{{t "domains.remove"}}</button>
       </form>
       {{end}}

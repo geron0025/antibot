@@ -24,11 +24,13 @@ import (
 	"math"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/geron0025/antibot/internal/facts"
+	"github.com/geron0025/antibot/internal/i18n"
 	"github.com/geron0025/antibot/internal/summary"
 )
 
@@ -61,6 +63,11 @@ type Alert struct {
 	Text  string    `json:"text"`
 	Host  string    `json:"host"`
 	Time  time.Time `json:"time"`
+
+	// Language is the one Text is in; Message is Text as a key and its
+	// arguments, for whoever words it anew.
+	Language i18n.Lang `json:"language"`
+	Message  Message   `json:"message"`
 }
 
 // Certificate is what the certificate check needs to know of one.
@@ -110,6 +117,11 @@ type Options struct {
 	// alerts are only written to the node's log and shown in the admin UI.
 	Command func() string
 	Timeout time.Duration
+
+	// Language is the one the messages are worded in for the command,
+	// read at every message: a change takes effect with the next one.
+	// Nil or empty is English.
+	Language func() i18n.Lang
 
 	Log *slog.Logger
 }
@@ -164,10 +176,11 @@ type Watcher struct {
 }
 
 type state struct {
-	kind, text string
-	// first is the text the trigger fired with, the one "back to normal"
-	// recalls; text follows the latest check, for the page and the bell.
-	first      string
+	kind string
+	msg  Message
+	// first is what the trigger fired with, the one "back to normal"
+	// recalls; msg follows the latest check, for the page and the bell.
+	first      Message
 	since      time.Time
 	clearSince time.Time
 }
@@ -182,6 +195,7 @@ type Entry struct {
 // Status is a trigger that is firing now.
 type Status struct {
 	ID, Kind, Text string
+	Message        Message
 	Since          time.Time
 
 	// Clearing says the condition is gone and the node waits a window
@@ -195,7 +209,10 @@ type job struct {
 	entry *Entry
 }
 
-type finding struct{ kind, text string }
+type finding struct {
+	kind string
+	msg  Message
+}
 
 // New assembles a watcher; Run starts it.
 func New(o Options) *Watcher {
@@ -275,7 +292,7 @@ func (w *Watcher) Run(ctx context.Context) {
 // a clock of their own.
 func (w *Watcher) Check(now time.Time) {
 	found := map[string]finding{}
-	add := func(id, kind, text string) { found[id] = finding{kind, text} }
+	add := func(id, kind string, msg Message) { found[id] = finding{kind, msg} }
 	w.traffic(now, add)
 	w.node(now, add)
 	w.transition(now, found)
@@ -301,18 +318,17 @@ func (w *Watcher) sum(from, to int64) minute {
 	return total
 }
 
-func (w *Watcher) traffic(now time.Time, add func(id, kind, text string)) {
+func (w *Watcher) traffic(now time.Time, add func(id, kind string, msg Message)) {
 	win := int64(w.o.Window / time.Minute)
 	// The minute under way is left out: it is only partly counted.
 	end := now.Unix() / 60
 	cur := w.sum(end-win, end)
-	over := span(w.o.Window)
+	over := seconds(w.o.Window)
 
 	if cur.reached >= w.o.SiteMinRequests && cur.reached > 0 &&
 		float64(cur.failed) >= w.o.SiteErrorShare*float64(cur.reached) {
-		add(SiteDown, SiteDown, fmt.Sprintf(
-			"the site answers with errors: %d of %d requests that reached it got a 5xx over the last %s",
-			cur.failed, cur.reached, over))
+		add(SiteDown, SiteDown, message("alert.site_down",
+			number(int64(cur.failed)), number(int64(cur.reached)), over))
 	}
 
 	covered := int64(now.Sub(w.started)/time.Minute) - win
@@ -324,30 +340,28 @@ func (w *Watcher) traffic(now time.Time, add func(id, kind, text string)) {
 	}
 	base := w.sum(end-win-covered, end-win)
 	usual := func(n int) float64 { return float64(n) * float64(win) / float64(covered) }
+	rounded := func(f float64) Arg { return number(int64(math.RoundToEven(f))) }
 	spike := func(n int, usual float64, least int) bool {
 		return n >= least && float64(n) >= w.o.SpikeFactor*usual
 	}
 
 	if u := usual(base.requests); spike(cur.requests, u, w.o.SpikeMinRequests) {
-		add(RequestsSpike, RequestsSpike, fmt.Sprintf(
-			"%d requests over the last %s against %.0f usual over the hour before: it looks like an attack",
-			cur.requests, over, u))
+		add(RequestsSpike, RequestsSpike, message("alert.requests_spike",
+			number(int64(cur.requests)), over, rounded(u)))
 	}
 	if u := usual(base.blocked); spike(cur.blocked, u, w.o.SpikeMinBlocked) {
-		add(BlockedSpike, BlockedSpike, fmt.Sprintf(
-			"the node cut off %d requests over the last %s against %.0f usual over the hour before",
-			cur.blocked, over, u))
+		add(BlockedSpike, BlockedSpike, message("alert.blocked_spike",
+			number(int64(cur.blocked)), over, rounded(u)))
 	}
 	for id, n := range cur.rules {
 		if u := usual(base.rules[id]); spike(n, u, w.o.RuleMinMatches) {
-			add(RuleSpike+":"+id, RuleSpike, fmt.Sprintf(
-				"the rule %s cut off %d requests over the last %s against %.0f usual over the hour before; "+
-					"if it is cutting people, switch it off on the rules page", id, n, over, u))
+			add(RuleSpike+":"+id, RuleSpike, message("alert.rule_spike",
+				text(id), number(int64(n)), over, rounded(u)))
 		}
 	}
 }
 
-func (w *Watcher) node(now time.Time, add func(id, kind, text string)) {
+func (w *Watcher) node(now time.Time, add func(id, kind string, msg Message)) {
 	p := w.o.Probes
 
 	if p.Certificates != nil && w.o.CertDays > 0 {
@@ -357,14 +371,11 @@ func (w *Watcher) node(now time.Time, add func(id, kind, text string)) {
 				continue
 			}
 			names := strings.Join(c.Names, ", ")
-			text := fmt.Sprintf("the certificate for %s ends on %s, in %d days; the node does not renew "+
-				"certificates — upload a fresh pair or renew it with certbot",
-				names, c.NotAfter.UTC().Format(time.DateOnly), int(left.Hours()/24))
+			msg := message("alert.cert_expiring", text(names), date(c.NotAfter), number(int64(left.Hours()/24)))
 			if left <= 0 {
-				text = fmt.Sprintf("the certificate for %s expired on %s: browsers refuse the site",
-					names, c.NotAfter.UTC().Format(time.DateOnly))
+				msg = message("alert.cert_expired", text(names), date(c.NotAfter))
 			}
-			add(CertExpiring+":"+c.Names[0], CertExpiring, text)
+			add(CertExpiring+":"+c.Names[0], CertExpiring, msg)
 		}
 	}
 
@@ -377,17 +388,13 @@ func (w *Watcher) node(now time.Time, add func(id, kind, text string)) {
 		recent := !w.droppedAt.IsZero() && now.Sub(w.droppedAt) < w.o.Window
 		w.stateMu.Unlock()
 		if recent {
-			add(EventsDropped, EventsDropped, fmt.Sprintf(
-				"the event log is losing events: %d did not fit into its queue since the start — "+
-					"the disk does not keep up", n))
+			add(EventsDropped, EventsDropped, message("alert.events_dropped", number(n)))
 		}
 	}
 
 	if p.EventsDir != "" && w.o.DiskMinBytes > 0 {
 		if free, err := freeBytes(p.EventsDir); err == nil && free < w.o.DiskMinBytes {
-			add(DiskLow, DiskLow, fmt.Sprintf(
-				"%d MB left on the disk of the event log (%s); when it ends, the node stops keeping events",
-				free>>20, p.EventsDir))
+			add(DiskLow, DiskLow, message("alert.disk_low", number(int64(free>>20)), text(p.EventsDir)))
 		}
 	}
 
@@ -396,20 +403,16 @@ func (w *Watcher) node(now time.Time, add func(id, kind, text string)) {
 		switch {
 		case !fetching:
 		case version == 0 && now.Sub(w.started) >= w.o.FactsMaxAge:
-			add(FactsStale, FactsStale, fmt.Sprintf(
-				"no fact set has arrived in %s since the start: check the token, the subscription "+
-					"and the way to the update service", span(now.Sub(w.started))))
+			add(FactsStale, FactsStale, message("alert.facts_none", seconds(now.Sub(w.started))))
 		case version > 0 && now.Sub(built) >= w.o.FactsMaxAge:
-			add(FactsStale, FactsStale, fmt.Sprintf(
-				"the fact set is %d days old (version %d): new ones do not arrive — the subscription, "+
-					"the token or the network", int(now.Sub(built).Hours()/24), version))
+			add(FactsStale, FactsStale, message("alert.facts_stale",
+				number(int64(now.Sub(built).Hours()/24)), text(strconv.Itoa(version))))
 		}
 	}
 
 	if p.Outbox != nil && w.o.OutboxMax > 0 {
 		if n, ok := p.Outbox(); ok && n >= w.o.OutboxMax {
-			add(OutboxStuck, OutboxStuck, fmt.Sprintf(
-				"%d aggregate batches wait to be sent: the cloud does not take them", n))
+			add(OutboxStuck, OutboxStuck, message("alert.outbox_stuck", number(int64(n))))
 		}
 	}
 }
@@ -428,13 +431,11 @@ func (w *Watcher) transition(now time.Time, found map[string]finding) {
 	for _, id := range ids {
 		f := found[id]
 		if st, ok := w.states[id]; ok {
-			st.text, st.clearSince = f.text, time.Time{}
+			st.msg, st.clearSince = f.msg, time.Time{}
 			continue
 		}
-		w.states[id] = &state{kind: f.kind, text: f.text, first: f.text, since: now}
-		out = append(out, w.recordLocked(Alert{
-			ID: id, Kind: f.kind, State: Firing, Text: f.text, Host: w.host, Time: now,
-		}))
+		w.states[id] = &state{kind: f.kind, msg: f.msg, first: f.msg, since: now}
+		out = append(out, w.recordLocked(w.alert(id, f.kind, Firing, f.msg, now)))
 	}
 
 	ids = ids[:0]
@@ -458,10 +459,7 @@ func (w *Watcher) transition(now time.Time, found map[string]finding) {
 			continue
 		}
 		delete(w.states, id)
-		out = append(out, w.recordLocked(Alert{
-			ID: id, Kind: st.kind, State: Resolved, Host: w.host, Time: now,
-			Text: w.resolvedText(st, now),
-		}))
+		out = append(out, w.recordLocked(w.alert(id, st.kind, Resolved, resolved(st, now), now)))
 	}
 	w.stateMu.Unlock()
 
@@ -469,6 +467,14 @@ func (w *Watcher) transition(now time.Time, found map[string]finding) {
 		w.logAlert(e.Alert)
 		w.enqueue(e)
 	}
+}
+
+// alert is a message worded in the delivery language, as the command and
+// the log get it.
+func (w *Watcher) alert(id, kind, state string, msg Message, now time.Time) Alert {
+	lang := w.lang()
+	return Alert{ID: id, Kind: kind, State: state, Text: msg.In(lang), Host: w.host, Time: now,
+		Language: lang, Message: msg}
 }
 
 func (w *Watcher) recordLocked(a Alert) *Entry {
@@ -517,8 +523,7 @@ func (w *Watcher) setDelivery(e *Entry, result string) {
 
 // Test runs the command with a test message and says what came of it.
 func (w *Watcher) Test(ctx context.Context) string {
-	a := Alert{ID: Test, Kind: Test, State: Test, Host: w.host, Time: time.Now(),
-		Text: fmt.Sprintf("a test message from antibot on %s: if it reached you, delivery works", w.host)}
+	a := w.alert(Test, Test, Test, message("alert.test", text(w.host)), time.Now())
 	w.stateMu.Lock()
 	e := w.recordLocked(a)
 	w.stateMu.Unlock()
@@ -533,8 +538,9 @@ func (w *Watcher) Firing() []Status {
 	w.stateMu.Lock()
 	defer w.stateMu.Unlock()
 	out := make([]Status, 0, len(w.states))
+	lang := w.lang()
 	for id, st := range w.states {
-		out = append(out, Status{ID: id, Kind: st.kind, Text: st.text, Since: st.since,
+		out = append(out, Status{ID: id, Kind: st.kind, Text: st.msg.In(lang), Message: st.msg, Since: st.since,
 			Clearing: !st.clearSince.IsZero()})
 	}
 	sort.Slice(out, func(i, j int) bool {
@@ -605,19 +611,13 @@ func (w *Watcher) Triggers() []Trigger {
 	}
 }
 
-// resolvedText says what is over, how long it lasted and how long it has
-// been clear, and recalls the text the trigger fired with. The latest
-// text is not used: it is worded as the present, and by the end it mixes
-// the trouble with the calm after it.
-func (w *Watcher) resolvedText(st *state, now time.Time) string {
-	title := st.kind
-	for _, t := range w.Triggers() {
-		if t.Kind == st.kind {
-			title = t.Title
-		}
-	}
-	return fmt.Sprintf("back to normal: %s lasted %s, all clear for the last %s. When it fired: %s",
-		title, span(st.clearSince.Sub(st.since)), span(now.Sub(st.clearSince)), st.first)
+// resolved says what is over, how long it lasted and how long it has
+// been clear, and recalls what the trigger fired with. The latest
+// message is not used: it is worded as the present, and by the end it
+// mixes the trouble with the calm after it.
+func resolved(st *state, now time.Time) Message {
+	return message("alert.resolved", trigger(st.kind),
+		seconds(st.clearSince.Sub(st.since)), seconds(now.Sub(st.clearSince)), nested(st.first))
 }
 
 func span(d time.Duration) string {

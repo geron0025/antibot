@@ -217,7 +217,7 @@ func TestAddingAndRemovingADomain(t *testing.T) {
 		t.Error("the domains page carries a style attribute, which the CSP forbids")
 	}
 
-	resp = postForm(t, s, "/domains/remove", cookies, url.Values{"csrf": {csrf}, "host": {"here.example.ru"}})
+	resp = postForm(t, s, "/domains/remove", cookies, url.Values{"csrf": {csrf}, "host": {"here.example.ru"}, "password": {password}})
 	if resp.Code != http.StatusSeeOther {
 		t.Fatalf("the removal returned %d", resp.Code)
 	}
@@ -249,7 +249,7 @@ func TestDomainRefusalsAreShown(t *testing.T) {
 	}
 
 	// Removing a configuration route is impossible: it is not in the file.
-	resp := postForm(t, s, "/domains/remove", cookies, url.Values{"csrf": {csrf}, "host": {"hand.example.ru"}})
+	resp := postForm(t, s, "/domains/remove", cookies, url.Values{"csrf": {csrf}, "host": {"hand.example.ru"}, "password": {password}})
 	if errorOf(resp) == "" {
 		t.Error("removing a configuration route did not say it cannot")
 	}

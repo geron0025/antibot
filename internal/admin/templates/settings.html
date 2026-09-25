@@ -37,7 +37,7 @@
   {{if .Linked}}
   <p class="dim">{{t "admin_cert.linked"}}</p>
   {{else if .Mode}}
-  <form method="post" action="/settings/certificate" enctype="multipart/form-data" class="fields">
+  <form method="post" action="/settings/certificate" enctype="multipart/form-data" class="fields" data-confirm="{{t "confirm.admin_certificate"}}">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <label>{{t "form.chain"}}
       <input type="file" name="fullchain" required>
@@ -45,7 +45,7 @@
     <label>{{t "form.key"}}
       <input type="file" name="privkey" required>
     </label>
-    <label>{{t "form.your_password"}}
+    <label class="password-field">{{t "form.your_password"}}
       <input type="password" name="password" autocomplete="current-password" required>
     </label>
     <button type="submit">{{if eq .Mode "replace"}}{{t "form.replace"}}{{else}}{{t "domains.add"}}{{end}}</button>

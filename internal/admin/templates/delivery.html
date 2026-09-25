@@ -12,12 +12,21 @@
   <pre class="value">{{.Command}}</pre>
   {{else if .CanEdit}}
   <p class="dim">{{t "delivery.how_html"}}</p>
-  <form method="post" action="/settings/alerts/command" class="fields">
+  <form method="post" action="/settings/alerts/command" class="fields stack" data-confirm="{{t "confirm.alert_command"}}">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <label>{{t "delivery.command"}}
       <textarea name="command" rows="5" cols="90" spellcheck="false">{{.Command}}</textarea>
     </label>
-    <label>{{t "form.your_password"}}
+    {{if not .ConfigLanguage}}
+    <label>{{t "delivery.language"}}
+      <select name="language">
+        <option value="en"{{if eq .Language "en"}} selected{{end}}>{{t "language.en"}}</option>
+        <option value="ru"{{if eq .Language "ru"}} selected{{end}}>{{t "language.ru"}}</option>
+      </select>
+    </label>
+    <p class="dim">{{t "delivery.language_hint"}}</p>
+    {{end}}
+    <label class="password-field">{{t "form.your_password"}}
       <input type="password" name="password" autocomplete="current-password" required>
     </label>
     <button type="submit">{{t "delivery.save"}}</button>
@@ -25,6 +34,9 @@
   {{if .UpdatedBy}}<p class="dim">{{t "delivery.set_by" .UpdatedBy (time .UpdatedAt)}}</p>{{end}}
   {{else}}
   <p class="dim">{{t "delivery.nowhere_html"}}</p>
+  {{end}}
+  {{if .ConfigLanguage}}
+  <p class="dim">{{t "delivery.config_language_html" (languageName .ConfigLanguage)}}</p>
   {{end}}
   {{if .Command}}
   <form method="post" action="/settings/alerts/test">

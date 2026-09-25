@@ -245,7 +245,7 @@ func TestTokensPage(t *testing.T) {
 		t.Fatalf("the issued token: %d", rec.Code)
 	}
 
-	if rec := post("/settings/tokens/revoke", url.Values{"csrf": {csrf}, "name": {"panel"}}); rec.Code != http.StatusSeeOther {
+	if rec := post("/settings/tokens/revoke", url.Values{"csrf": {csrf}, "name": {"panel"}, "password": {password}}); rec.Code != http.StatusSeeOther {
 		t.Fatalf("revoke: %d", rec.Code)
 	}
 	if rec := call(t, s, "GET", "/api/v1/rules", value, ""); rec.Code != http.StatusUnauthorized {

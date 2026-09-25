@@ -11,7 +11,7 @@ import (
 )
 
 // The charts are drawn on the server as SVG. Not for want of a library:
-// the CSP forbids inline styles and there is no JavaScript here at all,
+// the CSP forbids inline styles and no script of ours draws anything,
 // while SVG geometry lives in attributes, which the CSP does not touch.
 // A bar sized by style="height: …" is silently dropped by the browser —
 // which is exactly how the first version of this page drew an empty box.

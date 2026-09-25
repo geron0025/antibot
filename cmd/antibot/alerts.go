@@ -9,6 +9,7 @@ import (
 	"github.com/geron0025/antibot/internal/config"
 	"github.com/geron0025/antibot/internal/edgetls"
 	"github.com/geron0025/antibot/internal/events"
+	"github.com/geron0025/antibot/internal/i18n"
 )
 
 // alertOptions connects the triggers to the node: the thresholds from the
@@ -67,7 +68,30 @@ func alertOptions(cfg config.Config, certs *edgetls.Set, eventLog *events.Log, f
 			}
 			return ""
 		},
-		Timeout: a.Timeout.Duration(),
-		Log:     log,
+		Language: deliveryLanguage(a, file),
+		Timeout:  a.Timeout.Duration(),
+		Log:      log,
+	}
+}
+
+// deliveryLanguage is the language of the messages for the command:
+// config.yaml when it names one — what the machine's owner wrote by hand
+// is not replaced through the admin UI — then the file the admin UI
+// writes, read at every message, then English. A command in config.yaml
+// takes the file out of play altogether, its language with it: the admin
+// UI offers no choice then, and a language nobody sees must not steer.
+func deliveryLanguage(a config.Alerts, file *alerts.CommandFile) func() i18n.Lang {
+	return func() i18n.Lang {
+		if l, ok := i18n.Parse(a.Language); ok {
+			return l
+		}
+		if file != nil && a.Command == "" {
+			if c, err := file.Get(); err == nil {
+				if l, ok := i18n.Parse(c.Language); ok {
+					return l
+				}
+			}
+		}
+		return i18n.EN
 	}
 }

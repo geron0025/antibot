@@ -28,9 +28,9 @@
 <section class="card">
   <h2>{{t "core.restart_title"}}</h2>
   <p class="dim">{{t "core.restart_note"}}</p>
-  <form method="post" action="/settings/core/restart" class="fields">
+  <form method="post" action="/settings/core/restart" class="fields" data-confirm="{{t "confirm.restart"}}">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <label>{{t "form.your_password"}}
+    <label class="password-field">{{t "form.your_password"}}
       <input type="password" name="password" autocomplete="current-password" required>
     </label>
     <button type="submit">{{t "core.restart"}}</button>

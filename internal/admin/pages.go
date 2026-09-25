@@ -18,7 +18,7 @@ import (
 	"github.com/geron0025/antibot/internal/summary"
 )
 
-//go:embed templates/*.html templates/style.css
+//go:embed templates/*.html templates/style.css templates/confirm.js
 var templatesFS embed.FS
 
 const (
@@ -59,6 +59,10 @@ var (
 		alerts.Resolved: "alert_state.resolved",
 		alerts.Test:     "alert_state.test",
 	}
+	languageNames = map[string]string{
+		"en": "language.en",
+		"ru": "language.ru",
+	}
 	tokenStates = map[string]string{
 		TokenLive:    "token_state.live",
 		TokenRevoked: "token_state.revoked",
@@ -95,8 +99,9 @@ func templateFuncs(p *i18n.Printer) template.FuncMap {
 			}
 			return p.T("nav.overview")
 		},
-		"alertState": func(state string) string { return named(p, alertStates, state) },
-		"tokenState": func(state string) string { return named(p, tokenStates, state) },
+		"alertState":   func(state string) string { return named(p, alertStates, state) },
+		"tokenState":   func(state string) string { return named(p, tokenStates, state) },
+		"languageName": func(code string) string { return named(p, languageNames, code) },
 		// breakdown assembles the data for one breakdown table: Go
 		// templates have no other way to pass several values. key is the
 		// events filter a row links to; extra is one more filter as a
@@ -575,6 +580,14 @@ func (s *Server) setRuleMode(w http.ResponseWriter, r *http.Request, who string)
 	id := r.PostFormValue("id")
 	mode := r.PostFormValue("mode")
 
+	// Active is the step that puts a rule to work on live traffic: it asks
+	// for the password again. Back to shadow is a step towards safety and
+	// asks for nothing.
+	if mode == rules.Active && !s.recheck(w, r, who, "move a rule to active",
+		func(m string) { http.Redirect(w, r, withError(backTo(r), m), http.StatusSeeOther) }) {
+		return
+	}
+
 	if err := s.o.Rules.SetMode(id, mode); err != nil {
 		s.o.Log.Error("the rule's mode was not changed", "rule", id, "mode", mode, "who", who, "err", err)
 		http.Redirect(w, r, withError(backTo(r), err.Error()), http.StatusSeeOther)
@@ -596,7 +609,7 @@ func (s *Server) common(r *http.Request, user, section string, period time.Durat
 	}
 	// One question to the core per page: its answer is the bell, and its
 	// absence is the warning that the core is down.
-	state, err := s.coreAlerts(context.Background())
+	state, err := s.alertsFor(r)
 	switch {
 	case err != nil:
 		c.CoreDown = true

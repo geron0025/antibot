@@ -160,4 +160,7 @@ alerts:
   #   curl -fsS -m 20 "https://api.telegram.org/bot<токен>/sendMessage"
   #   --data-urlencode "chat_id=<id чата>"
   #   --data-urlencode "text=antibot $ANTIBOT_ALERT_HOST · $ANTIBOT_ALERT_TEXT"
+  # Язык сообщений команде: en или ru. Задан здесь — побеждает выбранный
+  # на вкладке доставки в админке.
+  # language: ru
   window: 5m

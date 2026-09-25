@@ -29,9 +29,12 @@
       <td>{{tokenState .Status}}</td>
       <td class="num">
         {{if eq .Status "live"}}
-        <form method="post" action="/settings/tokens/revoke">
+        <form method="post" action="/settings/tokens/revoke" data-confirm="{{t "confirm.revoke_token" .Name}}">
           <input type="hidden" name="csrf" value="{{$.CSRF}}">
           <input type="hidden" name="name" value="{{.Name}}">
+          <label class="password-field">{{t "form.your_password"}}
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
           <button type="submit">{{t "tokens.revoke"}}</button>
         </form>
         {{end}}
@@ -46,7 +49,7 @@
 <section class="card add-domain">
   <h2>{{t "tokens.issue_title"}}</h2>
   <p class="dim">{{t "tokens.scopes_html"}}</p>
-  <form method="post" action="/settings/tokens/issue" class="fields">
+  <form method="post" action="/settings/tokens/issue" class="fields" data-confirm="{{t "confirm.issue_token"}}">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
     <label>{{t "tokens.name"}}
       <input type="text" name="name" placeholder="{{t "tokens.name_placeholder"}}" required>
@@ -60,7 +63,7 @@
     <label>{{t "tokens.days"}}
       <input type="number" name="days" value="90" min="1" max="{{.MaxDays}}" required>
     </label>
-    <label>{{t "form.your_password"}}
+    <label class="password-field">{{t "form.your_password"}}
       <input type="password" name="password" autocomplete="current-password" required>
     </label>
     <button type="submit">{{t "tokens.issue"}}</button>

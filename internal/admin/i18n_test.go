@@ -258,34 +258,6 @@ func TestTriggerConditionsSpeakRussian(t *testing.T) {
 	}
 }
 
-func TestSpans(t *testing.T) {
-	c, err := loadCatalog()
-	if err != nil {
-		t.Fatal(err)
-	}
-	en, ru := c.Printer(i18n.EN), c.Printer(i18n.RU)
-	cases := []struct {
-		seconds int64
-		en, ru  string
-	}{
-		{30, "under a minute", "меньше минуты"},
-		{300, "5m", "5 мин"},
-		{3600, "1h", "1 ч"},
-		{3900, "1h05m", "1 ч 05 мин"},
-		{86400, "24h", "24 ч"},
-		{3 * 86400, "3 days", "3 дня"},
-		{5 * 86400, "5 days", "5 дней"},
-	}
-	for _, tc := range cases {
-		if got := span(en, tc.seconds); got != tc.en {
-			t.Errorf("en %d: %q, want %q", tc.seconds, got, tc.en)
-		}
-		if got := span(ru, tc.seconds); got != tc.ru {
-			t.Errorf("ru %d: %q, want %q", tc.seconds, got, tc.ru)
-		}
-	}
-}
-
 // --- the guards ---
 
 var (

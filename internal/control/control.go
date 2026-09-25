@@ -93,6 +93,10 @@ type Alerts struct {
 	// ConfigCommand is the command from the core's settings file, which
 	// wins over the one the admin UI keeps and is never changed by it.
 	ConfigCommand string `json:"config_command,omitempty"`
+
+	// ConfigLanguage is the language of the messages from the core's
+	// settings file, which wins over the one the admin UI keeps.
+	ConfigLanguage string `json:"config_language,omitempty"`
 }
 
 // Certificate is one certificate the core serves.

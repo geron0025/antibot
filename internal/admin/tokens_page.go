@@ -129,6 +129,9 @@ func (s *Server) revokeToken(w http.ResponseWriter, r *http.Request, who string)
 		return
 	}
 	name := r.PostFormValue("name")
+	if !s.recheck(w, r, who, "revoke an API token", func(m string) { s.tokensError(w, r, m) }) {
+		return
+	}
 	if err := s.o.Tokens.Revoke(name, time.Now()); err != nil {
 		s.o.Log.Error("an API token was not revoked", "token", name, "who", who, "err", err)
 		s.tokensError(w, r, err.Error())

@@ -262,6 +262,9 @@ func (s *Server) removeDomain(w http.ResponseWriter, r *http.Request, who string
 	}
 
 	host := r.PostFormValue("host")
+	if !s.recheck(w, r, who, "remove a domain", func(m string) { s.domainsError(w, r, m) }) {
+		return
+	}
 	if err := s.o.Domains.Remove(host); err != nil {
 		s.o.Log.Error("the domain was not removed", "host", host, "who", who, "err", err)
 		s.domainsError(w, r, err.Error())

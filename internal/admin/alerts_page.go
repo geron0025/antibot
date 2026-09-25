@@ -6,11 +6,11 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/url"
-	"slices"
 	"strings"
 	"time"
 
 	"github.com/geron0025/antibot/internal/alerts"
+	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/i18n"
 )
 
@@ -46,18 +46,23 @@ type deliveryData struct {
 	UpdatedAt time.Time
 	CanEdit   bool
 
+	// Language is the one the messages go to the command in: the one
+	// saved, or the admin UI's own while none was. ConfigLanguage is the
+	// one from config.yaml, which wins and is not changed here.
+	Language       string
+	ConfigLanguage string
+
 	TestResult string
 }
 
 func (s *Server) alertsPage(w http.ResponseWriter, r *http.Request, user string) {
 	// A core that does not answer is said so by the header of the page;
 	// here it is only an empty page, not alerts that are off.
-	state, err := s.coreAlerts(r.Context())
+	state, err := s.alertsFor(r)
 	firing := state.Firing
-	p := s.printer(r)
 	var rows []alertRow
 	for _, t := range state.Triggers {
-		row := alertRow{Trigger: wordTrigger(p, t)}
+		row := alertRow{Trigger: t}
 		for _, f := range firing {
 			if f.Kind == t.Kind {
 				row.Firing = append(row.Firing, f)
@@ -85,47 +90,36 @@ func (s *Server) alertsPage(w http.ResponseWriter, r *http.Request, user string)
 	s.render(w, r, "alerts.html", data)
 }
 
-// triggerTexts word each trigger in the viewer's language: its title,
-// and its condition built from the numbers the core sends. spans are the
-// positions of the numbers that are seconds.
-var triggerTexts = map[string]struct {
-	title, when string
-	args        int
-	spans       []int
-}{
-	alerts.SiteDown:      {"trigger.site_down", "trigger.site_down_when", 3, []int{2}},
-	alerts.RuleSpike:     {"trigger.rule_spike", "trigger.rule_spike_when", 3, []int{1}},
-	alerts.RequestsSpike: {"trigger.requests_spike", "trigger.requests_spike_when", 3, []int{1}},
-	alerts.BlockedSpike:  {"trigger.blocked_spike", "trigger.blocked_spike_when", 3, []int{1}},
-	alerts.CertExpiring:  {"trigger.cert_expiring", "trigger.cert_expiring_when", 1, nil},
-	alerts.EventsDropped: {"trigger.events_dropped", "trigger.events_dropped_when", 1, []int{0}},
-	alerts.DiskLow:       {"trigger.disk_low", "trigger.disk_low_when", 1, nil},
-	alerts.FactsStale:    {"trigger.facts_stale", "trigger.facts_stale_when", 1, []int{0}},
-	alerts.OutboxStuck:   {"trigger.outbox_stuck", "trigger.outbox_stuck_when", 1, nil},
+// wordAlerts puts the core's alerts in the viewer's language: the
+// triggers, and every message that came with its key. A message without
+// one — from a core older than the keys — keeps the core's own words.
+func wordAlerts(a control.Alerts, lang i18n.Lang) control.Alerts {
+	triggers := make([]alerts.Trigger, len(a.Triggers))
+	for i, t := range a.Triggers {
+		triggers[i] = t.In(lang)
+	}
+	firing := make([]alerts.Status, len(a.Firing))
+	for i, f := range a.Firing {
+		if f.Message.Key != "" {
+			f.Text = f.Message.In(lang)
+		}
+		firing[i] = f
+	}
+	history := make([]alerts.Entry, len(a.History))
+	for i, e := range a.History {
+		if e.Message.Key != "" {
+			e.Text = e.Message.In(lang)
+		}
+		history[i] = e
+	}
+	a.Triggers, a.Firing, a.History = triggers, firing, history
+	return a
 }
 
-// wordTrigger puts a trigger in the viewer's language. A kind the admin
-// UI does not know, or a core too old to send the numbers, keeps the
-// core's own words.
-func wordTrigger(p *i18n.Printer, t alerts.Trigger) alerts.Trigger {
-	text, ok := triggerTexts[t.Kind]
-	if !ok {
-		return t
-	}
-	t.Title = p.T(text.title)
-	if len(t.Args) != text.args {
-		return t
-	}
-	args := make([]any, len(t.Args))
-	for i, v := range t.Args {
-		if slices.Contains(text.spans, i) {
-			args[i] = span(p, v)
-		} else {
-			args[i] = v
-		}
-	}
-	t.When = p.T(text.when, args...)
-	return t
+// alertsFor is the core's alerts in the language of the request.
+func (s *Server) alertsFor(r *http.Request) (control.Alerts, error) {
+	a, err := s.coreAlerts(r.Context())
+	return wordAlerts(a, s.lang(r)), err
 }
 
 func (s *Server) deliveryPage(w http.ResponseWriter, r *http.Request, user string) {
@@ -140,6 +134,8 @@ func (s *Server) renderDelivery(w http.ResponseWriter, r *http.Request, user, me
 	}
 	data.Tab = "alerts"
 	state, _ := s.coreAlerts(r.Context())
+	data.ConfigLanguage = state.ConfigLanguage
+	data.Language = string(s.o.Language)
 	switch {
 	case state.ConfigCommand != "":
 		data.Command, data.Source = state.ConfigCommand, "config"
@@ -149,6 +145,9 @@ func (s *Server) renderDelivery(w http.ResponseWriter, r *http.Request, user, me
 			data.Error = err.Error()
 		}
 		data.Command, data.UpdatedBy, data.UpdatedAt, data.CanEdit = c.Command, c.UpdatedBy, c.UpdatedAt, true
+		if c.Language != "" {
+			data.Language = c.Language
+		}
 		if c.Command != "" {
 			data.Source = "admin"
 		}
@@ -193,7 +192,13 @@ func (s *Server) setAlertCommand(w http.ResponseWriter, r *http.Request, who str
 
 	// A textarea sends CRLF; the shell wants LF.
 	command := strings.TrimSpace(strings.ReplaceAll(r.PostFormValue("command"), "\r\n", "\n"))
-	if err := s.o.AlertCommand.Set(command, who, now); err != nil {
+	// A language in config.yaml wins, and the form offers none: the one
+	// in the file stays as it was.
+	save := func() error { return s.o.AlertCommand.Save(command, r.PostFormValue("language"), who, now) }
+	if state.ConfigLanguage != "" {
+		save = func() error { return s.o.AlertCommand.Set(command, who, now) }
+	}
+	if err := save(); err != nil {
 		s.alertsError(w, r, err.Error())
 		return
 	}

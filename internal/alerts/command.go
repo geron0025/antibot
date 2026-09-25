@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/geron0025/antibot/internal/i18n"
 )
 
 // MaxCommand bounds the command's length: a curl with a long URL and a
@@ -21,7 +23,10 @@ const CommandFormatVersion = 1
 
 // Command is the command set from the admin UI, and who set it.
 type Command struct {
-	Command   string    `json:"command"`
+	Command string `json:"command"`
+	// Language is the one the messages go to the command in; empty
+	// leaves it to the default, English.
+	Language  string    `json:"language,omitempty"`
 	UpdatedAt time.Time `json:"updated_at"`
 	UpdatedBy string    `json:"updated_by"`
 }
@@ -98,8 +103,22 @@ func (c *CommandFile) Get() (Command, error) {
 	return c.cur, nil
 }
 
-// Set replaces the command. An empty one turns the delivery off.
+// Set replaces the command and keeps the language. An empty command
+// turns the delivery off.
 func (c *CommandFile) Set(command, by string, now time.Time) error {
+	cur, err := c.Get()
+	if err != nil {
+		return err
+	}
+	return c.Save(command, cur.Language, by, now)
+}
+
+// Save replaces the command and the language of the messages together.
+// An empty language leaves it to the default, English.
+func (c *CommandFile) Save(command, language, by string, now time.Time) error {
+	if _, ok := i18n.Parse(language); language != "" && !ok {
+		return fmt.Errorf("the language %q: the alerts speak %v", language, i18n.Supported)
+	}
 	if len(command) > MaxCommand {
 		return fmt.Errorf("the command is longer than %d bytes", MaxCommand)
 	}
@@ -108,7 +127,8 @@ func (c *CommandFile) Set(command, by string, now time.Time) error {
 	}
 
 	f := commandFile{Version: CommandFormatVersion,
-		Command: Command{Command: command, UpdatedAt: now.UTC().Truncate(time.Second), UpdatedBy: by}}
+		Command: Command{Command: command, Language: language,
+			UpdatedAt: now.UTC().Truncate(time.Second), UpdatedBy: by}}
 	contents, err := json.MarshalIndent(f, "", "  ")
 	if err != nil {
 		return err

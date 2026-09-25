@@ -32,8 +32,9 @@ type Local struct {
 	Started time.Time
 
 	// Watcher is nil when the core's settings turn the alerts off.
-	Watcher       *alerts.Watcher
-	ConfigCommand string
+	Watcher        *alerts.Watcher
+	ConfigCommand  string
+	ConfigLanguage string
 
 	// CloudState reports the link; Link changes it. A nil Link is a
 	// token written into the settings file by hand: nothing asked over
@@ -73,11 +74,12 @@ func (l *Local) Alerts(context.Context) (Alerts, error) {
 		return Alerts{}, nil
 	}
 	return Alerts{
-		Enabled:       true,
-		Triggers:      l.Watcher.Triggers(),
-		Firing:        l.Watcher.Firing(),
-		History:       l.Watcher.History(),
-		ConfigCommand: l.ConfigCommand,
+		Enabled:        true,
+		Triggers:       l.Watcher.Triggers(),
+		Firing:         l.Watcher.Firing(),
+		History:        l.Watcher.History(),
+		ConfigCommand:  l.ConfigCommand,
+		ConfigLanguage: l.ConfigLanguage,
 	}, nil
 }
 

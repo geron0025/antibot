@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/geron0025/antibot/internal/i18n"
 )
@@ -90,26 +89,6 @@ func escapeArgs(args []any) []any {
 		}
 	}
 	return out
-}
-
-// span words a duration given in seconds, the way the core words its
-// thresholds: whole minutes, hours, days.
-func span(p *i18n.Printer, seconds int64) string {
-	d := time.Duration(seconds) * time.Second
-	switch {
-	case d < time.Minute:
-		return p.T("span.under_a_minute")
-	case d >= 48*time.Hour && d%(24*time.Hour) == 0:
-		return p.N("span.days", int(d.Hours()/24))
-	case d >= time.Hour:
-		d = d.Round(time.Minute)
-		if d%time.Hour == 0 {
-			return p.T("span.hours", int(d.Hours()))
-		}
-		return p.T("span.hours_minutes", int(d.Hours()), fmt.Sprintf("%02d", int(d.Minutes())%60))
-	default:
-		return p.T("span.minutes", int(d.Round(time.Minute).Minutes()))
-	}
 }
 
 // setLanguage remembers the viewer's choice of language, for a year and

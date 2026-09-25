@@ -73,12 +73,13 @@ func TestTypoInFieldNameIsAnError(t *testing.T) {
 
 func TestBadValueIsRejected(t *testing.T) {
 	cases := map[string]string{
-		"not a network":       "trusted_proxies:\n  - \"10.0.0.1\"\n",
-		"token without url":   "cloud:\n  token: \"secret\"\n",
-		"token without state": "cloud:\n  token: \"secret\"\n  url: \"https://x\"\n  state_dir: \"\"\n",
-		"empty upstream":      "upstreams:\n  - host: \"shop.ru\"\n",
-		"duration as number":  "tls:\n  reload_interval: 30\n",
-		"negative interval":   "tls:\n  reload_interval: -5s\n",
+		"not a network":          "trusted_proxies:\n  - \"10.0.0.1\"\n",
+		"token without url":      "cloud:\n  token: \"secret\"\n",
+		"token without state":    "cloud:\n  token: \"secret\"\n  url: \"https://x\"\n  state_dir: \"\"\n",
+		"empty upstream":         "upstreams:\n  - host: \"shop.ru\"\n",
+		"duration as number":     "tls:\n  reload_interval: 30\n",
+		"negative interval":      "tls:\n  reload_interval: -5s\n",
+		"unknown alert language": "alerts:\n  language: de\n",
 	}
 	for name, contents := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -128,5 +129,19 @@ func TestTheOldAdminSectionSaysWhereItWent(t *testing.T) {
 	_, err := Load(path)
 	if err == nil || !strings.Contains(err.Error(), "antibot-admin") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// The language of the alerts is one the node speaks, or left out.
+func TestAlertLanguage(t *testing.T) {
+	c, err := Load(write(t, "alerts:\n  language: ru\n"))
+	if err != nil || c.Alerts.Language != "ru" {
+		t.Fatalf("%q %v", c.Alerts.Language, err)
+	}
+	if _, err := Load(write(t, "alerts:\n  language: de\n")); err == nil || !strings.Contains(err.Error(), "alerts.language") {
+		t.Fatalf("an unknown language: %v", err)
+	}
+	if c := Defaults(); c.Alerts.Language != "" {
+		t.Fatalf("the default is %q: it must leave the choice to the admin UI", c.Alerts.Language)
 	}
 }

@@ -468,7 +468,7 @@ func TestMovingARuleBetweenShadowAndActive(t *testing.T) {
 	s, dir := newServer(t)
 	cookies := logIn(t, s)
 	setMode := func(mode, csrf string) int {
-		form := url.Values{"id": {"block-curl"}, "mode": {mode}}
+		form := url.Values{"id": {"block-curl"}, "mode": {mode}, "password": {password}}
 		if csrf != "" {
 			form.Set("csrf", csrf)
 		}

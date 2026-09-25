@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/geron0025/antibot/internal/i18n"
 )
 
 // Config is the whole configuration file.
@@ -63,6 +65,11 @@ type Alerts struct {
 	Command string   `yaml:"command"`
 	File    string   `yaml:"file"`
 	Timeout Duration `yaml:"timeout"`
+
+	// Language is the one the messages go to the command in. Set here,
+	// it wins over the one chosen in the admin UI, which lands in File
+	// with the command. Empty leaves the choice to the admin UI.
+	Language string `yaml:"language"`
 
 	// Window is the stretch every traffic trigger looks at.
 	Window Duration `yaml:"window"`
@@ -332,6 +339,9 @@ func (a *Alerts) validate() error {
 		return fmt.Errorf("alerts: disk_min_mb, outbox_max and facts_max_age are not negative")
 	case len(a.Command) > 4096:
 		return fmt.Errorf("alerts.command is longer than 4096 bytes")
+	}
+	if _, ok := i18n.Parse(a.Language); a.Language != "" && !ok {
+		return fmt.Errorf("alerts.language %q: the alerts speak %v", a.Language, i18n.Supported)
 	}
 	return nil
 }

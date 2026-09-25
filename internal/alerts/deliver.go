@@ -47,6 +47,7 @@ func (w *Watcher) run(ctx context.Context, a Alert) string {
 		"ANTIBOT_ALERT_TEXT="+a.Text,
 		"ANTIBOT_ALERT_HOST="+a.Host,
 		"ANTIBOT_ALERT_TIME="+a.Time.UTC().Format(time.RFC3339),
+		"ANTIBOT_ALERT_LANGUAGE="+string(a.Language),
 	)
 	cmd.Stdin = bytes.NewReader(append(stdin, '\n'))
 	out := &limited{max: outputLimit}

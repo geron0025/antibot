@@ -212,6 +212,13 @@ input, select {
 .fields label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dim); }
 .fields input[type="text"] { min-width: 160px; }
 .fields input[type="file"] { font-size: 12px; }
+/* A form with a wide field goes down the card rather than across it:
+   in a row, a textarea, a select, a hint and a button wrap wherever the
+   width happens to end. */
+.fields.stack { flex-direction: column; align-items: flex-start; }
+.fields.stack > label:has(textarea) { align-self: stretch; }
+.fields.stack textarea { width: 100%; box-sizing: border-box; }
+.fields.stack > p { margin: -4px 0 0; }
 .fields textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; max-width: 100%; }
 pre.value { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; }
 
@@ -239,6 +246,12 @@ pre.value { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; }
   min-width: 0;
 }
 .card h2 { margin-top: 0; }
+/* The card's padding is its only inner margin: a paragraph's own margins
+   on top of it leave a lone message floating in air. */
+.card > :first-child { margin-top: 0; }
+.card > :last-child { margin-bottom: 0; }
+/* Cards one after another on a page must not touch. */
+main > .card, main > form > .card { margin-bottom: 12px; }
 
 /* The cloud page: two questions, each a checkbox with a paragraph beside
    it. Three words on a label cannot say what leaves the server, and this
@@ -351,3 +364,17 @@ body.login input { font-size: 14px; }
 body.login form.languages { flex-direction: row; justify-content: center; gap: 4px; margin-top: 20px; }
 body.login .languages button { border: 0; background: none; color: var(--dim); font-size: 12px; }
 body.login .languages button.current { color: var(--text); }
+
+/* The password dialog. Without the script it never opens, and each form
+   shows its own field. */
+dialog.confirm { max-width: 420px; width: calc(100% - 32px); padding: 20px;
+  background: var(--card); color: var(--text); border: 1px solid var(--border);
+  border-radius: 10px; box-shadow: 0 12px 40px rgba(0, 0, 0, .25); }
+dialog.confirm::backdrop { background: rgba(0, 0, 0, .45); }
+dialog.confirm h2 { margin: 0 0 8px; font-size: 16px; }
+dialog.confirm p { margin: 0 0 14px; color: var(--dim); }
+dialog.confirm form { display: flex; flex-direction: column; gap: 12px; }
+dialog.confirm label { display: flex; flex-direction: column; gap: 4px; color: var(--dim); font-size: 12px; }
+dialog.confirm input { font-size: 14px; }
+.confirm-buttons { display: flex; gap: 8px; }
+.password-field[hidden] { display: none; }

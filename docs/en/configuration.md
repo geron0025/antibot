@@ -344,6 +344,7 @@ alerts:
   enabled: true
   command: ""
   file: "/var/lib/antibot/shared/alerts.json"
+  language: ""
   timeout: 30s
   window: 5m
   site_error_share: 0.5
@@ -363,6 +364,7 @@ alerts:
 | `enabled` | `true` | whether to count the triggers at all |
 | `command` | empty | the delivery command, through `sh -c`; set here, it wins over the one set in the admin UI |
 | `file` | `/var/lib/antibot/shared/alerts.json` | where the admin UI keeps its command; empty — the command only from the configuration |
+| `language` | empty | the language of the messages to the command: `en` or `ru`; set here, it wins over the one chosen in the admin UI; empty leaves it to the admin UI, and to English without one. See [Alerts](alerts.md#language) |
 | `timeout` | `30s` | how long to wait for the command, from `1s` to `5m` |
 | `window` | `5m` | the stretch every traffic trigger looks at; whole minutes, from `1m` to `1h` |
 | `site_error_share` | `0.5` | the share of the site's 5xx at which it "does not answer" |
