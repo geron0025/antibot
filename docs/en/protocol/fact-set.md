@@ -46,8 +46,8 @@ be the end of it. Hence:
 `proxy_pool`, `education`, `enterprise`, `unknown`.
 
 `protected: true` means **"do not touch this network at all"**. It is set
-on telecom operators with live subscribers and on confirmed search
-crawlers. It is the most valuable thing in the base, and it was obtained
+on telecom operators with live subscribers and on confirmed crawlers
+that work for a person: search engines, Google's checks, chat assistants. It is the most valuable thing in the base, and it was obtained
 more expensively than everything else: to pick out 44 networks of one
 cloud pool the previous project needed about eighty whois queries, and
 along the way Vodafone, Reliance Jio, Charter, Sky UK, Telefónica and

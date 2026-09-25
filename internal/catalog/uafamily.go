@@ -24,6 +24,8 @@ var crawlers = []string{
 	"googlebot", "bingbot", "yandexbot", "applebot", "petalbot",
 	"duckduckbot", "baiduspider", "ahrefsbot", "semrushbot", "mj12bot",
 	"dotbot", "bytespider", "gptbot", "claudebot", "ccbot", "perplexitybot",
+	"adsbot-google", "google-inspectiontool", "oai-searchbot", "chatgpt-user",
+	"perplexity-user",
 	"facebookexternalhit", "twitterbot", "telegrambot", "slackbot",
 	"bot/", "crawler", "spider",
 }

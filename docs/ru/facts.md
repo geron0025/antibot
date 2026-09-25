@@ -93,8 +93,8 @@ Sky UK, Telefónica, Telstra, а следом PetalBot — робота Huawei,
 
 ```json
 {
-  "id": "allow-search-crawlers",
-  "name": "поисковые роботы — мимо запретов",
+  "id": "allow-protected-crawlers",
+  "name": "проверенные роботы — мимо запретов",
   "scope": ["*"],
   "mode": "active",
   "priority": 1000,
@@ -109,8 +109,12 @@ Sky UK, Telefónica, Telstra, а следом PetalBot — робота Huawei,
 Условий два, а не одно. Класс `crawler` получают все сети из списков,
 которые владельцы роботов публикуют о себе, — и поисковики, и сборщики
 данных для обучения моделей вроде GPTBot. `protected` из них стоит
-только у поисковых роботов: Googlebot, Bingbot, Applebot, DuckDuckBot.
-Правило с одним `network.class == "crawler"` пропустит мимо запретов
+у тех, кто работает на человека: поисковые роботы (Googlebot, Bingbot,
+Applebot, DuckDuckBot, Яндекс), проверки Google — реклама и Search
+Console, — загрузки, которые запросил человек, и чат-ассистенты,
+читающие страницу для своего пользователя (OAI-SearchBot, ChatGPT-User,
+PerplexityBot, Perplexity-User). Сборщики данных для обучения — GPTBot —
+названы, но без `protected`. Правило с одним `network.class == "crawler"` пропустит мимо запретов
 всех названных роботов; кого пропускать, решает владелец.
 
 Без набора фактов у запроса нет класса сети, и правило не срабатывает ни

@@ -98,8 +98,8 @@ blocks will one day be forgotten in the eleventh ([rules.md](rules.md)).
 
 ```json
 {
-  "id": "allow-search-crawlers",
-  "name": "search crawlers — past the blocks",
+  "id": "allow-protected-crawlers",
+  "name": "verified crawlers — past the blocks",
   "scope": ["*"],
   "mode": "active",
   "priority": 1000,
@@ -114,8 +114,12 @@ blocks will one day be forgotten in the eleventh ([rules.md](rules.md)).
 Two conditions, not one. The class `crawler` goes to every network from
 the lists crawler owners publish about themselves — search engines and
 the collectors of training data for models like GPTBot alike. Of them,
-`protected` is set only on search crawlers: Googlebot, Bingbot, Applebot,
-DuckDuckBot. A rule with `network.class == "crawler"` alone lets every
+`protected` is set on those that work for a person: search crawlers
+(Googlebot, Bingbot, Applebot, DuckDuckBot, Yandex), Google's checks of
+ads and of Search Console, fetches a person asked for, and chat
+assistants reading a page for their user (OAI-SearchBot, ChatGPT-User,
+PerplexityBot, Perplexity-User). Collectors of training data — GPTBot —
+are named, but without `protected`. A rule with `network.class == "crawler"` alone lets every
 named crawler past the blocks; whom to let through is the owner's call.
 
 Without a fact set a request has no network class, and the rule matches
