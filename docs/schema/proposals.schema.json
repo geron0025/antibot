@@ -13,6 +13,11 @@
       "type": "array",
       "maxItems": 100,
       "items": {"$ref": "#/$defs/proposal"}
+    },
+    "advice": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {"$ref": "#/$defs/advice"}
     }
   },
   "$defs": {
@@ -30,6 +35,34 @@
         "evidence": {"$ref": "#/$defs/evidence"}
       }
     },
+
+    "advice": {
+      "type": "object",
+      "required": ["id", "created_at", "expires_at", "rule", "suggest", "why", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"$ref": "#/$defs/cloud_id"},
+        "created_at": {"type": "string", "format": "date-time"},
+        "expires_at": {"type": "string", "format": "date-time"},
+        "rule": {"$ref": "#/$defs/rule_hash"},
+        "suggest": {"enum": ["disable", "shadow", "review"]},
+        "why": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "evidence": {
+          "type": "object",
+          "required": ["window", "requests", "share"],
+          "additionalProperties": false,
+          "properties": {
+            "window": {"type": "string", "maxLength": 64},
+            "requests": {"type": "integer", "minimum": 0},
+            "share": {"type": "number", "minimum": 0, "maximum": 1},
+            "with_cookie": {"type": "integer", "minimum": 0},
+            "protected": {"type": "integer", "minimum": 0}
+          }
+        }
+      }
+    },
+
+    "rule_hash": {"type": "string", "pattern": "^[0-9a-f]{16}$"},
 
     "cloud_id": {
       "type": "string",

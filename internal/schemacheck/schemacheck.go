@@ -101,9 +101,27 @@ func ValidateAt(root, s map[string]any, v any, at string) []string {
 			if num, ok := v.(float64); ok && num < rule.(float64) {
 				fail("%v below the minimum %v", num, rule)
 			}
+		case "maximum":
+			if num, ok := v.(float64); ok && num > rule.(float64) {
+				fail("%v above the maximum %v", num, rule)
+			}
+		case "minItems":
+			if arr, ok := v.([]any); ok && len(arr) < int(rule.(float64)) {
+				fail("%d items, at least %v", len(arr), rule)
+			}
 		case "maxItems":
 			if arr, ok := v.([]any); ok && len(arr) > int(rule.(float64)) {
 				fail("%d items, at most %v", len(arr), rule)
+			}
+		case "oneOf":
+			matched := 0
+			for _, alt := range rule.([]any) {
+				if len(ValidateAt(root, alt.(map[string]any), v, at)) == 0 {
+					matched++
+				}
+			}
+			if matched != 1 {
+				fail("matches %d of the oneOf alternatives, want exactly one", matched)
 			}
 		case "pattern":
 			if str, ok := v.(string); ok && !regexp.MustCompile(rule.(string)).MatchString(str) {

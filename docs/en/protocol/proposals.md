@@ -3,15 +3,18 @@
 Format version: **1**.
 
 > In the current build the node neither fetches nor accepts proposals:
-> there is no button in the admin UI and no `proposals/` directory yet.
-> The format is fixed in advance, like the aggregate format.
+> there is no button in the admin UI and no `proposals/` directory yet,
+> no advice and no node feedback. The format is fixed in advance, like
+> the aggregate format.
 
 The third road between the parts. The first two — the
 [aggregate](aggregate.md) going up and the [fact set](fact-set.md) coming
 down — carry observations and statements about the world. This one
 carries a **draft of a rule**: the cloud analysed one subscriber's statistics
 and proposes a rule they can accept with one button in their own admin
-UI.
+UI, or **advises** doing something with a rule that already works. In the
+other direction it carries a short **node feedback**: what became of a
+proposal.
 
 ## The border that does not move
 
@@ -127,6 +130,57 @@ print.
 a noticeable share of the traffic almost certainly touches people too:
 that much traffic is never all bots.
 
+## Advice
+
+The second kind of record is **advice about a rule that already works**:
+"the rule is cutting people, turn it off", "the rule touches protected
+networks, move it back to `shadow`". A proposal adds a new rule; advice
+adds nothing and changes nothing. The owner acts on it with the buttons
+they already have.
+
+The cloud does not know the `id`s of the owner's rules — in the aggregate
+a rule is named by its [hash](aggregate.md) — so advice refers to a rule
+**by hash**. The node shows the advice next to the rule that has that
+hash now. With no rule of that hash — the owner changed or deleted it —
+the advice is not shown: it was about another rule.
+
+```json
+{
+  "format": 1,
+  "node": "8f14e45fceea167a5a36dedd4bea2543",
+  "created_at": "2026-09-09T04:00:00Z",
+  "proposals": [],
+  "advice": [
+    {
+      "id": "cloud-advice-cuts-people-2026-09",
+      "created_at": "2026-09-09T04:00:00Z",
+      "expires_at": "2026-09-23T00:00:00Z",
+      "rule": "50c32b7c35cdaae8",
+      "suggest": "disable",
+      "why": "Over a week the rule cut 3104 requests, 2870 of them with a cookie, from telecom operators' networks. That is what people look like, not bots.",
+      "evidence": {
+        "window": "2026-09-02/2026-09-09",
+        "requests": 3104,
+        "share": 0.016,
+        "with_cookie": 2870,
+        "protected": 0
+      }
+    }
+  ]
+}
+```
+
+| Field | What |
+|---|---|
+| `id` | prefixed with `cloud-`; repeating the same `id` updates the advice |
+| `rule` | the hash of the rule the advice is about |
+| `suggest` | `disable` — turn off, `shadow` — move back to `shadow`, `review` — take a look |
+| `why` | one sentence for a human |
+| `evidence` | numbers from the aggregates for this rule: requests, share, how many with a cookie, how many from protected networks |
+
+Advice has no field a rule could be written into: the format gives the
+cloud no way to pass the node anything but text and numbers.
+
 ## Distribution
 
 ```
@@ -201,11 +255,72 @@ channel.
 ### Declining
 
 A declined proposal is hidden by the node, which remembers the refusal
-locally. Nothing about it is reported upwards: there is no channel from
-the node to the cloud in this protocol other than the aggregate, and
-inventing one for "the user pressed no" is a bad trade. The cloud will
-keep sending the proposal for as long as it considers it appropriate; on
-the node it will not be seen.
+locally and tells the cloud with the [node feedback](#node-feedback). The
+cloud does not send such a proposal again; if it arrives anyway, the node
+does not show it.
+
+Decided on 25 September 2026. Before that a refusal was not reported
+upwards: a channel from the node to the cloud for "the user pressed no"
+was judged a bad trade. Once proposals are what people pay for, the trade
+is different: without feedback the cloud keeps sending the same, the
+model has nothing to learn from, and the owner has nothing to show what
+was done.
+
+## Node feedback
+
+The node tells the cloud what became of each proposal and piece of
+advice — and nothing else. Not a byte about visitors, not the text of
+rules.
+
+```
+POST <cloud.url>/proposals/feedback
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+The same cloud address and the same token as the aggregate, and the
+feedback goes out only when sending aggregates is on: a node without a
+token does not talk to the cloud at all.
+
+```json
+{
+  "format": 1,
+  "node": "8f14e45fceea167a5a36dedd4bea2543",
+  "sent_at": "2026-09-12T10:00:00Z",
+  "items": [
+    {
+      "id": "cloud-hosting-no-browser-2026-09",
+      "state": "active",
+      "at": "2026-09-11T18:20:00Z",
+      "rule": "46ed921d7daceb83"
+    },
+    {
+      "id": "cloud-advice-cuts-people-2026-09",
+      "state": "rejected",
+      "at": "2026-09-10T09:05:00Z",
+      "reason": "these are our partners, it is meant to be so"
+    }
+  ]
+}
+```
+
+| Field | What |
+|---|---|
+| `id` | the `id` of the proposal or advice |
+| `state` | `accepted` — accepted, lies in `shadow`; `active` — the owner moved it to `active`; `disabled` — turned off; `removed` — deleted; `rejected` — declined; `done` — advice acted on |
+| `at` | when it happened |
+| `rule` | the rule's hash now — for an accepted proposal; the owner may have edited the condition, and the cloud keeps recognizing the rule by the new hash |
+| `reason` | the reason in the owner's words, if they wrote one; up to 500 characters, optional |
+
+`reason` is the only owner's text that leaves the node, and it leaves
+only if the owner typed it into the "why" field when declining. The field
+is labelled in the admin UI so that it is clear: the cloud will read this.
+
+One feedback carries only the changes since the last accepted one. The
+cloud's answers are as for the aggregate: `202` — accepted; `400`, `413`
+— do not retry; `401`, `403` — sending sleeps for an hour; `429`, `5xx` —
+retry with a growing delay. The schema is strict, like the aggregate's:
+an extra field is `400`.
 
 ## What this channel does not have
 

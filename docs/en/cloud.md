@@ -17,7 +17,9 @@ the node does neither.
 What goes out, and what **never** does, is in
 [protocol/aggregate.md](protocol/aggregate.md). Full addresses,
 `User-Agent` strings, paths, headers, cookies and bodies are not there
-and cannot be.
+and cannot be. Neither are your rules: a rule that fired is named by a
+hash of what it does, not by its `id` or its condition. The hash of your
+rule is shown by `antibot rules list`.
 
 ## What an update of the bases cannot do
 
