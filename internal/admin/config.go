@@ -9,6 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/geron0025/antibot/internal/config"
+	"github.com/geron0025/antibot/internal/i18n"
 )
 
 // Config is the admin UI's own settings file, admin.yaml.
@@ -47,6 +48,11 @@ type Config struct {
 
 	SessionTTL config.Duration `yaml:"session_ttl"`
 
+	// Language is the one the pages speak when neither the viewer's
+	// choice nor their browser names a language the admin UI has: "en"
+	// or "ru".
+	Language string `yaml:"language"`
+
 	Core CoreFiles `yaml:"core"`
 }
 
@@ -83,6 +89,7 @@ func DefaultConfig() Config {
 		UsersFile:   "/var/lib/antibot-admin/admin.json",
 		TokensFile:  "/var/lib/antibot-admin/api-tokens.json",
 		SessionTTL:  config.Duration(12 * time.Hour),
+		Language:    "en",
 		Core: CoreFiles{
 			Socket:          "/var/lib/antibot/core.sock",
 			EventsDir:       "/var/lib/antibot/events",
@@ -121,6 +128,9 @@ func (c *Config) Validate() error {
 	}
 	if (c.Certificate == "") != (c.Key == "") {
 		return fmt.Errorf("certificate and key are set together")
+	}
+	if _, ok := i18n.Parse(c.Language); !ok {
+		return fmt.Errorf("language %q: the admin UI speaks %v", c.Language, i18n.Supported)
 	}
 	if c.Core.Socket == "" {
 		return fmt.Errorf("core.socket is empty: there is no core to ask")

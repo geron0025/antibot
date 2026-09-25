@@ -25,7 +25,7 @@ type coreData struct {
 
 func (s *Server) corePage(w http.ResponseWriter, r *http.Request, user string) {
 	data := coreData{
-		pageCommon: s.common(user, "settings", 0, r.URL.Query().Get("error")),
+		pageCommon: s.common(r, user, "settings", 0, r.URL.Query().Get("error")),
 		CSRF:       s.csrfToken(r),
 		Asked:      r.URL.Query().Get("done") == "restart",
 	}
@@ -36,7 +36,7 @@ func (s *Server) corePage(w http.ResponseWriter, r *http.Request, user string) {
 		data.Health = &h
 		data.Uptime = time.Since(h.Started).Truncate(time.Second)
 	}
-	s.render(w, "core.html", data)
+	s.render(w, r, "core.html", data)
 }
 
 // restartCore asks the core to finish cleanly; the supervisor — systemd
@@ -49,30 +49,30 @@ func (s *Server) corePage(w http.ResponseWriter, r *http.Request, user string) {
 // not be enough to do that at will.
 func (s *Server) restartCore(w http.ResponseWriter, r *http.Request, who string) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, s.t(r, "error.invalid_form"), http.StatusBadRequest)
 		return
 	}
 	if !s.checkCSRF(r) {
-		http.Error(w, "the request did not come from this page", http.StatusForbidden)
+		http.Error(w, s.t(r, "error.foreign_form"), http.StatusForbidden)
 		return
 	}
 	now := time.Now()
 	if s.o.Attempts != nil &&
 		s.o.Attempts.Exceeded("login:"+clientAddr(r), 10, 5*time.Minute, now) {
-		http.Error(w, "Too many attempts. Please wait.", http.StatusTooManyRequests)
+		http.Error(w, s.t(r, "error.too_many_attempts"), http.StatusTooManyRequests)
 		return
 	}
 	if !s.o.Users.Check(who, r.PostFormValue("password")) {
 		s.o.Log.Warn("the core was not restarted: the password did not match",
 			"who", who, "address", clientAddr(r))
-		s.coreError(w, r, "The password did not match")
+		s.coreError(w, r, s.t(r, "error.password"))
 		return
 	}
 
 	ctx, cancel := s.coreContext(r.Context())
 	defer cancel()
 	if err := s.o.Core.Stop(ctx); err != nil {
-		s.coreError(w, r, "The core was not restarted: "+err.Error())
+		s.coreError(w, r, s.t(r, "core.not_restarted", err.Error()))
 		return
 	}
 	s.o.Log.Warn("the core was asked to restart from the admin UI", "who", who, "address", clientAddr(r))

@@ -13,6 +13,7 @@ import (
 	"github.com/geron0025/antibot/internal/alerts"
 	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/facts"
+	"github.com/geron0025/antibot/internal/i18n"
 	"github.com/geron0025/antibot/internal/rules"
 	"github.com/geron0025/antibot/internal/summary"
 )
@@ -25,37 +26,82 @@ const (
 	csrfCookieName    = "antibot_csrf"
 )
 
-func parseTemplates() (*template.Template, error) {
-	funcs := template.FuncMap{
-		"share":    share,
-		"time":     formatTime,
-		"date":     formatDate,
+// parseTemplates parses the templates once per language: html/template
+// takes its functions before parsing, and a template once executed can no
+// longer be cloned, so a language cannot be swapped in per request.
+func parseTemplates(catalog *i18n.Catalog) (map[i18n.Lang]*template.Template, error) {
+	out := map[i18n.Lang]*template.Template{}
+	for _, lang := range catalog.Langs() {
+		t, err := template.New("").Funcs(templateFuncs(catalog.Printer(lang))).ParseFS(templatesFS, "templates/*.html")
+		if err != nil {
+			return nil, err
+		}
+		out[lang] = t
+	}
+	return out, nil
+}
+
+// sectionTitles name the sections for the menu and the page title.
+var sectionTitles = map[string]string{
+	"overview": "nav.overview",
+	"events":   "nav.events",
+	"rules":    "nav.rules",
+	"domains":  "nav.domains",
+	"alerts":   "nav.alerts",
+	"settings": "nav.settings",
+}
+
+// alertStates and tokenStates name the states the core and the token
+// file write as words of the code.
+var (
+	alertStates = map[string]string{
+		alerts.Firing:   "alert_state.firing",
+		alerts.Resolved: "alert_state.resolved",
+		alerts.Test:     "alert_state.test",
+	}
+	tokenStates = map[string]string{
+		TokenLive:    "token_state.live",
+		TokenRevoked: "token_state.revoked",
+		TokenExpired: "token_state.expired",
+	}
+)
+
+// named is a word of the code as a human reads it; a word the table does
+// not know is shown as the code wrote it.
+func named(p *i18n.Printer, table map[string]string, word string) string {
+	if key, ok := table[word]; ok {
+		return p.T(key)
+	}
+	return word
+}
+
+func templateFuncs(p *i18n.Printer) template.FuncMap {
+	return template.FuncMap{
+		"t":        func(key string, args ...any) any { return localize(p, key, args...) },
+		"tn":       func(key string, n int, args ...any) any { return localizeN(p, key, n, args...) },
+		"lang":     func() string { return string(p.Lang()) },
+		"share":    p.Percent,
+		"time":     p.Time,
+		"date":     p.Date,
+		"count":    func(n int) string { return p.Number(int64(n)) },
+		"bytes":    func(n int64) string { return formatBytes(p, n) },
+		"latency":  func(d time.Duration) string { return formatLatency(p, d) },
 		"truncate": truncate,
 		"lower":    lower,
-		"count":    thousands,
-		"bytes":    formatBytes,
-		"latency":  formatLatency,
+		"join":     strings.Join,
 		"title": func(section string) string {
-			switch section {
-			case "events":
-				return "Events"
-			case "rules":
-				return "Rules"
-			case "domains":
-				return "Domains"
-			case "alerts":
-				return "Alerts"
-			case "settings":
-				return "Settings"
-			default:
-				return "Overview"
+			if key, ok := sectionTitles[section]; ok {
+				return p.T(key)
 			}
+			return p.T("nav.overview")
 		},
+		"alertState": func(state string) string { return named(p, alertStates, state) },
+		"tokenState": func(state string) string { return named(p, tokenStates, state) },
 		// breakdown assembles the data for one breakdown table: Go
 		// templates have no other way to pass several values. key is the
 		// events filter a row links to; extra is one more filter as a
 		// name and a value, so that a path with 5xx opens exactly its 5xx.
-		"breakdown": func(name, key string, rows []summary.Row, extra ...string) map[string]any {
+		"breakdown": func(name any, key string, rows []summary.Row, extra ...string) map[string]any {
 			data := map[string]any{"Name": name, "Key": key, "Rows": rows}
 			if len(extra) == 2 {
 				data["ExtraKey"], data["ExtraValue"] = extra[0], extra[1]
@@ -63,7 +109,6 @@ func parseTemplates() (*template.Template, error) {
 			return data
 		},
 	}
-	return template.New("").Funcs(funcs).ParseFS(templatesFS, "templates/*.html")
 }
 
 // pageCommon is what every page carries.
@@ -73,6 +118,9 @@ type pageCommon struct {
 	Section string
 	Period  string
 	Error   string
+
+	// Back is where the language switch returns: this very page.
+	Back string
 
 	// Tab is the tab within the section, for the sections that have
 	// them: settings.
@@ -113,9 +161,10 @@ func bell(state control.Alerts) *bellData {
 	return &bellData{Firing: state.Firing, Recent: recent}
 }
 
-func (s *Server) render(w http.ResponseWriter, name string, data any) {
+func (s *Server) render(w http.ResponseWriter, r *http.Request, name string, data any) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.templates.ExecuteTemplate(w, name, data); err != nil {
+	w.Header().Set("Content-Language", string(s.lang(r)))
+	if err := s.templates[s.lang(r)].ExecuteTemplate(w, name, data); err != nil {
 		s.o.Log.Error("an admin UI page did not render", "template", name, "err", err)
 	}
 }
@@ -149,13 +198,14 @@ func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 
 	token, err := s.setCSRF(w, r)
 	if err != nil {
-		http.Error(w, "it did not work out", http.StatusInternalServerError)
+		http.Error(w, s.t(r, "error.internal"), http.StatusInternalServerError)
 		return
 	}
-	s.render(w, "login.html", loginData{
+	s.render(w, r, "login.html", loginData{
 		pageCommon: pageCommon{
 			Version: s.o.Version,
 			Error:   r.URL.Query().Get("error"),
+			Back:    "/login",
 		},
 		CSRF: token,
 	})
@@ -163,11 +213,11 @@ func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, s.t(r, "error.invalid_form"), http.StatusBadRequest)
 		return
 	}
 	if !s.checkCSRF(r) {
-		http.Error(w, "the request did not come from this page", http.StatusForbidden)
+		http.Error(w, s.t(r, "error.foreign_form"), http.StatusForbidden)
 		return
 	}
 
@@ -178,7 +228,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if s.o.Attempts != nil &&
 		s.o.Attempts.Exceeded("login:"+clientAddr(r), 10, 5*time.Minute, now) {
 		s.o.Log.Warn("too many admin UI login attempts", "address", clientAddr(r))
-		http.Error(w, "Too many attempts. Please wait.", http.StatusTooManyRequests)
+		http.Error(w, s.t(r, "error.too_many_attempts"), http.StatusTooManyRequests)
 		return
 	}
 
@@ -188,13 +238,13 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 	if !s.o.Users.Check(name, password) {
 		s.o.Log.Warn("a failed admin UI login", "name", name, "address", clientAddr(r))
 		http.Redirect(w, r, "/login?error="+
-			url.QueryEscape("The name or the password did not match"), http.StatusSeeOther)
+			url.QueryEscape(s.t(r, "login.mismatch")), http.StatusSeeOther)
 		return
 	}
 
 	key, until, err := s.o.Sessions.Start(name, now)
 	if err != nil {
-		http.Error(w, "it did not work out", http.StatusInternalServerError)
+		http.Error(w, s.t(r, "error.internal"), http.StatusInternalServerError)
 		return
 	}
 	http.SetCookie(w, &http.Cookie{
@@ -212,7 +262,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil || !s.checkCSRF(r) {
-		http.Error(w, "the request did not come from this page", http.StatusForbidden)
+		http.Error(w, s.t(r, "error.foreign_form"), http.StatusForbidden)
 		return
 	}
 	if cookie, err := r.Cookie(sessionCookieName); err == nil {
@@ -285,8 +335,8 @@ func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request, user strin
 	if err != nil {
 		// The log directory may not exist before the first event — that
 		// is no reason to show an empty page without an explanation.
-		s.render(w, "overview.html", overviewData{
-			pageCommon: s.common(user, "overview", period, err.Error()),
+		s.render(w, r, "overview.html", overviewData{
+			pageCommon: s.common(r, user, "overview", period, err.Error()),
 			CSRF:       s.csrfToken(r),
 			Summary:    &summary.Summary{Decisions: map[string]int{}},
 		})
@@ -294,13 +344,13 @@ func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request, user strin
 	}
 
 	data := overviewData{
-		pageCommon:    s.common(user, "overview", period, ""),
+		pageCommon:    s.common(r, user, "overview", period, ""),
 		CSRF:          s.csrfToken(r),
 		Summary:       result,
 		ExpiringCerts: s.expiringCerts(r.Context(), now),
 		ServerErrors:  result.Answers[summary.AnswerServerError],
-		Answers:       newDonut(result.Answers),
-		Series:        newColumns(result.Series, period),
+		Answers:       newDonut(s.printer(r), result.Answers),
+		Series:        newColumns(s.printer(r), result.Series, period),
 	}
 	if s.o.Rules != nil {
 		set := s.o.Rules.Set()
@@ -315,7 +365,7 @@ func (s *Server) overviewPage(w http.ResponseWriter, r *http.Request, user strin
 		}
 	}
 	data.Cloud = cloud
-	s.render(w, "overview.html", data)
+	s.render(w, r, "overview.html", data)
 }
 
 // --- events ---
@@ -356,8 +406,8 @@ func (s *Server) eventsPage(w http.ResponseWriter, r *http.Request, user string)
 		message = err.Error()
 	}
 
-	s.render(w, "events.html", eventsData{
-		pageCommon: s.common(user, "events", 0, message),
+	s.render(w, r, "events.html", eventsData{
+		pageCommon: s.common(r, user, "events", 0, message),
 		CSRF:       s.csrfToken(r),
 		Events:     list,
 		Filter:     f,
@@ -387,7 +437,7 @@ type rulesData struct {
 func (s *Server) rulesPage(w http.ResponseWriter, r *http.Request, user string) {
 	period := periodOf(r)
 	data := rulesData{
-		pageCommon: s.common(user, "rules", period, r.URL.Query().Get("error")),
+		pageCommon: s.common(r, user, "rules", period, r.URL.Query().Get("error")),
 		CSRF:       s.csrfToken(r),
 	}
 	rows, events, err := s.ruleRows(time.Now(), period)
@@ -395,7 +445,7 @@ func (s *Server) rulesPage(w http.ResponseWriter, r *http.Request, user string) 
 	if err != nil {
 		data.Error = err.Error()
 	}
-	s.render(w, "rules.html", data)
+	s.render(w, r, "rules.html", data)
 }
 
 // ruleRows lists the rules in the order of application, the disabled
@@ -458,15 +508,15 @@ func (s *Server) ruleRows(now time.Time, period time.Duration) ([]RuleRow, int, 
 // else's server. Hence the button; hence no condition editor.
 func (s *Server) toggleRule(w http.ResponseWriter, r *http.Request, who string) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, s.t(r, "error.invalid_form"), http.StatusBadRequest)
 		return
 	}
 	if !s.checkCSRF(r) {
-		http.Error(w, "the request did not come from this page", http.StatusForbidden)
+		http.Error(w, s.t(r, "error.foreign_form"), http.StatusForbidden)
 		return
 	}
 	if s.o.Rules == nil {
-		http.Error(w, "the rules are not connected", http.StatusNotFound)
+		http.Error(w, s.t(r, "error.rules_off"), http.StatusNotFound)
 		return
 	}
 
@@ -510,15 +560,15 @@ func withError(to, message string) string {
 // does a proposal from the cloud.
 func (s *Server) setRuleMode(w http.ResponseWriter, r *http.Request, who string) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, s.t(r, "error.invalid_form"), http.StatusBadRequest)
 		return
 	}
 	if !s.checkCSRF(r) {
-		http.Error(w, "the request did not come from this page", http.StatusForbidden)
+		http.Error(w, s.t(r, "error.foreign_form"), http.StatusForbidden)
 		return
 	}
 	if s.o.Rules == nil {
-		http.Error(w, "the rules are not connected", http.StatusNotFound)
+		http.Error(w, s.t(r, "error.rules_off"), http.StatusNotFound)
 		return
 	}
 
@@ -539,10 +589,10 @@ func (s *Server) setRuleMode(w http.ResponseWriter, r *http.Request, who string)
 
 // --- helpers ---
 
-func (s *Server) common(user, section string, period time.Duration, message string) pageCommon {
+func (s *Server) common(r *http.Request, user, section string, period time.Duration, message string) pageCommon {
 	c := pageCommon{
 		User: user, Version: s.o.Version, Section: section, Error: message,
-		APITokens: s.o.Tokens != nil,
+		APITokens: s.o.Tokens != nil, Back: backOf(r),
 	}
 	// One question to the core per page: its answer is the bell, and its
 	// absence is the warning that the core is down.

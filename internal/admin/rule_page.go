@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"time"
 
 	"github.com/geron0025/antibot/internal/events"
@@ -53,7 +54,7 @@ func (s *Server) rulePage(w http.ResponseWriter, r *http.Request, user string) {
 		}
 	}
 	if rule == nil {
-		http.Redirect(w, r, withError("/rules", fmt.Sprintf("there is no rule %q", id)), http.StatusSeeOther)
+		http.Redirect(w, r, withError("/rules", s.t(r, "rule.no_such", strconv.Quote(id))), http.StatusSeeOther)
 		return
 	}
 	enabled := false
@@ -67,7 +68,7 @@ func (s *Server) rulePage(w http.ResponseWriter, r *http.Request, user string) {
 	period := periodOf(r)
 	now := time.Now()
 	data := rulePageData{
-		pageCommon:   s.common(user, "rules", period, r.URL.Query().Get("error")),
+		pageCommon:   s.common(r, user, "rules", period, r.URL.Query().Get("error")),
 		CSRF:         s.csrfToken(r),
 		Rule:         *rule,
 		Enabled:      enabled,
@@ -86,13 +87,13 @@ func (s *Server) rulePage(w http.ResponseWriter, r *http.Request, user string) {
 	} else {
 		data.Summary = result
 		if result.Events > 0 {
-			data.Series = newColumns(result.Series, period)
+			data.Series = newColumns(s.printer(r), result.Series, period)
 		}
 	}
 	if list, err := summary.Latest(s.o.EventsDir, f, 20); err == nil {
 		data.Events = list
 	}
-	s.render(w, "rule.html", data)
+	s.render(w, r, "rule.html", data)
 }
 
 // exportLimit bounds a download. A day of a busy site is hundreds of

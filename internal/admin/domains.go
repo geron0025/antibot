@@ -16,6 +16,7 @@ import (
 	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/domains"
 	"github.com/geron0025/antibot/internal/edgetls"
+	"github.com/geron0025/antibot/internal/i18n"
 )
 
 // The uploaded pair is two PEM files; a megabyte holds any real chain
@@ -93,7 +94,7 @@ type domainsData struct {
 func (s *Server) domainsPage(w http.ResponseWriter, r *http.Request, user string) {
 	now := time.Now()
 	data := domainsData{
-		pageCommon: s.common(user, "domains", 0, r.URL.Query().Get("error")),
+		pageCommon: s.common(r, user, "domains", 0, r.URL.Query().Get("error")),
 		CSRF:       s.csrfToken(r),
 		CanUpload:  s.o.UploadedCertsDir != "",
 	}
@@ -121,14 +122,14 @@ func (s *Server) domainsPage(w http.ResponseWriter, r *http.Request, user string
 		}
 	}
 
-	s.fillDNS(r.Context(), data.Rows)
-	s.render(w, "domains.html", data)
+	s.fillDNS(r.Context(), s.printer(r), data.Rows)
+	s.render(w, r, "domains.html", data)
 }
 
 // fillDNS resolves every exact name and says whether it points at this
 // machine. Concurrently and with a short deadline: the page must not
 // hang on somebody's slow resolver.
-func (s *Server) fillDNS(ctx context.Context, rows []DomainRow) {
+func (s *Server) fillDNS(ctx context.Context, p *i18n.Printer, rows []DomainRow) {
 	lookup := s.lookupHost
 	if lookup == nil {
 		lookup = func(ctx context.Context, host string) ([]string, error) {
@@ -156,24 +157,24 @@ func (s *Server) fillDNS(ctx context.Context, rows []DomainRow) {
 		group.Add(1)
 		go func(row *DomainRow) {
 			defer group.Done()
-			row.DNS = dnsHint(ctx, lookup, mine, row.Host)
+			row.DNS = dnsHint(ctx, p, lookup, mine, row.Host)
 		}(&rows[i])
 	}
 	group.Wait()
 }
 
-func dnsHint(ctx context.Context, lookup func(context.Context, string) ([]string, error),
+func dnsHint(ctx context.Context, p *i18n.Printer, lookup func(context.Context, string) ([]string, error),
 	mine map[netip.Addr]bool, host string) string {
 	found, err := lookup(ctx, host)
 	if err != nil || len(found) == 0 {
-		return "no address in DNS"
+		return p.T("domains.dns_none")
 	}
 	for _, a := range found {
 		if ip, err := netip.ParseAddr(a); err == nil && mine[ip.Unmap()] {
-			return "points here"
+			return p.T("domains.dns_here")
 		}
 	}
-	return "points at " + strings.Join(found, ", ")
+	return p.T("domains.dns_elsewhere", strings.Join(found, ", "))
 }
 
 // localAddrs lists the machine's own addresses — what "the domain
@@ -212,22 +213,22 @@ func siteAddress(server string) string {
 // addDomain adds a served name: the name and the site's server.
 func (s *Server) addDomain(w http.ResponseWriter, r *http.Request, who string) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, s.t(r, "error.invalid_form"), http.StatusBadRequest)
 		return
 	}
 	if !s.checkCSRF(r) {
-		http.Error(w, "the request did not come from this page", http.StatusForbidden)
+		http.Error(w, s.t(r, "error.foreign_form"), http.StatusForbidden)
 		return
 	}
 	if s.o.Domains == nil {
-		http.Error(w, "the domains are not connected", http.StatusNotFound)
+		http.Error(w, s.t(r, "error.domains_off"), http.StatusNotFound)
 		return
 	}
 
 	host := r.PostFormValue("host")
 	server := r.PostFormValue("server")
 	if strings.TrimSpace(server) == "" {
-		s.domainsError(w, r, "no site server given")
+		s.domainsError(w, r, s.t(r, "domains.no_server"))
 		return
 	}
 
@@ -248,15 +249,15 @@ func (s *Server) addDomain(w http.ResponseWriter, r *http.Request, who string) {
 
 func (s *Server) removeDomain(w http.ResponseWriter, r *http.Request, who string) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, s.t(r, "error.invalid_form"), http.StatusBadRequest)
 		return
 	}
 	if !s.checkCSRF(r) {
-		http.Error(w, "the request did not come from this page", http.StatusForbidden)
+		http.Error(w, s.t(r, "error.foreign_form"), http.StatusForbidden)
 		return
 	}
 	if s.o.Domains == nil {
-		http.Error(w, "the domains are not connected", http.StatusNotFound)
+		http.Error(w, s.t(r, "error.domains_off"), http.StatusNotFound)
 		return
 	}
 
@@ -280,15 +281,15 @@ func (s *Server) removeDomain(w http.ResponseWriter, r *http.Request, who string
 func (s *Server) uploadCertificate(w http.ResponseWriter, r *http.Request, who string) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
 	if err := r.ParseMultipartForm(maxUploadBytes); err != nil {
-		s.domainsError(w, r, "the upload was not accepted: two PEM files under a megabyte")
+		s.domainsError(w, r, s.t(r, "error.upload_size"))
 		return
 	}
 	if !s.checkCSRF(r) {
-		http.Error(w, "the request did not come from this page", http.StatusForbidden)
+		http.Error(w, s.t(r, "error.foreign_form"), http.StatusForbidden)
 		return
 	}
 	if s.o.UploadedCertsDir == "" {
-		http.Error(w, "uploads are not connected", http.StatusNotFound)
+		http.Error(w, s.t(r, "error.uploads_off"), http.StatusNotFound)
 		return
 	}
 
@@ -301,18 +302,18 @@ func (s *Server) uploadCertificate(w http.ResponseWriter, r *http.Request, who s
 		return
 	}
 	if !s.serves(r.Context(), host) {
-		s.domainsError(w, r, fmt.Sprintf("the node does not serve %s", host))
+		s.domainsError(w, r, s.t(r, "domains.not_served", host))
 		return
 	}
 
 	chain, err := formFile(r, "fullchain")
 	if err != nil {
-		s.domainsError(w, r, "the certificate chain: "+err.Error())
+		s.domainsError(w, r, s.t(r, "error.chain", err.Error()))
 		return
 	}
 	key, err := formFile(r, "privkey")
 	if err != nil {
-		s.domainsError(w, r, "the private key: "+err.Error())
+		s.domainsError(w, r, s.t(r, "error.key", err.Error()))
 		return
 	}
 

@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/geron0025/antibot/internal/i18n"
 	"github.com/geron0025/antibot/internal/summary"
 )
 
@@ -17,12 +18,12 @@ import (
 
 // answerLabels name the answer classes for a human.
 var answerLabels = [summary.AnswerCount]string{
-	"2xx from the site",
-	"3xx from the site",
-	"4xx from the site",
-	"5xx from the site",
-	"not let through by the node",
-	"no status recorded",
+	"answer.2xx",
+	"answer.3xx",
+	"answer.4xx",
+	"answer.5xx",
+	"answer.blocked",
+	"answer.none",
 }
 
 // answerClass is the CSS class that gives an answer class its colour. The
@@ -41,7 +42,7 @@ type legendRow struct {
 
 // legend lists every class, empty ones included: "5xx: 0" is news too.
 // Only "no status" is left out when empty — it exists for old events.
-func legend(answers [summary.AnswerCount]int) []legendRow {
+func legend(p *i18n.Printer, answers [summary.AnswerCount]int) []legendRow {
 	total := 0
 	for _, n := range answers {
 		total += n
@@ -52,8 +53,8 @@ func legend(answers [summary.AnswerCount]int) []legendRow {
 			continue
 		}
 		rows = append(rows, legendRow{
-			Name: a.String(), Label: answerLabels[a], Class: answerClass(a),
-			Count: answers[a], Share: share(answers[a], total),
+			Name: a.String(), Label: p.T(answerLabels[a]), Class: answerClass(a),
+			Count: answers[a], Share: p.Percent(answers[a], total),
 		})
 	}
 	return rows
@@ -81,8 +82,8 @@ const donutGap = 0.6
 // newDonut lays the answers out along a circle whose radius makes its
 // circumference exactly 100: an arc's length is then its share in
 // percent, and a stroke-dasharray is all the geometry there is.
-func newDonut(answers [summary.AnswerCount]int) donutChart {
-	d := donutChart{Legend: legend(answers)}
+func newDonut(p *i18n.Printer, answers [summary.AnswerCount]int) donutChart {
+	d := donutChart{Legend: legend(p, answers)}
 	present := 0
 	for _, n := range answers {
 		d.Total += n
@@ -110,7 +111,7 @@ func newDonut(answers [summary.AnswerCount]int) donutChart {
 		arc := math.Max(pct-gap, 0.4)
 		d.Segments = append(d.Segments, donutSegment{
 			Class:  answerClass(a),
-			Title:  fmt.Sprintf("%s: %s (%s)", answerLabels[a], thousands(n), share(n, d.Total)),
+			Title:  p.T("chart.segment", p.T(answerLabels[a]), n, p.Percent(n, d.Total)),
 			Dash:   fmt.Sprintf("%.3f %.3f", arc, 100-arc),
 			Offset: fmt.Sprintf("%.3f", -offset),
 		})
@@ -182,15 +183,15 @@ const (
 
 // newColumns stacks each time bucket by answer class. It returns nil when
 // there is nothing to draw.
-func newColumns(points []summary.Point, period time.Duration) *columnsChart {
+func newColumns(p *i18n.Printer, points []summary.Point, period time.Duration) *columnsChart {
 	var totals [summary.AnswerCount]int
 	largest := 0
-	for _, p := range points {
-		for a, n := range p.Answers {
+	for _, point := range points {
+		for a, n := range point.Answers {
 			totals[a] += n
 		}
-		if p.Events > largest {
-			largest = p.Events
+		if point.Events > largest {
+			largest = point.Events
 		}
 	}
 	if largest == 0 {
@@ -211,14 +212,14 @@ func newColumns(points []summary.Point, period time.Duration) *columnsChart {
 	for a := summary.Answer(0); a < summary.AnswerCount; a++ {
 		if totals[a] > 0 {
 			c.Legend = append(c.Legend, legendRow{
-				Name: a.String(), Label: answerLabels[a], Class: answerClass(a),
+				Name: a.String(), Label: p.T(answerLabels[a]), Class: answerClass(a),
 			})
 			c.Classes = append(c.Classes, a.String())
 		}
 	}
 	for v := 0; v <= top; v += step {
 		c.Grid = append(c.Grid, gridLine{
-			Y: coord(plotBase - float64(v)*scale), Label: thousands(v),
+			Y: coord(plotBase - float64(v)*scale), Label: p.Number(int64(v)),
 		})
 	}
 
@@ -226,38 +227,38 @@ func newColumns(points []summary.Point, period time.Duration) *columnsChart {
 	if len(points) > 1 {
 		width = points[1].Time.Sub(points[0].Time)
 	}
-	format := "15:04"
+	// Over a day the axis names the time of day; over more, the day too.
+	format := func(t time.Time) string { return t.Format("15:04") }
 	if period > 24*time.Hour {
-		format = "02.01 15:04"
+		format = p.Short
 	}
 
 	slot := (plotRight - plotLeft) / float64(len(points))
 	w := math.Min(columnMax, slot*0.72)
 	every := (len(points) + 5) / 6
 
-	for i, p := range points {
+	for i, point := range points {
 		x := plotLeft + float64(i)*slot + (slot-w)/2
 		col := column{HitX: coord(plotLeft + float64(i)*slot), HitW: coord(slot)}
 
-		from := p.Time.Local()
-		title := fmt.Sprintf("%s–%s · %s requests", from.Format(format),
-			from.Add(width).Format("15:04"), thousands(p.Events))
-		row := seriesRow{Time: from.Format(format), Total: p.Events}
+		from := point.Time.Local()
+		title := p.T("chart.column", format(from), from.Add(width).Format("15:04"), point.Events)
+		row := seriesRow{Time: format(from), Total: point.Events}
 
 		var present []summary.Answer
 		for a := summary.Answer(0); a < summary.AnswerCount; a++ {
 			if totals[a] > 0 {
-				row.Counts = append(row.Counts, p.Answers[a])
+				row.Counts = append(row.Counts, point.Answers[a])
 			}
-			if p.Answers[a] > 0 {
+			if point.Answers[a] > 0 {
 				present = append(present, a)
-				title += fmt.Sprintf("\n%s: %s", answerLabels[a], thousands(p.Answers[a]))
+				title += "\n" + p.T("chart.segment_count", p.T(answerLabels[a]), point.Answers[a])
 			}
 		}
 
 		cursor := plotBase
 		for k, a := range present {
-			h := math.Max(float64(p.Answers[a])*scale, 1)
+			h := math.Max(float64(point.Answers[a])*scale, 1)
 			last := k == len(present)-1
 			y := cursor - h
 			if !last && h > 2*columnGap {
@@ -279,7 +280,7 @@ func newColumns(points []summary.Point, period time.Duration) *columnsChart {
 		c.Rows = append(c.Rows, row)
 
 		if i%every == 0 {
-			c.XLabels = append(c.XLabels, axisLabel{X: coord(x + w/2), Text: from.Format(format)})
+			c.XLabels = append(c.XLabels, axisLabel{X: coord(x + w/2), Text: format(from)})
 		}
 	}
 	return c
@@ -351,28 +352,31 @@ func thousands(n int) string {
 	return neg + s
 }
 
-func formatBytes(n int64) string {
+// byteUnits name the binary multiples, a kilobyte and up.
+var byteUnits = []string{"unit.kb", "unit.mb", "unit.gb", "unit.tb", "unit.pb"}
+
+func formatBytes(p *i18n.Printer, n int64) string {
 	const unit = 1024
 	if n < unit {
-		return fmt.Sprintf("%d B", n)
+		return p.T("unit.b", n)
 	}
 	value, exp := float64(n)/unit, 0
 	for value >= unit && exp < 4 {
 		value /= unit
 		exp++
 	}
-	return fmt.Sprintf("%.1f %cB", value, "KMGTP"[exp])
+	return p.T(byteUnits[exp], p.Decimal(value, 1))
 }
 
-func formatLatency(d time.Duration) string {
+func formatLatency(p *i18n.Printer, d time.Duration) string {
 	switch {
 	case d <= 0:
 		return "—"
 	case d < time.Millisecond:
-		return "<1 ms"
+		return p.T("unit.under_a_ms")
 	case d < time.Second:
-		return fmt.Sprintf("%d ms", d.Milliseconds())
+		return p.T("unit.ms", d.Milliseconds())
 	default:
-		return fmt.Sprintf("%.1f s", d.Seconds())
+		return p.T("unit.s", p.Decimal(d.Seconds(), 1))
 	}
 }

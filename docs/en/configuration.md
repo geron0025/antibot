@@ -420,6 +420,7 @@ uploaded_dir: "/var/lib/antibot-admin/admin-ui"
 users_file: "/var/lib/antibot-admin/admin.json"
 tokens_file: "/var/lib/antibot-admin/api-tokens.json"
 session_ttl: 12h
+language: en
 
 core:
   socket: "/var/lib/antibot/core.sock"
@@ -439,6 +440,7 @@ core:
 | `users_file` | `/var/lib/antibot-admin/admin.json` | the accounts |
 | `tokens_file` | `/var/lib/antibot-admin/api-tokens.json` | the [API](api.md)'s tokens, as hashes; empty turns the API off |
 | `session_ttl` | `12h` | the session lifetime |
+| `language` | `en` | the language of the pages when neither the viewer chose one nor the browser names one: `en` or `ru`; anything else is a refusal to start. See [Language](admin.md#language) |
 | `core.socket` | `/var/lib/antibot/core.sock` | the core's `listen.control` |
 | `core.events_dir` | `/var/lib/antibot/events` | the core's `events.dir`; read only |
 | `core.rules_file` | `/var/lib/antibot/shared/rules.json` | the core's `rules.file` |

@@ -3,42 +3,37 @@
 {{template "period-picker" .}}
 
 {{range .ExpiringCerts}}
-<div class="warning">The certificate for <b>{{.Names}}</b>
-  {{if lt .Days 0}}expired on {{time .NotAfter}}{{else if eq .Days 0}}expires
-  today{{else}}expires in {{.Days}} days ({{time .NotAfter}}){{end}} —
-  there is no auto-renewal; upload a fresh one on the
-  <a href="/domains">Domains</a> page or renew it with certbot.</div>
+<div class="warning">{{if lt .Days 0}}{{t "overview.cert_expired_html" .Names (time .NotAfter)}}{{else if eq .Days 0}}{{t "overview.cert_expires_today_html" .Names}}{{else}}{{tn "overview.cert_expires_in_html" .Days .Names (time .NotAfter)}}{{end}}</div>
 {{end}}
 {{range .Firing}}
-<div class="warning">{{.Text}} — since {{time .Since}}, see
-  <a href="/alerts">Alerts</a>.</div>
+<div class="warning">{{t "overview.firing_html" .Text (time .Since)}}</div>
 {{end}}
 
 <section class="tiles">
-  <div class="tile"><span class="big-number">{{count .Summary.Events}}</span><span class="caption">requests</span></div>
-  <div class="tile"><span class="big-number">{{count .Summary.IPCount}}</span><span class="caption">addresses</span></div>
+  <div class="tile"><span class="big-number">{{count .Summary.Events}}</span><span class="caption">{{t "overview.requests"}}</span></div>
+  <div class="tile"><span class="big-number">{{count .Summary.IPCount}}</span><span class="caption">{{t "overview.addresses"}}</span></div>
   <div class="tile">
     <span class="big-number">{{count .Summary.Blocked}}</span>
-    <span class="caption">not let through · {{share .Summary.Blocked .Summary.Events}}</span>
+    <span class="caption">{{t "overview.not_let_through" (share .Summary.Blocked .Summary.Events)}}</span>
   </div>
   <div class="tile">
     <span class="big-number">{{count .ServerErrors}}</span>
-    <span class="caption"><a href="/events?status=5xx">5xx from the site</a> · {{share .ServerErrors .Summary.Events}}</span>
+    <span class="caption">{{t "overview.server_errors_html" (share .ServerErrors .Summary.Events)}}</span>
   </div>
   <div class="tile">
     <span class="big-number">{{latency .Summary.Latency.P50}}</span>
-    <span class="caption">median answer · p95 {{latency .Summary.Latency.P95}}</span>
+    <span class="caption">{{t "overview.median" (latency .Summary.Latency.P95)}}</span>
   </div>
-  <div class="tile"><span class="big-number">{{bytes .Summary.Bytes}}</span><span class="caption">sent to clients</span></div>
-  <div class="tile"><span class="big-number">{{.Effective}}</span><span class="caption">rules in force{{if ne .Rules .Effective}} out of {{.Rules}}{{end}}</span></div>
+  <div class="tile"><span class="big-number">{{bytes .Summary.Bytes}}</span><span class="caption">{{t "overview.sent"}}</span></div>
+  <div class="tile"><span class="big-number">{{.Effective}}</span><span class="caption">{{if ne .Rules .Effective}}{{t "overview.rules_in_force_of" .Rules}}{{else}}{{t "overview.rules_in_force"}}{{end}}</span></div>
 </section>
 
 <section class="charts">
   <div class="card">
-    <h2>Answers</h2>
+    <h2>{{t "overview.answers"}}</h2>
     {{with .Answers}}{{if .Total}}
     <div class="answers">
-      <svg class="donut" viewBox="0 0 42 42" role="img" aria-label="Answers by class">
+      <svg class="donut" viewBox="0 0 42 42" role="img" aria-label="{{t "chart.donut_label"}}">
         <g transform="rotate(-90 21 21)">
         {{range .Segments}}
           <circle class="{{.Class}}" cx="21" cy="21" r="15.91549" stroke-width="6"
@@ -46,7 +41,7 @@
         {{end}}
         </g>
         <text class="donut-total" x="21" y="22" text-anchor="middle">{{count .Total}}</text>
-        <text class="donut-caption" x="21" y="26.5" text-anchor="middle">requests</text>
+        <text class="donut-caption" x="21" y="26.5" text-anchor="middle">{{t "overview.requests"}}</text>
       </svg>
       <table class="legend">
         <tbody>
@@ -60,38 +55,36 @@
         </tbody>
       </table>
     </div>
-    {{else}}<p class="dim">No requests over the period.</p>{{end}}{{end}}
+    {{else}}<p class="dim">{{t "overview.no_requests"}}</p>{{end}}{{end}}
   </div>
 
   <div class="card">
-    <h2>Requests over time</h2>
+    <h2>{{t "overview.over_time"}}</h2>
     {{with .Series}}
     {{template "columns" .}}
-    {{else}}<p class="dim">No requests over the period.</p>{{end}}
+    {{else}}<p class="dim">{{t "overview.no_requests"}}</p>{{end}}
   </div>
 </section>
 
 <section class="two-columns">
-  <div>{{template "breakdown" (breakdown "Site answer code" "status" .Summary.Statuses)}}</div>
-  <div>{{template "breakdown" (breakdown "Path" "q" .Summary.Paths)}}</div>
-  <div>{{template "breakdown" (breakdown "Path answered with 5xx" "q" .Summary.ServerErrorPaths "status" "5xx")}}</div>
-  <div>{{template "breakdown" (breakdown "Path answered with 4xx" "q" .Summary.ClientErrorPaths "status" "4xx")}}</div>
+  <div>{{template "breakdown" (breakdown (t "breakdown.status") "status" .Summary.Statuses)}}</div>
+  <div>{{template "breakdown" (breakdown (t "breakdown.path") "q" .Summary.Paths)}}</div>
+  <div>{{template "breakdown" (breakdown (t "breakdown.path_5xx") "q" .Summary.ServerErrorPaths "status" "5xx")}}</div>
+  <div>{{template "breakdown" (breakdown (t "breakdown.path_4xx") "q" .Summary.ClientErrorPaths "status" "4xx")}}</div>
 </section>
 
 <section class="unknown">
-  <h2>What the node does not know</h2>
-  <p class="dim">While the network has no class and the fingerprint has no name,
-  a rule has to be written blind: by the address and the <code>User-Agent</code>
-  string, that is, by what the client says about itself.</p>
+  <h2>{{t "overview.unknown"}}</h2>
+  <p class="dim">{{t "overview.unknown_intro_html"}}</p>
   <div class="scroll"><table>
     <tbody>
       <tr>
-        <td>requests without a network class</td>
+        <td>{{t "overview.no_net_class"}}</td>
         <td class="num">{{count .Summary.Unknown.NoNetClass}}</td>
         <td class="num dim">{{share .Summary.Unknown.NoNetClass .Summary.Events}}</td>
       </tr>
       <tr>
-        <td>requests with a nameless fingerprint</td>
+        <td>{{t "overview.no_family"}}</td>
         <td class="num">{{count .Summary.Unknown.NoFamily}}</td>
         <td class="num dim">{{share .Summary.Unknown.NoFamily .Summary.Events}}</td>
       </tr>
@@ -99,17 +92,13 @@
   </table></div>
 
   {{with .Summary.Unknown.SelfDeclaredCrawlers}}
-  <h3>Called themselves crawlers</h3>
-  <p class="dim">A self-declaration is a string anyone at all can put on themselves.
-  A claim is confirmed only when the request came from a crawler network — the
-  ranges crawler owners publish about themselves, delivered with the fact set.
-  The rest nobody has checked: there an impostor and a real crawler look the same.</p>
+  <h3>{{t "overview.crawlers"}}</h3>
+  <p class="dim">{{t "overview.crawlers_intro"}}</p>
   {{if eq $.Summary.Unknown.NoNetClass $.Summary.Events}}
-  <p class="dim">No request here has a network class: without a fact set there is
-  nothing to confirm a claim against.</p>
+  <p class="dim">{{t "overview.crawlers_no_facts"}}</p>
   {{end}}
   <div class="scroll"><table>
-    <thead><tr><th>called itself</th><th class="num">requests</th><th class="num">from a crawler network</th><th class="num">not confirmed</th><th class="num">addresses</th></tr></thead>
+    <thead><tr><th>{{t "overview.called_itself"}}</th><th class="num">{{t "breakdown.requests"}}</th><th class="num">{{t "overview.from_crawler_network"}}</th><th class="num">{{t "overview.not_confirmed"}}</th><th class="num">{{t "breakdown.addresses"}}</th></tr></thead>
     <tbody>
     {{range .}}
       <tr>
@@ -124,56 +113,48 @@
   </table></div>
   {{end}}
 
-  <p class="dim">The network class, its owner and the fingerprint family arrive
-  with the fact sets — they change only what the client is called, and never
-  what happens to it.</p>
+  <p class="dim">{{t "overview.facts_only"}}</p>
 </section>
 
 {{with .Cloud}}
 <section class="card">
-  <h2>The cloud</h2>
+  <h2>{{t "overview.cloud"}}</h2>
   {{if .Token}}
   <div class="scroll"><table>
     <tbody>
       <tr>
-        <td>fact set</td>
-        <td>{{if .FactsVersion}}version {{.FactsVersion}}, built {{time .FactsBuilt}}{{else}}none yet{{end}}
-          {{if not .Fetching}}<span class="dim">· not fetched: switched off in the <a href="/settings/cloud">cloud settings</a></span>{{end}}</td>
+        <td>{{t "overview.fact_set"}}</td>
+        <td>{{if .FactsVersion}}{{t "overview.fact_set_version" (print .FactsVersion) (time .FactsBuilt)}}{{else}}{{t "overview.none_yet"}}{{end}}
+          {{if not .Fetching}}<span class="dim">· {{t "overview.not_fetched_html"}}</span>{{end}}</td>
       </tr>
       <tr>
-        <td>aggregates</td>
+        <td>{{t "overview.aggregates"}}</td>
         <td>{{if .Sending}}
-            {{if .Outbox}}{{.Outbox}} waiting to be sent{{else}}nothing waiting{{end}}
-            · {{if .LastSent.IsZero}}none accepted since the start{{else}}the last accepted {{time .LastSent}}{{end}}
-          {{else}}not sent: switched off in the <a href="/settings/cloud">cloud settings</a>{{end}}
+            {{if .Outbox}}{{t "overview.waiting" .Outbox}}{{else}}{{t "overview.nothing_waiting"}}{{end}}
+            · {{if .LastSent.IsZero}}{{t "overview.none_accepted"}}{{else}}{{t "overview.last_accepted" (time .LastSent)}}{{end}}
+          {{else}}{{t "overview.not_sent_html"}}{{end}}
           {{with .LastProblem}}<div class="warning">{{.}}</div>{{end}}</td>
       </tr>
     </tbody>
   </table></div>
-  <p class="dim">What leaves the node and what never does is written down in
-  the documentation, protocol/aggregate.md: counts by five-minute windows, no
-  addresses, no paths, no cookies.</p>
+  <p class="dim">{{t "overview.what_leaves"}}</p>
   {{else}}
-  <p>This node talks to nobody: it has no token, and nothing leaves it — no
-  aggregates, no requests for the bases.{{if .FactsVersion}}
-  It works on the fact set applied from disk, version {{.FactsVersion}}.{{end}}
-  The two things it could do with the cloud, and what each of them sends,
-  are in the <a href="/settings/cloud">cloud settings</a>.</p>
+  <p>{{if .FactsVersion}}{{t "overview.talks_to_nobody_facts_html" (print .FactsVersion)}}{{else}}{{t "overview.talks_to_nobody_html"}}{{end}}</p>
   {{end}}
 </section>
 {{end}}
 
 <section class="two-columns">
-  <div>{{template "breakdown" (breakdown "Rule" "rule" .Summary.Rules)}}</div>
-  <div>{{template "breakdown" (breakdown "Observation" "rule" .Summary.Shadows)}}</div>
-  <div>{{template "breakdown" (breakdown "Address" "ip" .Summary.IPs)}}</div>
-  <div>{{template "breakdown" (breakdown "JA4 fingerprint" "ja4" .Summary.JA4)}}</div>
-  <div>{{template "breakdown" (breakdown "User-Agent" "q" .Summary.UA)}}</div>
-  <div>{{template "breakdown" (breakdown "Host" "host" .Summary.Hosts)}}</div>
+  <div>{{template "breakdown" (breakdown (t "breakdown.rule") "rule" .Summary.Rules)}}</div>
+  <div>{{template "breakdown" (breakdown (t "breakdown.observation") "rule" .Summary.Shadows)}}</div>
+  <div>{{template "breakdown" (breakdown (t "breakdown.address") "ip" .Summary.IPs)}}</div>
+  <div>{{template "breakdown" (breakdown (t "breakdown.ja4") "ja4" .Summary.JA4)}}</div>
+  <div>{{template "breakdown" (breakdown (t "breakdown.user_agent") "q" .Summary.UA)}}</div>
+  <div>{{template "breakdown" (breakdown (t "breakdown.host") "host" .Summary.Hosts)}}</div>
 </section>
 
 {{if .Summary.Truncated}}
-<p class="dim">The variety of values hit the limit — the numbers in the breakdowns are incomplete.</p>
+<p class="dim">{{t "overview.truncated"}}</p>
 {{end}}
 
 {{template "footer" .}}

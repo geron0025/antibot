@@ -1,47 +1,38 @@
 {{template "header" .}}
 {{template "settings-tabs" .}}
 
-<p class="dim">Where the node sends its alerts. What fires and what has
-been sent is on the <a href="/alerts">alerts page</a>.</p>
+<p class="dim">{{t "delivery.intro_html"}}</p>
 
-{{if .TestResult}}<div class="warning">The test message: {{.TestResult}}</div>{{end}}
+{{if .TestResult}}<div class="warning">{{t "delivery.test_result" .TestResult}}</div>{{end}}
 
 <section class="card">
-  <h2>Delivery</h2>
+  <h2>{{t "delivery.title"}}</h2>
   {{if eq .Source "config"}}
-  <p class="dim">The command is set in config.yaml, in
-  <span class="value">alerts.command</span>, and is changed only there.</p>
+  <p class="dim">{{t "delivery.from_config_html"}}</p>
   <pre class="value">{{.Command}}</pre>
   {{else if .CanEdit}}
-  <p class="dim">A shell command the node runs with its own user. The
-  message arrives in <span class="value">$ANTIBOT_ALERT_TEXT</span> and the
-  other <span class="value">ANTIBOT_ALERT_*</span> variables, and as JSON on
-  stdin — never pasted into the command's text. Templates for Telegram, a
-  webhook and mail are in the documentation, alerts.md. Your password is
-  asked once more: the command runs on this machine.</p>
+  <p class="dim">{{t "delivery.how_html"}}</p>
   <form method="post" action="/settings/alerts/command" class="fields">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <label>command
+    <label>{{t "delivery.command"}}
       <textarea name="command" rows="5" cols="90" spellcheck="false">{{.Command}}</textarea>
     </label>
-    <label>your password
+    <label>{{t "form.your_password"}}
       <input type="password" name="password" autocomplete="current-password" required>
     </label>
-    <button type="submit">save</button>
+    <button type="submit">{{t "delivery.save"}}</button>
   </form>
-  {{if .UpdatedBy}}<p class="dim">Set by {{.UpdatedBy}}, {{time .UpdatedAt}}.</p>{{end}}
+  {{if .UpdatedBy}}<p class="dim">{{t "delivery.set_by" .UpdatedBy (time .UpdatedAt)}}</p>{{end}}
   {{else}}
-  <p class="dim">No place to keep a command: <span class="value">alerts.file</span>
-  is empty in the settings. The alerts are written to the core's log.</p>
+  <p class="dim">{{t "delivery.nowhere_html"}}</p>
   {{end}}
   {{if .Command}}
   <form method="post" action="/settings/alerts/test">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <button type="submit">send a test message</button>
+    <button type="submit">{{t "delivery.send_test"}}</button>
   </form>
   {{else}}
-  <p class="dim">No command yet: the alerts go only to the core's log and
-  to this page.</p>
+  <p class="dim">{{t "delivery.no_command"}}</p>
   {{end}}
 </section>
 

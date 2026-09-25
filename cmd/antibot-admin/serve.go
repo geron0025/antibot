@@ -10,6 +10,7 @@ import (
 	"github.com/geron0025/antibot/internal/alerts"
 	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/domains"
+	"github.com/geron0025/antibot/internal/i18n"
 	"github.com/geron0025/antibot/internal/rules"
 )
 
@@ -96,6 +97,7 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		Rules:            ruleStore,
 		Domains:          domainStore,
 		UploadedCertsDir: cfg.Core.CertificatesDir,
+		Language:         i18n.Lang(cfg.Language),
 		Version:          Version,
 		Log:              log,
 	})

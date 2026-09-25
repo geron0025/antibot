@@ -60,14 +60,14 @@ func (s *Server) renderTokens(w http.ResponseWriter, r *http.Request, user, mess
 	}
 
 	data := tokensData{
-		pageCommon: s.common(user, "settings", 0, message),
+		pageCommon: s.common(r, user, "settings", 0, message),
 		CSRF:       s.csrfToken(r),
 		Rows:       rows,
 		MaxDays:    MaxTokenDays,
 		Issued:     issued,
 	}
 	data.Tab = "tokens"
-	s.render(w, "tokens.html", data)
+	s.render(w, r, "tokens.html", data)
 }
 
 // issueToken asks for the password once more. A session is enough to
@@ -76,11 +76,11 @@ func (s *Server) renderTokens(w http.ResponseWriter, r *http.Request, user, mess
 // year of access — the same reason an account cannot be changed here.
 func (s *Server) issueToken(w http.ResponseWriter, r *http.Request, who string) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, s.t(r, "error.invalid_form"), http.StatusBadRequest)
 		return
 	}
 	if !s.checkCSRF(r) {
-		http.Error(w, "the request did not come from this page", http.StatusForbidden)
+		http.Error(w, s.t(r, "error.foreign_form"), http.StatusForbidden)
 		return
 	}
 
@@ -89,19 +89,19 @@ func (s *Server) issueToken(w http.ResponseWriter, r *http.Request, who string) 
 	now := time.Now()
 	if s.o.Attempts != nil &&
 		s.o.Attempts.Exceeded("login:"+clientAddr(r), 10, 5*time.Minute, now) {
-		http.Error(w, "Too many attempts. Please wait.", http.StatusTooManyRequests)
+		http.Error(w, s.t(r, "error.too_many_attempts"), http.StatusTooManyRequests)
 		return
 	}
 	if !s.o.Users.Check(who, r.PostFormValue("password")) {
 		s.o.Log.Warn("an API token was not issued: the password did not match",
 			"who", who, "address", clientAddr(r))
-		s.tokensError(w, r, "The password did not match")
+		s.tokensError(w, r, s.t(r, "error.password"))
 		return
 	}
 
 	days, err := strconv.Atoi(r.PostFormValue("days"))
 	if err != nil {
-		s.tokensError(w, r, "The number of days is not a number")
+		s.tokensError(w, r, s.t(r, "tokens.days_nan"))
 		return
 	}
 	value, tok, err := s.o.Tokens.Issue(r.PostFormValue("name"), r.PostFormValue("scope"), days, who, now)
@@ -121,11 +121,11 @@ func (s *Server) issueToken(w http.ResponseWriter, r *http.Request, who string) 
 
 func (s *Server) revokeToken(w http.ResponseWriter, r *http.Request, who string) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, s.t(r, "error.invalid_form"), http.StatusBadRequest)
 		return
 	}
 	if !s.checkCSRF(r) {
-		http.Error(w, "the request did not come from this page", http.StatusForbidden)
+		http.Error(w, s.t(r, "error.foreign_form"), http.StatusForbidden)
 		return
 	}
 	name := r.PostFormValue("name")

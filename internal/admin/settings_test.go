@@ -79,8 +79,9 @@ func TestTheSettingsPageShowsTheAdminCertificate(t *testing.T) {
 		`action="/settings/certificate"`,
 		// The test request comes for example.com, which the pair does not cover.
 		"It does not cover",
-		// A term runs into other years: the date carries the year.
-		time.Now().Add(90 * 24 * time.Hour).Local().Format("02.01.2006"),
+		// A term runs into other years: the date carries the year. In
+		// English, months first.
+		time.Now().Add(90 * 24 * time.Hour).Local().Format("01/02/2006"),
 	} {
 		if !strings.Contains(page, want) {
 			t.Errorf("the settings page has no %q", want)

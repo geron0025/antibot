@@ -1,18 +1,12 @@
 {{template "header" .}}
 
-<p class="dim">The node tells you when something is wrong with the site,
-without waiting for you to open this page. A trigger only tells: it changes
-neither the rules nor their mode. Each sends one message when it fires and
-one when things have been back to normal for a whole window; the message
-goes to the command set in <a href="/settings/alerts">alert delivery</a>.</p>
+<p class="dim">{{t "alerts.intro_html"}}</p>
 
-{{if .Off}}<div class="warning">The alerts are off in the core's settings:
-<span class="value">alerts.enabled</span> is false.</div>
-{{else if not .Delivering}}<div class="warning">No command yet: the alerts go only
-to the core's log and to this page. <a href="/settings/alerts">Set one →</a></div>{{end}}
+{{if .Off}}<div class="warning">{{t "alerts.off_html"}}</div>
+{{else if not .Delivering}}<div class="warning">{{t "alerts.no_command_html"}}</div>{{end}}
 
 <div class="scroll"><table>
-  <thead><tr><th>trigger</th><th>fires when</th><th>now</th></tr></thead>
+  <thead><tr><th>{{t "alerts.trigger"}}</th><th>{{t "alerts.fires_when"}}</th><th>{{t "alerts.now"}}</th></tr></thead>
   <tbody>
   {{range .Rows}}
     <tr>
@@ -20,9 +14,9 @@ to the core's log and to this page. <a href="/settings/alerts">Set one →</a></
       <td class="dim">{{.When}}</td>
       <td>
         {{range .Firing}}
-        <div><strong>firing</strong> since {{time .Since}}{{if .Clearing}} · settling{{end}}
+        <div>{{t "alerts.firing_since_html" (time .Since)}}{{if .Clearing}} · {{t "header.settling"}}{{end}}
           <div class="dim">{{.Text}}</div></div>
-        {{else}}<span class="dim">fine</span>{{end}}
+        {{else}}<span class="dim">{{t "alerts.fine"}}</span>{{end}}
       </td>
     </tr>
   {{end}}
@@ -30,24 +24,23 @@ to the core's log and to this page. <a href="/settings/alerts">Set one →</a></
 </table></div>
 
 
-<h2>Messages since the start</h2>
+<h2>{{t "alerts.history"}}</h2>
 <div class="scroll"><table>
-  <thead><tr><th>time</th><th>trigger</th><th>state</th><th>message</th><th>delivery</th></tr></thead>
+  <thead><tr><th>{{t "events_table.time"}}</th><th>{{t "alerts.trigger"}}</th><th>{{t "rule.state"}}</th><th>{{t "alerts.message"}}</th><th>{{t "alerts.delivery"}}</th></tr></thead>
   <tbody>
   {{range .History}}
     <tr>
       <td>{{time .Time}}</td>
       <td class="value">{{.ID}}</td>
-      <td>{{.State}}</td>
+      <td>{{alertState .State}}</td>
       <td>{{.Text}}</td>
       <td class="dim">{{.Delivery}}</td>
     </tr>
   {{else}}
-    <tr><td colspan="5" class="dim">nothing since the start</td></tr>
+    <tr><td colspan="5" class="dim">{{t "alerts.no_history"}}</td></tr>
   {{end}}
   </tbody>
 </table></div>
-<p class="dim">The history lives in the node's memory and starts anew with
-every restart of the core; every message is in the core's log as well.</p>
+<p class="dim">{{t "alerts.history_note"}}</p>
 
 {{template "footer" .}}

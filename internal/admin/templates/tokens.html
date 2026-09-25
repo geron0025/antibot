@@ -1,17 +1,11 @@
 {{template "header" .}}
 {{template "settings-tabs" .}}
 
-<p class="dim">Tokens for the node's API — for a monitoring system, a panel
-of your own, a CI job that rolls rules out together with the site. A token
-is yours: it is issued only here or with <code>antibot-admin api-token</code>, and
-it never leaves for the cloud. A program sends it as
-<code>Authorization: Bearer …</code> to <code>/api/v1/</code> on this
-address.</p>
+<p class="dim">{{t "tokens.intro_html"}}</p>
 
 {{with .Issued}}
 <section class="warning">
-  <p><strong>Token {{.Name}} ({{.Scope}})</strong> — copy it now. The node
-  keeps only its hash, and this page will not show it again.</p>
+  <p>{{t "tokens.issued_html" .Name .Scope}}</p>
   <p><code class="value">{{.Value}}</code></p>
 </section>
 {{end}}
@@ -19,8 +13,8 @@ address.</p>
 <div class="scroll"><table>
   <thead>
     <tr>
-      <th>name</th><th>starts with</th><th>scope</th><th>issued</th>
-      <th>expires</th><th>last used</th><th>state</th><th></th>
+      <th>{{t "tokens.name"}}</th><th>{{t "tokens.starts_with"}}</th><th>{{t "tokens.scope"}}</th><th>{{t "tokens.issued"}}</th>
+      <th>{{t "tokens.expires"}}</th><th>{{t "tokens.last_used"}}</th><th>{{t "rule.state"}}</th><th></th>
     </tr>
   </thead>
   <tbody>
@@ -30,55 +24,49 @@ address.</p>
       <td><code>{{.Prefix}}…</code></td>
       <td>{{.Scope}}</td>
       <td>{{time .CreatedAt}}</td>
-      <td>{{date .ExpiresAt}}{{if eq .Status "live"}} · {{.DaysLeft}} d left{{end}}</td>
+      <td>{{date .ExpiresAt}}{{if eq .Status "live"}} · {{tn "domains.days_left" .DaysLeft}}{{end}}</td>
       <td>{{time .Used}}</td>
-      <td>{{.Status}}</td>
+      <td>{{tokenState .Status}}</td>
       <td class="num">
         {{if eq .Status "live"}}
         <form method="post" action="/settings/tokens/revoke">
           <input type="hidden" name="csrf" value="{{$.CSRF}}">
           <input type="hidden" name="name" value="{{.Name}}">
-          <button type="submit">revoke</button>
+          <button type="submit">{{t "tokens.revoke"}}</button>
         </form>
         {{end}}
       </td>
     </tr>
   {{else}}
-    <tr><td colspan="8" class="dim">no tokens</td></tr>
+    <tr><td colspan="8" class="dim">{{t "tokens.none"}}</td></tr>
   {{end}}
   </tbody>
 </table></div>
 
 <section class="card add-domain">
-  <h2>Issue a token</h2>
-  <p class="dim"><span class="value">read</span> — the summary, the events
-  and the list of rules; <span class="value">write</span> — adding,
-  switching and deleting rules as well. A monitoring token should only
-  read: it must not be able to switch the protection off. Your password is
-  asked once more: a token outlives the session by months.</p>
+  <h2>{{t "tokens.issue_title"}}</h2>
+  <p class="dim">{{t "tokens.scopes_html"}}</p>
   <form method="post" action="/settings/tokens/issue" class="fields">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <label>name
-      <input type="text" name="name" placeholder="monitoring" required>
+    <label>{{t "tokens.name"}}
+      <input type="text" name="name" placeholder="{{t "tokens.name_placeholder"}}" required>
     </label>
-    <label>scope
+    <label>{{t "tokens.scope"}}
       <select name="scope">
-        <option value="read">read</option>
-        <option value="write">write</option>
+        <option value="read">{{t "tokens.read"}}</option>
+        <option value="write">{{t "tokens.write"}}</option>
       </select>
     </label>
-    <label>days
+    <label>{{t "tokens.days"}}
       <input type="number" name="days" value="90" min="1" max="{{.MaxDays}}" required>
     </label>
-    <label>your password
+    <label>{{t "form.your_password"}}
       <input type="password" name="password" autocomplete="current-password" required>
     </label>
-    <button type="submit">issue</button>
+    <button type="submit">{{t "tokens.issue"}}</button>
   </form>
 </section>
 
-<p class="dim">Every issue and revocation lands in the admin UI's log with the
-name of the account; every change a token makes, with the name of the
-token.</p>
+<p class="dim">{{t "tokens.log_note"}}</p>
 
 {{template "footer" .}}

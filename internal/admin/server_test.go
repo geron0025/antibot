@@ -659,7 +659,7 @@ func TestColumnsStayInsideThePlot(t *testing.T) {
 		p.Answers[summary.AnswerBlocked] = n / 3
 		points = append(points, p)
 	}
-	chart := newColumns(points, 5*time.Hour)
+	chart := newColumns(english(t), points, 5*time.Hour)
 	if chart == nil {
 		t.Fatal("no chart")
 	}
@@ -678,7 +678,7 @@ func TestColumnsStayInsideThePlot(t *testing.T) {
 			}
 		}
 	}
-	if newColumns(make([]summary.Point, 5), time.Hour) != nil {
+	if newColumns(english(t), make([]summary.Point, 5), time.Hour) != nil {
 		t.Error("a chart was drawn over no requests")
 	}
 }

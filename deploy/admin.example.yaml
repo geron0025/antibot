@@ -25,6 +25,10 @@ uploaded_dir: "/var/lib/antibot-admin/admin-ui"
 users_file: "/var/lib/antibot-admin/admin.json"
 session_ttl: 12h
 
+# Язык страниц, когда его не выбрал человек (переключатель в меню) и не
+# назвал браузер: en или ru.
+language: en
+
 # Токены API — хешами, рядом с учётками. API живёт на адресе админки,
 # под /api/v1/; выпустить токен — antibot-admin api-token issue ИМЯ или
 # страница API tokens. Пусто — API выключен.

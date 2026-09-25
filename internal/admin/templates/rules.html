@@ -2,17 +2,13 @@
 
 {{template "period-picker" .}}
 
-<p class="dim">In the order of application: the first rule that fires in
-<code>active</code> mode wins. Observations (<code>shadow</code>) do not stop the
-walk. A rule can be enabled and disabled here, and moved between
-<code>shadow</code> and <code>active</code>; conditions are composed and edited
-with <code>antibot rules</code>.</p>
+<p class="dim">{{t "rules.intro_html"}}</p>
 
 <div class="scroll"><table>
   <thead>
     <tr>
-      <th class="num">priority</th><th>id</th><th>mode</th><th>action</th>
-      <th>scope</th><th class="num">fired</th><th class="num">addresses</th><th class="num">share</th><th></th>
+      <th class="num">{{t "rules.priority"}}</th><th>{{t "rules.id"}}</th><th>{{t "rules.mode"}}</th><th>{{t "rules.action"}}</th>
+      <th>{{t "rules.scope"}}</th><th class="num">{{t "rules.fired"}}</th><th class="num">{{t "rules.addresses"}}</th><th class="num">{{t "rules.share"}}</th><th></th>
     </tr>
   </thead>
   <tbody>
@@ -31,16 +27,16 @@ with <code>antibot rules</code>.</p>
           <input type="hidden" name="id" value="{{.Rule.ID}}">
           {{if eq .Rule.Mode "active"}}
           <input type="hidden" name="mode" value="shadow">
-          <button type="submit">back to shadow</button>
+          <button type="submit">{{t "rules.to_shadow"}}</button>
           {{else}}
           <input type="hidden" name="mode" value="active">
-          <button type="submit">to active</button>
+          <button type="submit">{{t "rules.to_active"}}</button>
           {{end}}
         </form>
       </td>
       <td>{{.Rule.Action.Type}}</td>
       <td class="value">{{range .Rule.Scope}}{{.}} {{end}}</td>
-      <td class="num">{{if .Enabled}}{{.Matched}}{{else}}<span class="dim">disabled</span>{{end}}</td>
+      <td class="num">{{if .Enabled}}{{.Matched}}{{else}}<span class="dim">{{t "rules.disabled"}}</span>{{end}}</td>
       <td class="num">{{if .Enabled}}{{.IPs}}{{end}}</td>
       <td class="num dim">{{if .Enabled}}{{share .Matched $total}}{{end}}</td>
       <td class="num">
@@ -48,18 +44,16 @@ with <code>antibot rules</code>.</p>
           <input type="hidden" name="csrf" value="{{$.CSRF}}">
           <input type="hidden" name="id" value="{{.Rule.ID}}">
           <input type="hidden" name="enable" value="{{if .Enabled}}no{{else}}yes{{end}}">
-          <button type="submit">{{if .Enabled}}disable{{else}}enable{{end}}</button>
+          <button type="submit">{{if .Enabled}}{{t "rules.disable"}}{{else}}{{t "rules.enable"}}{{end}}</button>
         </form>
       </td>
     </tr>
   {{else}}
-    <tr><td colspan="9" class="dim">no rules</td></tr>
+    <tr><td colspan="9" class="dim">{{t "rules.none"}}</td></tr>
   {{end}}
   </tbody>
 </table></div>
 
-<p class="dim">A rule touching a noticeable share of the requests almost
-certainly touches people too: that much traffic is never all bots. To check whom
-exactly it will touch before turning it on — <code>antibot replay</code>.</p>
+<p class="dim">{{t "rules.touches_people_html"}}</p>
 
 {{template "footer" .}}

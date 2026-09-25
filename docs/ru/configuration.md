@@ -399,6 +399,7 @@ uploaded_dir: "/var/lib/antibot-admin/admin-ui"
 users_file: "/var/lib/antibot-admin/admin.json"
 tokens_file: "/var/lib/antibot-admin/api-tokens.json"
 session_ttl: 12h
+language: en
 
 core:
   socket: "/var/lib/antibot/core.sock"
@@ -418,6 +419,7 @@ core:
 | `users_file` | `/var/lib/antibot-admin/admin.json` | учётки |
 | `tokens_file` | `/var/lib/antibot-admin/api-tokens.json` | токены [API](api.md), хешами; пусто — API выключен |
 | `session_ttl` | `12h` | срок сессии |
+| `language` | `en` | язык страниц, когда его не выбрал человек и не назвал браузер: `en` или `ru`; другое — отказ при запуске. См. [Язык](admin.md#язык) |
 | `core.socket` | `/var/lib/antibot/core.sock` | `listen.control` ядра |
 | `core.events_dir` | `/var/lib/antibot/events` | `events.dir` ядра; только чтение |
 | `core.rules_file` | `/var/lib/antibot/shared/rules.json` | `rules.file` ядра |

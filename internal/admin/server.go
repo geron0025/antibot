@@ -38,6 +38,7 @@ import (
 	"github.com/geron0025/antibot/internal/alerts"
 	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/domains"
+	"github.com/geron0025/antibot/internal/i18n"
 	"github.com/geron0025/antibot/internal/rules"
 )
 
@@ -95,6 +96,10 @@ type Options struct {
 	// says so on every page.
 	Core control.Core
 
+	// Language is the fallback: the pages speak it when neither the
+	// viewer's choice nor their browser names one the admin UI has.
+	Language i18n.Lang
+
 	Version string
 	Log     *slog.Logger
 }
@@ -102,7 +107,8 @@ type Options struct {
 // Server is the admin UI.
 type Server struct {
 	o         Options
-	templates *template.Template
+	catalog   *i18n.Catalog
+	templates map[i18n.Lang]*template.Template
 	cert      *certificate
 
 	// Replaceable in tests: the domains page must not depend on the DNS
@@ -161,11 +167,21 @@ func New(o Options) (*Server, error) {
 		}
 	}
 
-	templates, err := parseTemplates()
+	if o.Language == "" {
+		o.Language = i18n.EN
+	}
+	if _, ok := i18n.Parse(string(o.Language)); !ok {
+		return nil, fmt.Errorf("the admin UI does not speak %q: %v", o.Language, i18n.Supported)
+	}
+	catalog, err := loadCatalog()
+	if err != nil {
+		return nil, fmt.Errorf("the admin UI's translations: %w", err)
+	}
+	templates, err := parseTemplates(catalog)
 	if err != nil {
 		return nil, err
 	}
-	return &Server{o: o, templates: templates, cert: cert}, nil
+	return &Server{o: o, catalog: catalog, templates: templates, cert: cert}, nil
 }
 
 // notLoopback answers whether the address faces outwards. An unparsed
@@ -306,6 +322,7 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /login", s.login)
 	mux.HandleFunc("POST /logout", s.logout)
 	mux.HandleFunc("GET /style.css", s.style)
+	mux.HandleFunc("POST /language", s.setLanguage)
 
 	mux.Handle("GET /{$}", s.requireLogin(s.overviewPage))
 	mux.Handle("GET /events", s.requireLogin(s.eventsPage))

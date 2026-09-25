@@ -85,6 +85,41 @@ A password shorter than twelve characters is not accepted. Twelve rather
 than eight: one day the admin UI will be exposed to the outside, whatever
 the documentation says.
 
+## Language
+
+The admin UI speaks Russian and English. The language of a page is chosen
+so:
+
+1. the switch in the account menu and on the login page — the choice is
+   remembered in this browser for a year, in the `antibot_lang` cookie;
+2. otherwise the browser's language, the `Accept-Language` header;
+3. otherwise `language` from [admin.yaml](configuration.md#adminyaml--the-admin-uis-settings),
+   `en` by default.
+
+English comes with US formats: `09/25/2026`, `1,234`, `12.5%`. Russian —
+`25.09.2026`, `1 234`, `12,5 %`. The time of day is 24-hour in both: it is
+a log, and AM and PM get in the way there.
+
+What the admin UI itself writes is translated. These stay as they are:
+
+- **errors from the code** — of parsing a rule, a domain, a certificate,
+  the core's answers. They land in the log too, and are easier to search
+  for there in one spelling. The frame around them is translated:
+  "the certificate chain: …";
+- **the texts of alerts** — the core writes them, and the same texts go
+  to the delivery command. The titles of the triggers and their conditions
+  on the alerts page are translated;
+- **values from the files and the protocol** — the modes `shadow` and
+  `active`, rule actions, decisions in events, the token scopes `read` and
+  `write`;
+- the [API](api.md) and the admin UI's log.
+
+The translations live in `internal/admin/locales/`, a file per language.
+They are checked at startup: the same keys in every language, every
+plural form, the same placeholders — otherwise the admin UI does not
+start. Tests make sure no text in the templates bypasses the
+translations.
+
 ## The pages
 
 | Address | What |

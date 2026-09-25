@@ -21,6 +21,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"os"
 	"sort"
 	"strings"
@@ -560,30 +561,47 @@ func (w *Watcher) History() []Entry {
 // it fires, with the thresholds in force.
 type Trigger struct {
 	Kind, Title, When string
+
+	// Args are the thresholds of When as bare numbers, for an admin UI
+	// that words the condition in its viewer's language: percentages as
+	// whole percents, spans in seconds, sizes in megabytes, in the order
+	// they appear in the English When.
+	Args []int64 `json:",omitempty"`
 }
 
 // Triggers lists the checks in the order the page shows them.
 func (w *Watcher) Triggers() []Trigger {
 	o, over := w.o, span(w.o.Window)
+	window := int64(w.o.Window / time.Second)
+	factor := int64(math.Round(o.SpikeFactor))
 	return []Trigger{
 		{SiteDown, "the site does not answer", fmt.Sprintf(
 			"a 5xx of the site in %.0f%% of at least %d requests that reached it, over %s",
-			100*o.SiteErrorShare, o.SiteMinRequests, over)},
+			100*o.SiteErrorShare, o.SiteMinRequests, over),
+			[]int64{int64(math.Round(100 * o.SiteErrorShare)), int64(o.SiteMinRequests), window}},
 		{RuleSpike, "a rule cuts off a lot", fmt.Sprintf(
 			"at least %d cut off by one rule over %s, and %.0f times its usual over the hour before",
-			o.RuleMinMatches, over, o.SpikeFactor)},
+			o.RuleMinMatches, over, o.SpikeFactor),
+			[]int64{int64(o.RuleMinMatches), window, factor}},
 		{RequestsSpike, "a spike of requests", fmt.Sprintf(
 			"at least %d over %s, and %.0f times the usual over the hour before",
-			o.SpikeMinRequests, over, o.SpikeFactor)},
+			o.SpikeMinRequests, over, o.SpikeFactor),
+			[]int64{int64(o.SpikeMinRequests), window, factor}},
 		{BlockedSpike, "a spike of cut-off requests", fmt.Sprintf(
 			"at least %d over %s, and %.0f times the usual over the hour before",
-			o.SpikeMinBlocked, over, o.SpikeFactor)},
-		{CertExpiring, "a certificate expires", fmt.Sprintf("%d days before the end of its term", o.CertDays)},
-		{EventsDropped, "the log loses events", fmt.Sprintf("its queue overflowed within %s", over)},
-		{DiskLow, "the disk runs out", fmt.Sprintf("less than %d MB free under the event log", o.DiskMinBytes>>20)},
+			o.SpikeMinBlocked, over, o.SpikeFactor),
+			[]int64{int64(o.SpikeMinBlocked), window, factor}},
+		{CertExpiring, "a certificate expires", fmt.Sprintf("%d days before the end of its term", o.CertDays),
+			[]int64{int64(o.CertDays)}},
+		{EventsDropped, "the log loses events", fmt.Sprintf("its queue overflowed within %s", over),
+			[]int64{window}},
+		{DiskLow, "the disk runs out", fmt.Sprintf("less than %d MB free under the event log", o.DiskMinBytes>>20),
+			[]int64{int64(o.DiskMinBytes >> 20)}},
 		{FactsStale, "the fact set is stale", fmt.Sprintf(
-			"no new set for %s while the node fetches them", span(o.FactsMaxAge))},
-		{OutboxStuck, "aggregates do not leave", fmt.Sprintf("%d batches waiting to be sent", o.OutboxMax)},
+			"no new set for %s while the node fetches them", span(o.FactsMaxAge)),
+			[]int64{int64(o.FactsMaxAge / time.Second)}},
+		{OutboxStuck, "aggregates do not leave", fmt.Sprintf("%d batches waiting to be sent", o.OutboxMax),
+			[]int64{int64(o.OutboxMax)}},
 	}
 }
 

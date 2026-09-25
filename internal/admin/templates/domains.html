@@ -1,45 +1,41 @@
 {{template "header" .}}
 
-<p class="dim">Which names the node serves, where their sites live and
-which certificate each one answers with. Domains from the configuration
-file are shown but changed only there; domains added here go to their
-own file and take effect at once.</p>
+<p class="dim">{{t "domains.intro"}}</p>
 
 <section class="domains">
 {{range .Rows}}
   <article class="card domain{{if .Shadowed}} disabled{{end}}">
     <div class="domain-main">
       <h2 class="value">{{.Host}}</h2>
-      <span class="dim">{{if .FromConfig}}from the configuration{{else if .Shadowed}}silenced by the configuration{{else}}added here{{end}}</span>
+      <span class="dim">{{if .FromConfig}}{{t "domains.from_config"}}{{else if .Shadowed}}{{t "domains.silenced"}}{{else}}{{t "domains.added_here"}}{{end}}</span>
       <dl class="facts">
-        <dt>site server</dt><dd class="value">{{.To}}</dd>
-        <dt>DNS</dt><dd>{{.DNS}}</dd>
+        <dt>{{t "domains.site_server"}}</dt><dd class="value">{{.To}}</dd>
+        <dt>{{t "domains.dns"}}</dt><dd>{{.DNS}}</dd>
       </dl>
     </div>
 
     <div class="cert{{with .Cert}}{{if .Expiring}} expiring{{end}}{{else}} none{{end}}">
       {{with .Cert}}
       <dl class="facts">
-        <dt>certificate</dt><dd class="value" title="{{.Names}}">{{truncate .Names 120}}</dd>
-        <dt>valid until</dt>
-        <dd class="term">{{date .NotAfter}} · {{if lt .Days 0}}expired{{else if eq .Days 0}}expires today{{else}}{{.Days}} d left{{end}}</dd>
+        <dt>{{t "domains.certificate"}}</dt><dd class="value" title="{{.Names}}">{{truncate .Names 120}}</dd>
+        <dt>{{t "domains.valid_until"}}</dt>
+        <dd class="term">{{date .NotAfter}} · {{if lt .Days 0}}{{t "domains.expired"}}{{else if eq .Days 0}}{{t "domains.expires_today"}}{{else}}{{tn "domains.days_left" .Days}}{{end}}</dd>
       </dl>
       {{else}}
-      <p class="term">No certificate — the node answers with its self-signed
-      one, and the browser warns.</p>
+      <p class="term">{{t "domains.no_certificate"}}</p>
       {{end}}
 
       {{if $.CanUpload}}
       <form method="post" action="/domains/certificate" enctype="multipart/form-data" class="fields">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
         <input type="hidden" name="host" value="{{.Host}}">
-        <label>chain · fullchain.pem
+        <label>{{t "form.chain"}}
           <input type="file" name="fullchain" required>
         </label>
-        <label>private key · privkey.pem
+        <label>{{t "form.key"}}
           <input type="file" name="privkey" required>
         </label>
-        <button type="submit">{{if .Cert}}replace{{else}}upload{{end}}</button>
+        <button type="submit">{{if .Cert}}{{t "form.replace"}}{{else}}{{t "domains.upload"}}{{end}}</button>
       </form>
       {{end}}
     </div>
@@ -49,7 +45,7 @@ own file and take effect at once.</p>
       <form method="post" action="/domains/remove">
         <input type="hidden" name="csrf" value="{{$.CSRF}}">
         <input type="hidden" name="host" value="{{.Host}}">
-        <button type="submit">remove</button>
+        <button type="submit">{{t "domains.remove"}}</button>
       </form>
       {{end}}
     </div>
@@ -58,34 +54,24 @@ own file and take effect at once.</p>
 </section>
 
 <section class="card add-domain">
-  <h2>Add a domain</h2>
-  <p class="dim">The name clients come with, and the site's server the
-  node forwards to — <span class="value">http://203.0.113.7:8080</span>,
-  or just <span class="value">127.0.0.1:3000</span> for http. Loopback
-  and private addresses are fine: the site often lives on the same
-  machine. A pattern like <span class="value">*.example.ru</span> covers
-  every subdomain. The certificate is uploaded in the domain's row once
-  it is added.</p>
+  <h2>{{t "domains.add_title"}}</h2>
+  <p class="dim">{{t "domains.add_intro_html"}}</p>
   <form method="post" action="/domains/add" class="fields">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <label>domain
-      <input type="text" name="host" placeholder="shop.example.ru" required>
+    <label>{{t "domains.domain"}}
+      <input type="text" name="host" placeholder="{{t "domains.host_placeholder"}}" required>
     </label>
-    <label>site server
-      <input type="text" name="server" placeholder="http://203.0.113.7:8080" required>
+    <label>{{t "domains.site_server"}}
+      <input type="text" name="server" placeholder="{{t "domains.server_placeholder"}}" required>
     </label>
-    <button type="submit">add</button>
+    <button type="submit">{{t "domains.add"}}</button>
   </form>
 </section>
 
 {{if .Fallback}}
-<p class="dim">Everything else — names no route knows — goes to
-<span class="value">{{.Fallback}}</span>: the default route from the
-configuration. The DNS line is a hint: a domain that does not point at
-this machine never reaches the node.</p>
+<p class="dim">{{t "domains.fallback_html" .Fallback}}</p>
 {{end}}
 
-<p class="dim">The node neither issues nor renews certificates: renewal is
-uploading a fresh pair in the domain's row, or certbot next to the node.</p>
+<p class="dim">{{t "domains.no_renewal"}}</p>
 
 {{template "footer" .}}

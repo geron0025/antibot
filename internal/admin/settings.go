@@ -74,7 +74,7 @@ func UploadedPair(dir string) (cert, key string) {
 
 func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, user string) {
 	data := settingsData{
-		pageCommon: s.common(user, "settings", 0, r.URL.Query().Get("error")),
+		pageCommon: s.common(r, user, "settings", 0, r.URL.Query().Get("error")),
 		CSRF:       s.csrfToken(r),
 		Host:       requestHost(r),
 	}
@@ -101,7 +101,7 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, user strin
 			data.KeyFile = filepath.Join(s.o.CertDir, "privkey.pem")
 		}
 	}
-	s.render(w, "settings.html", data)
+	s.render(w, r, "settings.html", data)
 }
 
 // uploadAdminCertificate replaces the admin UI's own pair on the fly, or
@@ -109,11 +109,11 @@ func (s *Server) settingsPage(w http.ResponseWriter, r *http.Request, user strin
 func (s *Server) uploadAdminCertificate(w http.ResponseWriter, r *http.Request, who string) {
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadBytes)
 	if err := r.ParseMultipartForm(maxUploadBytes); err != nil {
-		s.settingsError(w, r, "the upload was not accepted: two PEM files under a megabyte")
+		s.settingsError(w, r, s.t(r, "error.upload_size"))
 		return
 	}
 	if !s.checkCSRF(r) {
-		http.Error(w, "the request did not come from this page", http.StatusForbidden)
+		http.Error(w, s.t(r, "error.foreign_form"), http.StatusForbidden)
 		return
 	}
 
@@ -124,39 +124,38 @@ func (s *Server) uploadAdminCertificate(w http.ResponseWriter, r *http.Request, 
 	case s.o.CertDir != "":
 		certFile, keyFile = filepath.Join(s.o.CertDir, "fullchain.pem"), filepath.Join(s.o.CertDir, "privkey.pem")
 	default:
-		s.settingsError(w, r, "there is nowhere to put the pair: admin_ui.uploaded_dir is empty")
+		s.settingsError(w, r, s.t(r, "admin_cert.nowhere"))
 		return
 	}
 
 	now := time.Now()
 	if s.o.Attempts != nil &&
 		s.o.Attempts.Exceeded("login:"+clientAddr(r), 10, 5*time.Minute, now) {
-		http.Error(w, "Too many attempts. Please wait.", http.StatusTooManyRequests)
+		http.Error(w, s.t(r, "error.too_many_attempts"), http.StatusTooManyRequests)
 		return
 	}
 	if !s.o.Users.Check(who, r.PostFormValue("password")) {
 		s.o.Log.Warn("the admin UI certificate was not replaced: the password did not match",
 			"who", who, "address", clientAddr(r))
-		s.settingsError(w, r, "The password did not match")
+		s.settingsError(w, r, s.t(r, "error.password"))
 		return
 	}
 
 	chain, err := formFile(r, "fullchain")
 	if err != nil {
-		s.settingsError(w, r, "the certificate chain: "+err.Error())
+		s.settingsError(w, r, s.t(r, "error.chain", err.Error()))
 		return
 	}
 	key, err := formFile(r, "privkey")
 	if err != nil {
-		s.settingsError(w, r, "the private key: "+err.Error())
+		s.settingsError(w, r, s.t(r, "error.key", err.Error()))
 		return
 	}
 
 	leaf, err := edgetls.InstallPair(certFile, keyFile, chain, key)
 	if err != nil {
 		if errors.Is(err, fs.ErrPermission) {
-			err = fmt.Errorf("the node may not write next to %s: replace the files on the machine, "+
-				"and the admin UI takes them up within 30 seconds", certFile)
+			err = errors.New(s.t(r, "admin_cert.no_write", certFile))
 		}
 		s.o.Log.Error("the admin UI certificate was not accepted", "who", who, "err", err)
 		s.settingsError(w, r, err.Error())
@@ -173,7 +172,7 @@ func (s *Server) uploadAdminCertificate(w http.ResponseWriter, r *http.Request, 
 	if err := s.cert.reload(); err != nil {
 		// The pair was checked before it was written, so this is somebody
 		// else writing the same files at the same moment.
-		s.settingsError(w, r, "the pair was written and did not load: "+err.Error())
+		s.settingsError(w, r, s.t(r, "admin_cert.not_loaded", err.Error()))
 		return
 	}
 	s.o.Log.Warn("the admin UI certificate was replaced from the admin UI",

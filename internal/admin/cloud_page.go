@@ -29,7 +29,7 @@ type cloudData struct {
 // cloudPage shows the two checkboxes and the state of both directions.
 func (s *Server) cloudPage(w http.ResponseWriter, r *http.Request, user string) {
 	data := cloudData{
-		pageCommon: s.common(user, "settings", 0, r.URL.Query().Get("error")),
+		pageCommon: s.common(r, user, "settings", 0, r.URL.Query().Get("error")),
 		CSRF:       s.csrfToken(r),
 		Welcome:    r.URL.Query().Get("welcome") == "1",
 		Done:       r.URL.Query().Get("done"),
@@ -37,9 +37,9 @@ func (s *Server) cloudPage(w http.ResponseWriter, r *http.Request, user string) 
 	data.Tab = "cloud"
 	data.State = s.coreCloud(r.Context())
 	if data.State == nil && data.Error == "" {
-		data.Error = "the core does not answer: the link to the cloud cannot be shown or changed"
+		data.Error = s.t(r, "cloud.core_down")
 	}
-	s.render(w, "cloud.html", data)
+	s.render(w, r, "cloud.html", data)
 }
 
 // saveCloud takes the two answers.
@@ -51,11 +51,11 @@ func (s *Server) cloudPage(w http.ResponseWriter, r *http.Request, user string) 
 func (s *Server) saveCloud(w http.ResponseWriter, r *http.Request, user string) {
 	state := s.coreCloud(r.Context())
 	if state == nil {
-		s.cloudError(w, r, "the core does not answer: nothing was changed")
+		s.cloudError(w, r, s.t(r, "error.core_down_unchanged"))
 		return
 	}
 	if state.FromConfig {
-		s.cloudError(w, r, "this node's link to the cloud is set in config.yaml")
+		s.cloudError(w, r, s.t(r, "cloud.in_config"))
 		return
 	}
 
@@ -71,7 +71,7 @@ func (s *Server) saveCloud(w http.ResponseWriter, r *http.Request, user string) 
 
 		if err := s.o.Core.CloudRegister(ctx, facts, aggregates); err != nil {
 			s.o.Log.Error("the node did not register with the cloud", "err", err)
-			s.cloudError(w, r, cloudFailure(err))
+			s.cloudError(w, r, s.cloudFailure(r, err))
 			return
 		}
 		http.Redirect(w, r, "/settings/cloud?done="+url.QueryEscape("registered"), http.StatusSeeOther)
@@ -81,7 +81,7 @@ func (s *Server) saveCloud(w http.ResponseWriter, r *http.Request, user string) 
 	ctx, cancel := s.coreContext(r.Context())
 	defer cancel()
 	if err := s.o.Core.CloudAnswer(ctx, facts, aggregates); err != nil {
-		s.cloudError(w, r, cloudFailure(err))
+		s.cloudError(w, r, s.cloudFailure(r, err))
 		return
 	}
 	http.Redirect(w, r, "/settings/cloud?done="+url.QueryEscape("saved"), http.StatusSeeOther)
@@ -93,7 +93,7 @@ func (s *Server) forgetCloud(w http.ResponseWriter, r *http.Request, user string
 	ctx, cancel := s.coreContext(r.Context())
 	defer cancel()
 	if err := s.o.Core.CloudForget(ctx); err != nil {
-		s.cloudError(w, r, cloudFailure(err))
+		s.cloudError(w, r, s.cloudFailure(r, err))
 		return
 	}
 	http.Redirect(w, r, "/settings/cloud?done="+url.QueryEscape("forgotten"), http.StatusSeeOther)
@@ -106,13 +106,13 @@ func (s *Server) cloudError(w http.ResponseWriter, r *http.Request, message stri
 // cloudFailure turns what went wrong into what the owner can do about
 // it. A refusal carries words chosen for a human; a core that does not
 // answer is said to be so; anything else is shown as it is.
-func cloudFailure(err error) string {
+func (s *Server) cloudFailure(r *http.Request, err error) string {
 	var refused *control.Refusal
 	switch {
 	case errors.As(err, &refused):
 		return refused.Text
 	case errors.Is(err, control.ErrUnreachable):
-		return "the core does not answer: nothing was changed"
+		return s.t(r, "error.core_down_unchanged")
 	default:
 		return err.Error()
 	}

@@ -1,5 +1,5 @@
 {{define "header"}}<!doctype html>
-<html lang="en">
+<html lang="{{lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,17 +10,17 @@
 <header>
   <div class="inner">
     <details class="burger">
-      <summary aria-label="Menu" title="Menu">
+      <summary aria-label="{{t "header.menu"}}" title="{{t "header.menu"}}">
         <svg class="burger-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
         <span>{{title .Section}}</span>
       </summary>
-      <nav class="drop burger-menu" aria-label="Menu">{{template "nav-links" .}}</nav>
+      <nav class="drop burger-menu" aria-label="{{t "header.menu"}}">{{template "nav-links" .}}</nav>
     </details>
     <nav>{{template "nav-links" .}}</nav>
     <div class="right">
       {{with .Bell}}
       <details class="bell{{if .Firing}} firing{{end}}{{if eq $.Section "alerts"}} current{{end}}">
-        <summary aria-label="Alerts{{if .Firing}}: {{len .Firing}} firing{{end}}" title="Alerts{{if .Firing}}: {{len .Firing}} firing{{end}}">
+        <summary aria-label="{{if .Firing}}{{tn "header.alerts_firing" (len .Firing)}}{{else}}{{t "nav.alerts"}}{{end}}" title="{{if .Firing}}{{tn "header.alerts_firing" (len .Firing)}}{{else}}{{t "nav.alerts"}}{{end}}">
           <svg class="bell-icon" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
             <path d="M13.7 21a2 2 0 0 1-3.4 0"/>
@@ -29,37 +29,38 @@
         </summary>
         <div class="drop bell-menu">
           {{if .Firing}}
-          <h3>Firing now</h3>
+          <h3>{{t "header.firing_now"}}</h3>
           {{range .Firing}}
           <a class="bell-item" href="/alerts">
-            <span class="value">{{.ID}}</span> <span class="dim">since {{time .Since}}{{if .Clearing}} · settling{{end}}</span>
+            <span class="value">{{.ID}}</span> <span class="dim">{{t "header.since" (time .Since)}}{{if .Clearing}} · {{t "header.settling"}}{{end}}</span>
             <span class="bell-text">{{truncate .Text 160}}</span>
           </a>
           {{end}}
           {{else}}
-          <p class="dim">Nothing is firing.</p>
+          <p class="dim">{{t "header.nothing_firing"}}</p>
           {{end}}
           {{with .Recent}}
-          <h3>Latest messages</h3>
+          <h3>{{t "header.latest_messages"}}</h3>
           {{range .}}
           <a class="bell-item" href="/alerts">
-            <span class="value">{{.ID}}</span> <span class="dim">{{.State}} · {{time .Time}}</span>
+            <span class="value">{{.ID}}</span> <span class="dim">{{alertState .State}} · {{time .Time}}</span>
           </a>
           {{end}}
           {{end}}
-          <a class="bell-all" href="/alerts">All alerts and thresholds →</a>
+          <a class="bell-all" href="/alerts">{{t "header.all_alerts"}}</a>
         </div>
       </details>
       {{end}}
       <details class="account">
-        <summary title="Account">
+        <summary title="{{t "header.account"}}">
           <span>{{.User}}</span>
           <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
         </summary>
         <div class="drop account-menu">
+          {{template "language-switch" .}}
           <form method="post" action="/logout">
             <input type="hidden" name="csrf" value="{{.CSRF}}">
-            <button type="submit">Log out</button>
+            <button type="submit">{{t "header.log_out"}}</button>
           </form>
         </div>
       </details>
@@ -67,53 +68,59 @@
   </div>
 </header>
 <main>
-{{if .CoreDown}}<div class="error">The core does not answer on its control socket. Events,
-rules and domains are shown from their files and can be changed — the core takes the
-changes up when it is back. Alerts, the cloud and the certificates it serves are not
-shown until then.</div>{{end}}
+{{if .CoreDown}}<div class="error">{{t "header.core_down"}}</div>{{end}}
 {{if .Error}}<div class="error">{{.Error}}</div>{{end}}
 {{end}}
 
 {{define "footer"}}
 </main>
 <footer>
-  <span class="dim">antibot-admin {{.Version}} · rule conditions are composed
-  with <code>antibot rules</code>; every change made here lands in the
-  admin UI's log</span>
+  <span class="dim">{{t "footer.note_html" .Version}}</span>
 </footer>
 </body>
 </html>{{end}}
 
+{{/* Each language is named in itself: whoever cannot read the page must
+still find their own language on it. */}}
+{{define "language-switch"}}
+<form method="post" action="/language" class="languages">
+  <input type="hidden" name="csrf" value="{{.CSRF}}">
+  <input type="hidden" name="back" value="{{.Back}}">
+  <button type="submit" name="lang" value="en"{{if eq lang "en"}} class="current" aria-current="true" disabled{{end}}>{{t "language.en"}}</button>
+  <button type="submit" name="lang" value="ru"{{if eq lang "ru"}} class="current" aria-current="true" disabled{{end}}>{{t "language.ru"}}</button>
+</form>
+{{end}}
+
 {{define "nav-links"}}
-      <a href="/" {{if eq .Section "overview"}}class="current"{{end}}>Overview</a>
-      <a href="/events" {{if eq .Section "events"}}class="current"{{end}}>Events</a>
-      <a href="/rules" {{if eq .Section "rules"}}class="current"{{end}}>Rules</a>
-      <a href="/domains" {{if eq .Section "domains"}}class="current"{{end}}>Domains</a>
-      <a href="/settings" {{if eq .Section "settings"}}class="current"{{end}}>Settings</a>
+      <a href="/" {{if eq .Section "overview"}}class="current"{{end}}>{{t "nav.overview"}}</a>
+      <a href="/events" {{if eq .Section "events"}}class="current"{{end}}>{{t "nav.events"}}</a>
+      <a href="/rules" {{if eq .Section "rules"}}class="current"{{end}}>{{t "nav.rules"}}</a>
+      <a href="/domains" {{if eq .Section "domains"}}class="current"{{end}}>{{t "nav.domains"}}</a>
+      <a href="/settings" {{if eq .Section "settings"}}class="current"{{end}}>{{t "nav.settings"}}</a>
 {{end}}
 
 {{define "settings-tabs"}}
-<nav class="tabs" aria-label="Settings">
-  <a href="/settings/core" {{if eq .Tab "core"}}class="current"{{end}}>Core</a>
-  <a href="/settings/cloud" {{if eq .Tab "cloud"}}class="current"{{end}}>Cloud</a>
-  {{if .Bell}}<a href="/settings/alerts" {{if eq .Tab "alerts"}}class="current"{{end}}>Alert delivery</a>{{end}}
-  {{if .APITokens}}<a href="/settings/tokens" {{if eq .Tab "tokens"}}class="current"{{end}}>API tokens</a>{{end}}
-  <a href="/settings" {{if eq .Tab "certificate"}}class="current"{{end}}>Admin certificate</a>
+<nav class="tabs" aria-label="{{t "nav.settings"}}">
+  <a href="/settings/core" {{if eq .Tab "core"}}class="current"{{end}}>{{t "tabs.core"}}</a>
+  <a href="/settings/cloud" {{if eq .Tab "cloud"}}class="current"{{end}}>{{t "tabs.cloud"}}</a>
+  {{if .Bell}}<a href="/settings/alerts" {{if eq .Tab "alerts"}}class="current"{{end}}>{{t "tabs.alerts"}}</a>{{end}}
+  {{if .APITokens}}<a href="/settings/tokens" {{if eq .Tab "tokens"}}class="current"{{end}}>{{t "tabs.tokens"}}</a>{{end}}
+  <a href="/settings" {{if eq .Tab "certificate"}}class="current"{{end}}>{{t "tabs.certificate"}}</a>
 </nav>
 {{end}}
 
 {{define "period-picker"}}
 <div class="periods">
-  for the last
-  <a href="?period=1h" {{if eq .Period "1h"}}class="current"{{end}}>hour</a>
-  <a href="?period=24h" {{if eq .Period "1d"}}class="current"{{end}}>day</a>
-  <a href="?period=168h" {{if eq .Period "7d"}}class="current"{{end}}>week</a>
+  {{t "period.for_the_last"}}
+  <a href="?period=1h" {{if eq .Period "1h"}}class="current"{{end}}>{{t "period.hour"}}</a>
+  <a href="?period=24h" {{if eq .Period "1d"}}class="current"{{end}}>{{t "period.day"}}</a>
+  <a href="?period=168h" {{if eq .Period "7d"}}class="current"{{end}}>{{t "period.week"}}</a>
 </div>
 {{end}}
 
 {{define "breakdown"}}
 <table class="breakdown">
-  <thead><tr><th>{{.Name}}</th><th class="num">requests</th><th class="num">addresses</th></tr></thead>
+  <thead><tr><th>{{.Name}}</th><th class="num">{{t "breakdown.requests"}}</th><th class="num">{{t "breakdown.addresses"}}</th></tr></thead>
   <tbody>
   {{range .Rows}}
     <tr>
@@ -122,7 +129,7 @@ shown until then.</div>{{end}}
       <td class="num">{{count .IPs}}</td>
     </tr>
   {{else}}
-    <tr><td colspan="3" class="dim">empty</td></tr>
+    <tr><td colspan="3" class="dim">{{t "breakdown.empty"}}</td></tr>
   {{end}}
   </tbody>
 </table>
@@ -132,7 +139,7 @@ shown until then.</div>{{end}}
 <ul class="chart-legend">
   {{range .Legend}}<li><span class="swatch {{.Class}}"></span>{{.Label}}</li>{{end}}
 </ul>
-<svg class="columns" viewBox="0 0 {{.Width}} {{.Height}}" role="img" aria-label="Requests over time by answer class">
+<svg class="columns" viewBox="0 0 {{.Width}} {{.Height}}" role="img" aria-label="{{t "chart.columns_label"}}">
   {{$left := .Left}}{{$right := .Right}}
   {{range .Grid}}
     <line class="grid" x1="{{$left}}" x2="{{$right}}" y1="{{.Y}}" y2="{{.Y}}"/>
@@ -151,9 +158,9 @@ shown until then.</div>{{end}}
   {{range .XLabels}}<text class="tick" x="{{.X}}" y="{{$labelY}}" text-anchor="middle">{{.Text}}</text>{{end}}
 </svg>
 <details>
-  <summary>As a table</summary>
+  <summary>{{t "chart.as_table"}}</summary>
   <div class="scroll"><table>
-    <thead><tr><th>from</th>{{range .Classes}}<th class="num">{{.}}</th>{{end}}<th class="num">total</th></tr></thead>
+    <thead><tr><th>{{t "chart.from"}}</th>{{range .Classes}}<th class="num">{{.}}</th>{{end}}<th class="num">{{t "chart.total"}}</th></tr></thead>
     <tbody>
     {{range .Rows}}
       <tr><td class="num">{{.Time}}</td>{{range .Counts}}<td class="num">{{count .}}</td>{{end}}<td class="num">{{count .Total}}</td></tr>
@@ -167,8 +174,8 @@ shown until then.</div>{{end}}
 <div class="scroll"><table class="events">
   <thead>
     <tr>
-      <th>time</th><th>address</th><th>host</th><th>path</th>
-      <th>decision</th><th>rule</th><th>fingerprint</th><th>User-Agent</th>
+      <th>{{t "events_table.time"}}</th><th>{{t "events_table.address"}}</th><th>{{t "events_table.host"}}</th><th>{{t "events_table.path"}}</th>
+      <th>{{t "events_table.decision"}}</th><th>{{t "events_table.rule"}}</th><th>{{t "events_table.fingerprint"}}</th><th>{{t "events_table.user_agent"}}</th>
     </tr>
   </thead>
   <tbody>
@@ -178,16 +185,16 @@ shown until then.</div>{{end}}
       <td><a href="/events?ip={{.IP}}">{{.IP}}</a></td>
       <td>{{.Host}}</td>
       <td class="value" title="{{.Path}}">{{truncate .Path 40}}</td>
-      <td>{{if .Decision}}{{.Decision}}{{else}}pass{{end}}{{if .Status}} <span class="dim">{{.Status}}</span>{{end}}</td>
+      <td>{{or .Decision "pass"}}{{if .Status}} <span class="dim">{{.Status}}</span>{{end}}</td>
       <td>
         {{if .Rule}}<a href="/rule?id={{.Rule}}">{{.Rule}}</a>{{end}}
-        {{range .Shadow}}<a class="shadow" href="/rule?id={{.}}" title="observation">{{.}}</a>{{end}}
+        {{range .Shadow}}<a class="shadow" href="/rule?id={{.}}" title="{{t "events_table.observation"}}">{{.}}</a>{{end}}
       </td>
       <td class="value" title="{{.JA4}}">{{if .JA4}}<a href="/events?ja4={{.JA4}}">{{truncate .JA4 24}}</a>{{else}}<span class="dim">—</span>{{end}}</td>
       <td class="value" title="{{.UA}}">{{truncate .UA 50}}</td>
     </tr>
   {{else}}
-    <tr><td colspan="8" class="dim">no events</td></tr>
+    <tr><td colspan="8" class="dim">{{t "events_table.none"}}</td></tr>
   {{end}}
   </tbody>
 </table></div>

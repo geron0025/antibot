@@ -1,26 +1,24 @@
 {{template "header" .}}
 
 <form method="get" action="/events" class="filter">
-  <input type="text" name="host" value="{{.Filter.Host}}" placeholder="host">
-  <input type="text" name="ip" value="{{.Filter.IP}}" placeholder="address">
-  <input type="text" name="rule" value="{{.Filter.Rule}}" placeholder="rule">
-  <input type="text" name="ja4" value="{{.Filter.JA4}}" placeholder="ja4">
-  <input type="text" name="q" value="{{.Filter.Search}}" placeholder="in the UA or the path">
-  <input type="text" name="status" value="{{.Filter.Status}}" placeholder="status: 404 or 5xx">
+  <input type="text" name="host" value="{{.Filter.Host}}" placeholder="{{t "events.host"}}">
+  <input type="text" name="ip" value="{{.Filter.IP}}" placeholder="{{t "events.address"}}">
+  <input type="text" name="rule" value="{{.Filter.Rule}}" placeholder="{{t "events.rule"}}">
+  <input type="text" name="ja4" value="{{.Filter.JA4}}" placeholder="{{t "events.ja4"}}">
+  <input type="text" name="q" value="{{.Filter.Search}}" placeholder="{{t "events.search"}}">
+  <input type="text" name="status" value="{{.Filter.Status}}" placeholder="{{t "events.status"}}">
   <select name="decision">
-    <option value="">any decision</option>
-    <option value="pass" {{if eq .Filter.Decision "pass"}}selected{{end}}>passed</option>
-    <option value="allow" {{if eq .Filter.Decision "allow"}}selected{{end}}>allowed</option>
-    <option value="block" {{if eq .Filter.Decision "block"}}selected{{end}}>blocked</option>
-    <option value="ratelimit" {{if eq .Filter.Decision "ratelimit"}}selected{{end}}>rate limited</option>
+    <option value="">{{t "events.any_decision"}}</option>
+    <option value="pass" {{if eq .Filter.Decision "pass"}}selected{{end}}>{{t "events.passed"}}</option>
+    <option value="allow" {{if eq .Filter.Decision "allow"}}selected{{end}}>{{t "events.allowed"}}</option>
+    <option value="block" {{if eq .Filter.Decision "block"}}selected{{end}}>{{t "events.blocked"}}</option>
+    <option value="ratelimit" {{if eq .Filter.Decision "ratelimit"}}selected{{end}}>{{t "events.rate_limited"}}</option>
   </select>
-  <button type="submit">Show</button>
-  <a href="/events">reset</a>
+  <button type="submit">{{t "events.show"}}</button>
+  <a href="/events">{{t "events.reset"}}</a>
 </form>
 
-<p class="dim">The last {{.Limit}} events, newest first.
-<a href="{{.Export}}">Download</a> every event matching these filters over
-the last day — the log's own lines, as NDJSON.</p>
+<p class="dim">{{t "events.latest_html" .Limit .Export}}</p>
 
 {{template "events-table" .Events}}
 

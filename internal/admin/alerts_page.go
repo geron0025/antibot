@@ -6,10 +6,12 @@ import (
 	"encoding/hex"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/geron0025/antibot/internal/alerts"
+	"github.com/geron0025/antibot/internal/i18n"
 )
 
 type alertRow struct {
@@ -52,9 +54,10 @@ func (s *Server) alertsPage(w http.ResponseWriter, r *http.Request, user string)
 	// here it is only an empty page, not alerts that are off.
 	state, err := s.coreAlerts(r.Context())
 	firing := state.Firing
+	p := s.printer(r)
 	var rows []alertRow
 	for _, t := range state.Triggers {
-		row := alertRow{Trigger: t}
+		row := alertRow{Trigger: wordTrigger(p, t)}
 		for _, f := range firing {
 			if f.Kind == t.Kind {
 				row.Firing = append(row.Firing, f)
@@ -64,7 +67,7 @@ func (s *Server) alertsPage(w http.ResponseWriter, r *http.Request, user string)
 	}
 
 	data := alertsData{
-		pageCommon: s.common(user, "alerts", 0, r.URL.Query().Get("error")),
+		pageCommon: s.common(r, user, "alerts", 0, r.URL.Query().Get("error")),
 		CSRF:       s.csrfToken(r),
 		Rows:       rows,
 		History:    state.History,
@@ -79,7 +82,50 @@ func (s *Server) alertsPage(w http.ResponseWriter, r *http.Request, user string)
 		}
 		data.Delivering = c.Command != ""
 	}
-	s.render(w, "alerts.html", data)
+	s.render(w, r, "alerts.html", data)
+}
+
+// triggerTexts word each trigger in the viewer's language: its title,
+// and its condition built from the numbers the core sends. spans are the
+// positions of the numbers that are seconds.
+var triggerTexts = map[string]struct {
+	title, when string
+	args        int
+	spans       []int
+}{
+	alerts.SiteDown:      {"trigger.site_down", "trigger.site_down_when", 3, []int{2}},
+	alerts.RuleSpike:     {"trigger.rule_spike", "trigger.rule_spike_when", 3, []int{1}},
+	alerts.RequestsSpike: {"trigger.requests_spike", "trigger.requests_spike_when", 3, []int{1}},
+	alerts.BlockedSpike:  {"trigger.blocked_spike", "trigger.blocked_spike_when", 3, []int{1}},
+	alerts.CertExpiring:  {"trigger.cert_expiring", "trigger.cert_expiring_when", 1, nil},
+	alerts.EventsDropped: {"trigger.events_dropped", "trigger.events_dropped_when", 1, []int{0}},
+	alerts.DiskLow:       {"trigger.disk_low", "trigger.disk_low_when", 1, nil},
+	alerts.FactsStale:    {"trigger.facts_stale", "trigger.facts_stale_when", 1, []int{0}},
+	alerts.OutboxStuck:   {"trigger.outbox_stuck", "trigger.outbox_stuck_when", 1, nil},
+}
+
+// wordTrigger puts a trigger in the viewer's language. A kind the admin
+// UI does not know, or a core too old to send the numbers, keeps the
+// core's own words.
+func wordTrigger(p *i18n.Printer, t alerts.Trigger) alerts.Trigger {
+	text, ok := triggerTexts[t.Kind]
+	if !ok {
+		return t
+	}
+	t.Title = p.T(text.title)
+	if len(t.Args) != text.args {
+		return t
+	}
+	args := make([]any, len(t.Args))
+	for i, v := range t.Args {
+		if slices.Contains(text.spans, i) {
+			args[i] = span(p, v)
+		} else {
+			args[i] = v
+		}
+	}
+	t.When = p.T(text.when, args...)
+	return t
 }
 
 func (s *Server) deliveryPage(w http.ResponseWriter, r *http.Request, user string) {
@@ -88,7 +134,7 @@ func (s *Server) deliveryPage(w http.ResponseWriter, r *http.Request, user strin
 
 func (s *Server) renderDelivery(w http.ResponseWriter, r *http.Request, user, message, test string) {
 	data := deliveryData{
-		pageCommon: s.common(user, "settings", 0, message),
+		pageCommon: s.common(r, user, "settings", 0, message),
 		CSRF:       s.csrfToken(r),
 		TestResult: test,
 	}
@@ -107,7 +153,7 @@ func (s *Server) renderDelivery(w http.ResponseWriter, r *http.Request, user, me
 			data.Source = "admin"
 		}
 	}
-	s.render(w, "delivery.html", data)
+	s.render(w, r, "delivery.html", data)
 }
 
 // setAlertCommand asks for the password once more. The command runs on
@@ -115,33 +161,33 @@ func (s *Server) renderDelivery(w http.ResponseWriter, r *http.Request, user, me
 // there — the same reason a token is issued only against the password.
 func (s *Server) setAlertCommand(w http.ResponseWriter, r *http.Request, who string) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, s.t(r, "error.invalid_form"), http.StatusBadRequest)
 		return
 	}
 	if !s.checkCSRF(r) {
-		http.Error(w, "the request did not come from this page", http.StatusForbidden)
+		http.Error(w, s.t(r, "error.foreign_form"), http.StatusForbidden)
 		return
 	}
 	state, err := s.coreAlerts(r.Context())
 	if err != nil {
-		s.alertsError(w, r, "The core does not answer: whether its settings name a command is unknown, nothing was changed")
+		s.alertsError(w, r, s.t(r, "delivery.core_down"))
 		return
 	}
 	if state.ConfigCommand != "" || s.o.AlertCommand == nil {
-		s.alertsError(w, r, "The command is set in config.yaml and is changed only there")
+		s.alertsError(w, r, s.t(r, "delivery.in_config"))
 		return
 	}
 
 	now := time.Now()
 	if s.o.Attempts != nil &&
 		s.o.Attempts.Exceeded("login:"+clientAddr(r), 10, 5*time.Minute, now) {
-		http.Error(w, "Too many attempts. Please wait.", http.StatusTooManyRequests)
+		http.Error(w, s.t(r, "error.too_many_attempts"), http.StatusTooManyRequests)
 		return
 	}
 	if !s.o.Users.Check(who, r.PostFormValue("password")) {
 		s.o.Log.Warn("the alert command was not changed: the password did not match",
 			"who", who, "address", clientAddr(r))
-		s.alertsError(w, r, "The password did not match")
+		s.alertsError(w, r, s.t(r, "error.password"))
 		return
 	}
 
@@ -161,18 +207,18 @@ func (s *Server) setAlertCommand(w http.ResponseWriter, r *http.Request, who str
 
 func (s *Server) testAlert(w http.ResponseWriter, r *http.Request, who string) {
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "invalid form", http.StatusBadRequest)
+		http.Error(w, s.t(r, "error.invalid_form"), http.StatusBadRequest)
 		return
 	}
 	if !s.checkCSRF(r) {
-		http.Error(w, "the request did not come from this page", http.StatusForbidden)
+		http.Error(w, s.t(r, "error.foreign_form"), http.StatusForbidden)
 		return
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 	defer cancel()
 	result, err := s.o.Core.TestAlert(ctx)
 	if err != nil {
-		result = "not sent: " + err.Error()
+		result = s.t(r, "delivery.not_sent", err.Error())
 	}
 	s.o.Log.Info("a test alert was sent from the admin UI", "who", who, "address", clientAddr(r), "result", result)
 	s.renderDelivery(w, r, who, "", result)

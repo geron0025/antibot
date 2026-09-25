@@ -1,70 +1,56 @@
 {{template "header" .}}
 {{template "settings-tabs" .}}
 
-<p class="dim">The certificate this admin UI answers with — not the sites':
-theirs live on the <a href="/domains">domains page</a>. The node neither
-issues nor renews certificates: it takes a ready pair, checks it and puts it
-in place. Nothing in <code>config.yaml</code> is changed here.</p>
+<p class="dim">{{t "admin_cert.intro_html"}}</p>
 
 <section class="card">
-  <h2>The admin UI's certificate</h2>
+  <h2>{{t "admin_cert.title"}}</h2>
 
   {{if eq .Mode "replace"}}
   {{with .Cert}}
   <div class="scroll"><table>
     <tbody>
-      <tr><th>names</th><td class="value">{{range $i, $n := .Names}}{{if $i}}, {{end}}{{$n}}{{end}}</td></tr>
-      <tr><th>issued by</th><td>{{if .SelfSigned}}itself — a self-signed certificate, the browser warns{{else}}{{.Issuer}}{{end}}</td></tr>
-      <tr><th>valid until</th><td>{{date .NotAfter}} · {{if lt .DaysLeft 0}}expired{{else}}{{.DaysLeft}} d left{{end}}</td></tr>
-      <tr><th>files</th><td><code>{{$.CertFile}}</code>, <code>{{$.KeyFile}}</code>
-        <div class="dim">{{if $.FromConfig}}named in config.yaml{{else}}added on this page{{end}}</div></td></tr>
+      <tr><th>{{t "admin_cert.names"}}</th><td class="value">{{range $i, $n := .Names}}{{if $i}}, {{end}}{{$n}}{{end}}</td></tr>
+      <tr><th>{{t "admin_cert.issued_by"}}</th><td>{{if .SelfSigned}}{{t "admin_cert.self_signed"}}{{else}}{{.Issuer}}{{end}}</td></tr>
+      <tr><th>{{t "domains.valid_until"}}</th><td>{{date .NotAfter}} · {{if lt .DaysLeft 0}}{{t "domains.expired"}}{{else}}{{tn "domains.days_left" .DaysLeft}}{{end}}</td></tr>
+      <tr><th>{{t "admin_cert.files"}}</th><td><code>{{$.CertFile}}</code>, <code>{{$.KeyFile}}</code>
+        <div class="dim">{{if $.FromConfig}}{{t "admin_cert.named_in_config"}}{{else}}{{t "admin_cert.added_here"}}{{end}}</div></td></tr>
     </tbody>
   </table></div>
   {{if not $.Covers}}
   <section class="warning">
-    <p>It does not cover <span class="value">{{$.Host}}</span>, the name this page
-    was opened with: the browser warns about it.</p>
+    <p>{{t "admin_cert.does_not_cover_html" $.Host}}</p>
   </section>
   {{end}}
   {{end}}
   {{else if eq .Mode "add"}}
-  <p>The admin UI works without a certificate, over plain HTTP — fine on
-  loopback, behind <code>ssh -L</code>. A pair uploaded here lands in
-  <code>{{.CertFile}}</code> and serves from the next start of the node: the
-  listener that is already up cannot switch to HTTPS on the fly.</p>
+  <p>{{t "admin_cert.without_html" .CertFile}}</p>
   {{with .Pending}}
   <section class="warning">
-    <p>A pair for <span class="value">{{range $i, $n := .Names}}{{if $i}}, {{end}}{{$n}}{{end}}</span>,
-    valid until {{date .NotAfter}}, waits for the next start of the node.</p>
+    <p>{{t "admin_cert.pending_html" (join .Names ", ") (date .NotAfter)}}</p>
   </section>
   {{end}}
   {{else}}
-  <p class="dim">No certificate, and <code>admin_ui.uploaded_dir</code> is
-  empty: the pair is set in config.yaml only.</p>
+  <p class="dim">{{t "admin_cert.config_only_html"}}</p>
   {{end}}
 
   {{if .Linked}}
-  <p class="dim">The files are links — this is how certbot keeps its own.
-  Renew with certbot: the admin UI takes the renewed pair up within 30
-  seconds. Replacing a link here would cut certbot's renewal off.</p>
+  <p class="dim">{{t "admin_cert.linked"}}</p>
   {{else if .Mode}}
   <form method="post" action="/settings/certificate" enctype="multipart/form-data" class="fields">
     <input type="hidden" name="csrf" value="{{.CSRF}}">
-    <label>chain · fullchain.pem
+    <label>{{t "form.chain"}}
       <input type="file" name="fullchain" required>
     </label>
-    <label>private key · privkey.pem
+    <label>{{t "form.key"}}
       <input type="file" name="privkey" required>
     </label>
-    <label>your password
+    <label>{{t "form.your_password"}}
       <input type="password" name="password" autocomplete="current-password" required>
     </label>
-    <button type="submit">{{if eq .Mode "replace"}}replace{{else}}add{{end}}</button>
+    <button type="submit">{{if eq .Mode "replace"}}{{t "form.replace"}}{{else}}{{t "domains.add"}}{{end}}</button>
   </form>
-  <p class="dim">Before it is accepted the pair is checked: the key matches
-  the certificate, the term has begun and has not ended. On a refusal the
-  previous pair stays in force. Your password is asked once more: whoever
-  holds this certificate's key can read the admin UI's traffic.</p>
+  <p class="dim">{{t "admin_cert.checked"}}</p>
   {{end}}
 </section>
 

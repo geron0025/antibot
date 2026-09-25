@@ -3,26 +3,20 @@
 
 {{if .Welcome}}
 <section class="card">
-  <h2>Two questions, and then the node is yours</h2>
-  <p>This node works on its own. It terminates TLS, fingerprints clients,
-  applies your rules and writes events to disk — none of which needs us, and
-  none of which sends anything anywhere.</p>
-  <p>Two things it can do <em>with</em> the cloud, and only if you say so
-  here. Both are off until you tick them, and either can be turned off
-  again on this page at any time.</p>
+  <h2>{{t "cloud.welcome_title"}}</h2>
+  <p>{{t "cloud.welcome_1"}}</p>
+  <p>{{t "cloud.welcome_2_html"}}</p>
 </section>
 {{end}}
 
 {{with .Done}}
 <section class="card done">
   {{if eq . "registered"}}
-  <p>The node introduced itself to the cloud and took a token of the free
-  level. Whatever you ticked is already in force — nothing needs restarting.</p>
+  <p>{{t "cloud.done_registered"}}</p>
   {{else if eq . "forgotten"}}
-  <p>The token is gone and both answers are cleared. The node talks to
-  nobody.</p>
+  <p>{{t "cloud.done_forgotten"}}</p>
   {{else}}
-  <p>Saved, and in force.</p>
+  <p>{{t "cloud.done_saved"}}</p>
   {{end}}
 </section>
 {{end}}
@@ -31,22 +25,15 @@
   <input type="hidden" name="csrf" value="{{.CSRF}}">
 
   <section class="card">
-    <h2>What this node may do with the cloud</h2>
+    <h2>{{t "cloud.may_do"}}</h2>
 
     <label class="check">
       <input type="checkbox" name="facts" value="1"
         {{if and .State .State.Fetching}}checked{{end}}
         {{if and .State .State.FromConfig}}disabled{{end}}>
       <span>
-        <strong>Receive security updates</strong>
-        <span class="dim">Once a day the node fetches a signed set of facts:
-        which networks belong to hosting providers, which addresses are a
-        search engine's real crawler, which fingerprints belong to which
-        browser. Facts only — <em>what a client is called</em>. What to do
-        with such a client is decided by your rule and by nothing else: the
-        cloud cannot switch a rule on here, and there is no method in the
-        code that could. A set that is not signed by a key built into this
-        binary is refused and the previous one stays in force.</span>
+        <strong>{{t "cloud.facts_title"}}</strong>
+        <span class="dim">{{t "cloud.facts_text_html"}}</span>
       </span>
     </label>
 
@@ -55,65 +42,51 @@
         {{if and .State .State.Sending}}checked{{end}}
         {{if and .State .State.FromConfig}}disabled{{end}}>
       <span>
-        <strong>Send statistics</strong>
-        <span class="dim">Every fifteen minutes the node sends counters:
-        network prefixes, client families, fingerprints, how many requests
-        and how many were blocked. Never full addresses, User-Agent strings,
-        paths, headers, cookies or bodies — the list of what never leaves is
-        in the protocol, in the open repository, and it is the same document
-        the cloud is built against. This is what makes the bases better for
-        everybody, and it is how you will get an analysis of your own
-        traffic later.</span>
+        <strong>{{t "cloud.aggregates_title"}}</strong>
+        <span class="dim">{{t "cloud.aggregates_text"}}</span>
       </span>
     </label>
 
     {{if and .State .State.FromConfig}}
-    <p class="dim"><code>cloud.token</code> is set in <code>config.yaml</code>,
-    so the settings file decides and both directions are on. Whoever
-    installed this node wrote it there by hand; this page does not override
-    it.</p>
+    <p class="dim">{{t "cloud.from_config_html"}}</p>
     {{else}}
-    <p class="dim">Ticking either one makes the node ask the cloud for a token
-    of the free level — nothing to copy, nobody to write to. The free level
-    gives the crawlers that Google, Bing, Apple and Yandex publish about
-    themselves. Network classes, carriers whose ranges must never be blocked,
-    proxy pools and fingerprints come with a subscription.</p>
-    <button type="submit">Save</button>
+    <p class="dim">{{t "cloud.free_level"}}</p>
+    <button type="submit">{{t "cloud.save"}}</button>
     {{end}}
   </section>
 </form>
 
 {{with .State}}
 <section class="card">
-  <h2>How it stands</h2>
+  <h2>{{t "cloud.how_it_stands"}}</h2>
   <div class="scroll"><table>
     <tbody>
-      <tr><th>token</th><td>
+      <tr><th>{{t "cloud.token"}}</th><td>
         {{if .Token}}
-          {{if .FromConfig}}from <code>config.yaml</code>{{else}}taken by the node itself{{end}}
-        {{else}}none — the node talks to nobody{{end}}
+          {{if .FromConfig}}{{t "cloud.token_from_config_html"}}{{else}}{{t "cloud.token_taken"}}{{end}}
+        {{else}}{{t "cloud.token_none"}}{{end}}
       </td></tr>
       {{if .Tenant}}
-      <tr><th>known to the cloud as</th><td class="value">{{.Tenant}}{{if .Level}} · {{.Level}}{{end}}
-        <div class="dim">call yourself this when you write to us</div></td></tr>
+      <tr><th>{{t "cloud.known_as"}}</th><td class="value">{{.Tenant}}{{if .Level}} · {{.Level}}{{end}}
+        <div class="dim">{{t "cloud.known_as_note"}}</div></td></tr>
       {{end}}
-      <tr><th>security updates</th><td>
-        {{if .Fetching}}on{{else}}off{{end}}
+      <tr><th>{{t "cloud.updates"}}</th><td>
+        {{if .Fetching}}{{t "cloud.on"}}{{else}}{{t "cloud.off"}}{{end}}
         {{if .FactsVersion}}
-          <div class="dim">version {{.FactsVersion}}, built {{date .FactsBuilt}}</div>
+          <div class="dim">{{t "cloud.version_built" (print .FactsVersion) (date .FactsBuilt)}}</div>
         {{else}}
-          <div class="dim">no set applied: rules that refer to facts simply do not match, the rest work</div>
+          <div class="dim">{{t "cloud.no_set"}}</div>
         {{end}}
       </td></tr>
-      <tr><th>statistics</th><td>
-        {{if .Sending}}on{{else}}off{{end}}
+      <tr><th>{{t "cloud.statistics"}}</th><td>
+        {{if .Sending}}{{t "cloud.on"}}{{else}}{{t "cloud.off"}}{{end}}
         {{if .Sending}}
           <div class="dim">
-            {{if .LastSent.IsZero}}nothing sent yet{{else}}last sent {{time .LastSent}}{{end}}
-            {{if .Outbox}} · {{.Outbox}} waiting{{end}}
+            {{if .LastSent.IsZero}}{{t "cloud.nothing_sent"}}{{else}}{{t "cloud.last_sent" (time .LastSent)}}{{end}}
+            {{if .Outbox}} · {{t "cloud.waiting" .Outbox}}{{end}}
           </div>
         {{end}}
-        {{with .LastProblem}}<div class="dim">problem: {{.}}</div>{{end}}
+        {{with .LastProblem}}<div class="dim">{{t "cloud.problem" .}}</div>{{end}}
       </td></tr>
     </tbody>
   </table></div>
@@ -121,9 +94,8 @@
   {{if and .Token (not .FromConfig)}}
   <form method="post" action="/settings/cloud/forget" class="inline">
     <input type="hidden" name="csrf" value="{{$.CSRF}}">
-    <button type="submit" class="quiet">Forget the token</button>
-    <span class="dim">clears both answers; the node stops talking to the cloud
-    and cannot resume without registering again</span>
+    <button type="submit" class="quiet">{{t "cloud.forget"}}</button>
+    <span class="dim">{{t "cloud.forget_note"}}</span>
   </form>
   {{end}}
 </section>
