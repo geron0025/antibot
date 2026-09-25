@@ -191,12 +191,15 @@ chooses nothing in the request.
 
 | Level | What the set holds |
 |---|---|
-| free (`node`) | only the crawlers from the lists their owners publish about themselves: Googlebot, Bingbot, Applebot, DuckDuckBot, GPTBot and others. Class `crawler`, no fingerprints |
+| free (`node`) | only crawlers: from the lists their owners publish about themselves — Googlebot, Bingbot, Applebot, DuckDuckBot, GPTBot and others — and crawler networks we verified that have no list, like Yandex's. Class `crawler`, no fingerprints |
 | paid | the whole catalogue: networks of every class and fingerprints |
 
 The crawlers are free because they are the owners' public statements,
 and without them a free node cannot keep a search engine out of its own
-ban. The format is the same, `format: 1`: to the node it is an ordinary
+ban. A crawler without a list — Yandex publishes none — gets here once a
+human has verified its networks (the registry and reverse DNS) and they
+have gone out in a whole set: the free set is published on its own, and
+what nobody looked at does not get into it. The format is the same, `format: 1`: to the node it is an ordinary
 set, only with fewer records.
 
 **The version number is shared by the streams.** Each version belongs to
