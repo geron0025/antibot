@@ -33,15 +33,15 @@ directly will sooner or later take somebody's site down. Hence:
 |---|---|
 | `network.class` | `cloud`, `hosting`, `isp`, `mobile`, `crawler`, `proxy_pool`, `education`, `enterprise`, `unknown` |
 | `network.owner` | who owns the range |
-| `network.country` | a two-letter code |
+| `network.country` | a two-letter country code — **only on telecom operators' networks**, see below |
 | `network.protected` | **"do not touch this network at all"** |
 | `network.age` | how many versions ago the row appeared |
 | `family` | `chrome`, `firefox`, `safari`, `curl`, `python`, `go` |
 | `ua_matches_ja4` | whether the claimed client agrees with the handshake |
 
 `network.protected` is the most valuable thing in the base. It is set on
-telecom operators with live subscribers and on confirmed search crawlers,
-and it was obtained more expensively than everything else: to pick out 44
+telecom operators with live subscribers and on confirmed crawlers that
+work for a person, and it was obtained more expensively than everything else: to pick out 44
 networks of one cloud pool the previous generation needed about eighty
 whois queries, and along the way Vodafone, Reliance Jio, Charter, Sky UK,
 Telefónica and Telstra had to be taken off the list of suspects — and
@@ -125,6 +125,41 @@ named crawler past the blocks; whom to let through is the owner's call.
 Without a fact set a request has no network class, and the rule matches
 nobody: a self-declared Googlebot from somebody else's network never
 falls under it.
+
+### Country
+
+`network.country` is set **only on telecom operators' networks** — `isp`
+and `mobile`: it is the country the registry delegated the range to, and
+for an operator it is the country of its subscribers. Clouds, hosters and
+proxy pools have no country at all: there it would be the region of a
+data centre at best, and a rule "not RU" would start to mean "not RU, or
+a cloud in Amsterdam".
+
+An empty country is not a foreign one. Nodes without a set, networks
+without a record and everything that is not an operator have none. So a
+geo rule is written with a condition on the class, and decides
+explicitly what to do with an empty country:
+
+```json
+{
+  "id": "foreign-operators-limit",
+  "name": "telecom operators outside Russia — a rate limit",
+  "scope": ["*"],
+  "mode": "shadow",
+  "priority": 100,
+  "condition": {"all": [
+    {"field": "network.class", "op": "in", "value": ["isp", "mobile"]},
+    {"field": "network.country", "op": "ne", "value": ""},
+    {"field": "network.country", "op": "ne", "value": "RU"}
+  ]},
+  "action": {"type": "ratelimit", "limit": 60, "window": "1m"}
+}
+```
+
+Foreign farms on operators' addresses get a rate limit; your own
+subscribers and everyone the base says nothing about do not. A geo block
+hits your own people abroad, so here it is a rate limit in `shadow`, not
+`block`: first see whom it would touch.
 
 ## Applying from disk
 

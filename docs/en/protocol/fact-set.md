@@ -31,7 +31,6 @@ be the end of it. Hence:
   "prefix": "203.0.113.0/24",
   "asn": 64496,
   "owner": "Example Hosting Ltd",
-  "country": "DE",
   "class": "hosting",
   "protected": false,
   "confidence": "verified",
@@ -44,6 +43,13 @@ be the end of it. Hence:
 
 `class` is one of: `cloud`, `hosting`, `isp`, `mobile`, `crawler`,
 `proxy_pool`, `education`, `enterprise`, `unknown`.
+
+`country` is the country a regional registry delegated the range to.
+The cloud sets it **only on telecom operators' networks**, `isp` and
+`mobile`: for them it is the subscribers' country. `cloud`, `hosting`
+and `proxy_pool` never have one — it would be the region of a data
+centre, not the country of the visitors. No country, no field; an empty
+country does not mean a foreign one.
 
 `protected: true` means **"do not touch this network at all"**. It is set
 on telecom operators with live subscribers and on confirmed crawlers
