@@ -130,6 +130,12 @@ func (s *Store) List(now time.Time, current *rules.Set) (proposals []Proposal, a
 		if now.After(a.ExpiresAt) {
 			continue
 		}
+		if _, ok := decided[a.ID]; ok {
+			// Rejected — docs/*/protocol/proposals.md «Отказ» applies to
+			// advice too: hidden even if the cloud sends the same id
+			// again, not knowing better.
+			continue
+		}
 		if _, ok := hashes[a.Rule]; !ok {
 			continue
 		}
@@ -158,6 +164,14 @@ func (s *Store) Accept(id string, rulesStore *rules.Store, who string, now time.
 		}
 	}
 	if found == nil {
+		for _, a := range doc.Advice {
+			if a.ID == id {
+				// Advice adds nothing and changes nothing on its own —
+				// there is no rule here for Accept to write down. The
+				// owner acts on it with the rule's own buttons.
+				return &AdviceCannotBeAcceptedError{ID: id}
+			}
+		}
 		return &NoProposalError{ID: id}
 	}
 
@@ -179,11 +193,12 @@ func (s *Store) Accept(id string, rulesStore *rules.Store, who string, now time.
 	return s.writeDecisions(decisions)
 }
 
-// Reject records that the owner declined a proposal. reason is his own
-// words — signed in the admin UI so it is clear the cloud reads it —
-// and capped at 500 runes, the same limit the node's answer carries: a
-// longer one is refused here, not truncated on the way out where he
-// cannot see it happen.
+// Reject records that the owner declined a proposal or a piece of
+// advice — the protocol's node's answer shows both, and «Отказ» draws
+// no line between them. reason is his own words — signed in the admin
+// UI so it is clear the cloud reads it — and capped at 500 runes, the
+// same limit the node's answer carries: a longer one is refused here,
+// not truncated on the way out where he cannot see it happen.
 func (s *Store) Reject(id, reason, who string, now time.Time) error {
 	if n := utf8.RuneCountInString(reason); n > maxReasonRunes {
 		return fmt.Errorf("reason is %d runes, the limit is %d", n, maxReasonRunes)
@@ -201,6 +216,17 @@ func (s *Store) Reject(id, reason, who string, now time.Time) error {
 		if p.ID == id {
 			known = true
 			break
+		}
+	}
+	if !known {
+		// Reject applies to advice exactly as it does to a proposal —
+		// docs/*/protocol/proposals.md «Ответ ноды» shows an advice item
+		// answered with state rejected and a reason.
+		for _, a := range doc.Advice {
+			if a.ID == id {
+				known = true
+				break
+			}
 		}
 	}
 	if !known {

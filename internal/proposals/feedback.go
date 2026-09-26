@@ -274,8 +274,16 @@ func computeItems(now time.Time, decisions []Decision, current []rules.Rule, adv
 		byHash[r.Hash()] = r
 	}
 
+	// decided names every id the owner has already ruled on — a
+	// proposal or a piece of advice, Reject makes no difference between
+	// them. The advice loop below skips these: a rejected advice is
+	// reported once, here, and must never also turn up as done just
+	// because its rule happens to satisfy that condition on its own.
+	decided := make(map[string]struct{}, len(decisions))
+
 	var items []Item
 	for _, d := range decisions {
+		decided[d.ID] = struct{}{}
 		if !d.Accepted {
 			items = append(items, Item{ID: d.ID, State: StateRejected, At: d.At, Reason: d.Reason})
 			continue
@@ -301,6 +309,9 @@ func computeItems(now time.Time, decisions []Decision, current []rules.Rule, adv
 	}
 
 	for _, a := range advice {
+		if _, ok := decided[a.ID]; ok {
+			continue
+		}
 		rule, ok := byHash[a.Rule]
 		done := !ok
 		if ok {
