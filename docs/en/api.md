@@ -261,6 +261,65 @@ events the draft fired on to return for going through by eye: from 0 to
 - a `share` above `0.01` is a reason to go through the examples by hand:
   that much traffic is never all bots.
 
+## Cloud proposals — `GET /api/v1/proposals`
+
+On the paid subscription to analysis, the cloud looks at the owner's own
+traffic and sends drafts of rules and advice about the ones already at
+work — [protocol/proposals.md](protocol/proposals.md), the same page as
+the "Proposals" tab in the admin UI ([admin.md](admin.md)). A `read`
+token. Proposals not connected — `404`.
+
+```json
+{
+  "proposals": [
+    {
+      "id": "cloud-hosting-no-browser-2026-09",
+      "created_at": "2026-09-09T04:00:00Z",
+      "expires_at": "2026-10-09T00:00:00Z",
+      "rule": {"id": "cloud-hosting-no-browser-2026-09",
+               "name": "hosting without a browser handshake",
+               "scope": ["shop.example.ru"], "priority": 100,
+               "condition": {"field": "network.class", "op": "eq", "value": "hosting"},
+               "action": {"type": "block", "status": 403}},
+      "why": "Over a week, 4128 requests from six hosting networks calling themselves Chrome.",
+      "evidence": {"window": "2026-09-02/2026-09-09", "requests": 4128, "share": 0.021,
+                   "would_block": 4128, "would_block_protected": 0}
+    }
+  ],
+  "advice": []
+}
+```
+
+The same list the owner sees in the admin UI, exactly in the protocol's
+own shape: a proposal has no `mode`; advice has no rule, only its hash.
+`proposals` and `advice` are always arrays, even empty ones: a program
+does not have to guess whether a field is missing or there are simply no
+proposals.
+
+### Deciding — `POST /api/v1/proposals/{id}/accept` and `/reject`
+
+A `write` token. The same two actions as the "Proposals" tab's buttons,
+through the same write path — set validation, atomic replacement, a line
+in the node's log with the token's name.
+
+| Request | Body | What |
+|---|---|---|
+| `POST /api/v1/proposals/{id}/accept` | none | the rule lands in `rules.json`, in `shadow` |
+| `POST /api/v1/proposals/{id}/reject` | `{"reason": "…"}`, optional, up to 500 characters | the proposal or advice is declined |
+
+```json
+{"id": "cloud-hosting-no-browser-2026-09", "state": "accepted"}
+```
+
+`state` is `accepted` or `rejected`, as in the node's answer to the
+cloud. Shared by both: `404` — proposals are not connected, or there is
+no such `id`; `409` — this `id` was already decided, or (for `accept`
+only) a rule with that `id` already exists in the set. Their own:
+`accept` answers `400` if the `id` is advice, not a proposal (advice
+cannot be accepted, only rejected or acted on with the rule's own
+buttons); `reject` answers `400` if the reason is longer than 500
+characters or the body did not parse.
+
 ## Writing rules
 
 A `write` token. The same methods as `antibot rules`: the rule is checked
@@ -339,6 +398,8 @@ The machine-readable schemas of the answers lie next to the protocol's:
 to a change of a rule, in it too,
 [api-replay](../schema/api-replay.schema.json),
 [api-alerts](../schema/api-alerts.schema.json),
+[api-proposals](../schema/api-proposals.schema.json) — with `change`,
+the answer to accepting or rejecting, in it too,
 [api-error](../schema/api-error.schema.json). The
 `TestAPIAnswersMatchTheSchemas` test checks the node's real answers
 against them, so the schema and the code do not drift apart. A field the

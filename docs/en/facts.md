@@ -244,6 +244,14 @@ adding it to an installed node after the working key was lost. `antibot
 facts status` prints, as `trusted keys`, how many keys the node actually
 believes.
 
+A key of another use can arrive over the wire too: the `/keys` list
+carries, next to the sets' key, one marked `use: "proposals"` — it signs
+not a set but the paid analysis's proposals channel,
+[protocol/proposals.md](protocol/proposals.md). The use is checked
+before the signature: a sets key is no good for proposals, and the other
+way round — the two cannot be mixed even when the signature itself is
+valid.
+
 ## An empty directory is a normal state
 
 A node with no set at all is not hindered by it: rules referring to

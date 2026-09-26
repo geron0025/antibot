@@ -2,11 +2,6 @@
 
 Format version: **1**.
 
-> In the current build the node neither fetches nor accepts proposals:
-> there is no button in the admin UI and no `proposals/` directory yet,
-> no advice and no node feedback. The format is fixed in advance, like
-> the aggregate format.
-
 The third road between the parts. The first two — the
 [aggregate](aggregate.md) going up and the [fact set](fact-set.md) coming
 down — carry observations and statements about the world. This one
@@ -228,13 +223,27 @@ and write to the log":
 1. the signature verifies against a key from the **proposals** list;
 2. the `node` in the body matches this node's identifier — otherwise
    these are somebody else's proposals and must not be accepted;
-3. the document passed validation against the schema;
-4. every rule's `id` starts with `cloud-`;
-5. every rule's `scope` is a domain this node serves, or `*`.
+3. the document passed validation against the schema — the node carries
+   an embedded copy of `docs/schema/proposals.schema.json`, and
+   `TestEmbeddedSchemasMatchDocs` checks it byte for byte against the
+   file in this tree, so a drift is caught before release, not in
+   production;
+4. every proposal's, its rule's and every advice's `id` starts with
+   `cloud-`;
+5. every rule's `scope` is a domain this node serves, or `*`;
+6. the rule compiles with the same engine as `antibot rules add` and
+   lands in `shadow`. A proposal that does not compile cannot be a
+   draft: showing it to the owner would mean offering a button that
+   breaks the set.
 
-What passes is stored in `proposals/` next to `facts/`. The list arrives
-whole: a proposal that vanished from the list is hidden by the node — the
-cloud changed its mind.
+What passes is stored whole and atomically at
+`<the directory rules.json lives in>/proposals.json` — next to
+`rules.json` and next to `proposal-decisions.json`, where the owner's
+decisions live; the same shared directory the core and the admin UI
+split ([configuration.md](../configuration.md#rules),
+[admin.md](../admin.md)). The list arrives whole: a proposal that
+vanished from the list is hidden by the node — the cloud changed its
+mind.
 
 ### Accepting
 
@@ -254,10 +263,11 @@ channel.
 
 ### Declining
 
-A declined proposal is hidden by the node, which remembers the refusal
-locally and tells the cloud with the [node feedback](#node-feedback). The
-cloud does not send such a proposal again; if it arrives anyway, the node
-does not show it.
+Both a proposal and a piece of advice can be declined — the same button,
+no difference in the checks. A declined one is hidden by the node, which
+remembers the refusal locally and tells the cloud with the [node
+feedback](#node-feedback). The cloud does not send such a proposal or
+advice again; if it arrives anyway, the node does not show it.
 
 Decided on 25 September 2026. Before that a refusal was not reported
 upwards: a channel from the node to the cloud for "the user pressed no"
@@ -272,15 +282,24 @@ The node tells the cloud what became of each proposal and piece of
 advice — and nothing else. Not a byte about visitors, not the text of
 rules.
 
+The node derives the address the same way it derives the registration
+address: `cloud.url` with the trailing `/ingest` removed, plus
+`/proposals/feedback`:
+
 ```
-POST <cloud.url>/proposals/feedback
+https://updates.example.com/ingest → https://updates.example.com/proposals/feedback
+```
+
+```
+POST <the address above>
 Content-Type: application/json
+Content-Encoding: gzip
 Authorization: Bearer <token>
 ```
 
-The same cloud address and the same token as the aggregate, and the
-feedback goes out only when sending aggregates is on: a node without a
-token does not talk to the cloud at all.
+The same token as the aggregate, and the feedback goes out only when
+sending aggregates is on: a node without a token does not talk to the
+cloud at all.
 
 ```json
 {
@@ -337,8 +356,12 @@ new conversation, not a field in this format.
 
 ## The schema
 
-The machine-readable schema is
-[../../schema/proposals.schema.json](../../schema/proposals.schema.json).
-The node validates the document against the schema before showing a
-single proposal to a human. A proposal that fails validation discards the
-**whole** list: a partially parsed list is a state nobody checked.
+The machine-readable schemas are
+[../../schema/proposals.schema.json](../../schema/proposals.schema.json)
+for what arrives and
+[../../schema/proposal-feedback.schema.json](../../schema/proposal-feedback.schema.json)
+for the node's feedback. The node validates the document against the
+first of them before showing a single proposal to a human — with an
+embedded copy, byte for byte equal to the file in this tree. A proposal
+that fails validation discards the **whole** list: a partially parsed
+list is a state nobody checked.

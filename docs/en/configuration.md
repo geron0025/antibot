@@ -260,6 +260,12 @@ A broken rule discards the **whole** set, and the previous one stays in
 force. A half-applied set looks like it works and is therefore more
 dangerous than a refusal.
 
+Two more files of the paid subscription to analysis live in the same
+directory as `file` — `proposals.json` (drafts from the cloud) and
+`proposal-decisions.json` (the owner's decisions about them): there is no
+setting of their own for that directory, it is always derived from
+`rules.file` — [protocol/proposals.md](protocol/proposals.md).
+
 ## domains
 
 ```yaml

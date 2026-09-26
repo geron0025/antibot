@@ -2,8 +2,9 @@
 
 Shows events, statistics, rules and domains. It can change a few things,
 and all of them are listed: enable or disable an already written rule,
-add or remove a domain, upload a ready-made certificate for a site or for
-the admin UI itself, issue and revoke an [API](api.md) token, set the
+accept or reject a proposal from the paid analysis, add or remove a
+domain, upload a ready-made certificate for a site or for the admin UI
+itself, issue and revoke an [API](api.md) token, set the
 [alerts](alerts.md) command.
 
 It exists because an antibot whose work is invisible never gets put into
@@ -247,6 +248,50 @@ with the pass off — in `shadow` too; and the self-declared crawlers, as
 on the overview. Collectors of training data are named, but offered no
 pass: the rules decide about them.
 
+### Proposals
+
+The third tab of the rules, `/rules/proposals` — the channel of the paid
+subscription to analysis: [protocol/proposals.md](protocol/proposals.md).
+The cloud analysed the owner's own traffic and either proposes a new rule
+or advises doing something with one that already works. Nothing happens
+here by itself: a proposal adds a rule only after "Accept", and even then
+only into `shadow`.
+
+Each proposal is a card: the "why" sentence in the cloud's own words,
+numbers the owner can check themselves with `antibot replay` over their
+own log (window, requests, share, networks, addresses, how many requests
+would be blocked and how many of those at protected networks), the scope,
+the deadline, and the rule whole, exactly as it would land in
+`rules.json`. Two buttons:
+
+- **Accept** — the rule is appended to `rules.json` in `shadow`, through
+  the same write path as `antibot rules`: the same set validation, the
+  same atomic replacement, the same line in the log — who accepted what.
+  No second password is asked here: accepting decides nothing and cuts
+  nobody off until the owner moves the rule to `active` themselves — with
+  the same button on the rules page, which does ask for the password.
+  A second one here would guard a door that opens nothing.
+- **Reject** — with an optional reason field, up to 500 characters. The
+  field is labelled so it is clear: **the cloud will read this** — the
+  reason leaves the node as plain text, and nothing more. A rejected
+  proposal or piece of advice is hidden by the node and not shown again,
+  even if the cloud sends it once more.
+
+Advice is shown as a separate list: the same kind of card, but linked to
+the rule by its hash and with no "Accept" button — advice adds nothing,
+so there is nothing to accept, only to reject or act on with the rule's
+own buttons. Advice about a rule the owner has already deleted or changed
+to a different hash does not appear here — it was about another rule.
+
+Expired and rejected proposals and advice are not shown. On the "Rules"
+page, next to a rule whose hash matches somebody's advice, there is a
+short note linking to the advice's card.
+
+```
+level=INFO msg="a cloud proposal was decided from the admin UI"
+  id=cloud-hosting-no-browser-2026-09 do=accept who=owner address=127.0.0.1
+```
+
 ### One rule
 
 A click on a rule opens its page. The number on the rules page says how
@@ -434,13 +479,14 @@ only its owner knows.
 
 ## The writing actions
 
-There are fourteen and no others: enable or disable a rule, move it
+There are sixteen and no others: enable or disable a rule, move it
 between `shadow` and `active`, decide whether verified crawlers pass,
 add a domain, remove a domain, upload a
 site's certificate, replace the admin UI's certificate, issue an API
 token, revoke an API token, change the alerts command, send a test
 alert, answer the two questions about the cloud, forget the cloud
-token, restart the core.
+token, restart the core, accept a proposal from the cloud, reject a
+proposal or a piece of advice.
 
 Everything that changes a file of the core's — the rules, the crawlers'
 pass, the domains, a site's certificate, the alerts command — the admin UI writes itself and
@@ -458,7 +504,7 @@ not the core.
 
 ### The password once more
 
-Nine of the fourteen ask for the password once more, although the login
+Nine of the sixteen ask for the password once more, although the login
 is done: a stolen session must not be enough for them.
 
 | Action | Why |
@@ -473,10 +519,12 @@ is done: a stolen session must not be enough for them.
 | forget the cloud token | only a new registration brings it back |
 | restart the core | every site behind the node is cut off for seconds |
 
-Moving back to `shadow`, disabling a rule and giving crawlers their pass
-back ask for nothing: that is a
-step towards safety, and it must be quick. The attempts are counted
-together with the login form — ten per five minutes from one address.
+Moving back to `shadow`, disabling a rule, giving crawlers their pass
+back, and deciding on a cloud proposal — accepting or rejecting it — ask
+for nothing: that is a step towards safety, and it must be quick; an
+accepted proposal lands in `shadow` too and decides nothing by itself.
+The attempts are counted together with the login form — ten per five
+minutes from one address.
 
 The password is asked in a dialog over the page: its question says what
 exactly is about to happen. The dialog is the admin UI's only script,
@@ -687,8 +735,6 @@ seconds.
   through the admin UI would mean that whoever stole a session takes the
   access for good;
 - editing a rule in place — it is replaced by deleting and adding, with
-  the command or through the [API](api.md).
-
-Accepting rule proposals from the update service will become one more
-writing action when it appears; the rule will land in `shadow`, and
-moving it to `active` will still be a human's job — with the same button.
+  the command or through the [API](api.md);
+- accepting a cloud proposal straight into `active` — accepting always
+  lands the rule in `shadow`, the "Proposals" tab has no other way.

@@ -85,6 +85,29 @@ to the cloud at all, and coming back means registering again — and the
 cloud issues one token per installation, so that is a case for writing
 to us.
 
+## A third thing — only on the paid subscription to analysis
+
+The `facts_and_analysis` subscription level opens a third channel on top
+of the two checkboxes: proposals. The cloud analyses the owner's own
+traffic and sends drafts of rules and advice about the ones already at
+work — [protocol/proposals.md](protocol/proposals.md). The node fetches
+them in the same cycle as the base's update, at the same address and
+with the same token: `GET <facts.url>/proposals?format=1` right after
+`/keys`. A lower level gets `403` for this, and it does not affect the
+base's own update at all — the proposals channel has its own, separate
+error policy.
+
+The owner looks at the proposals and advice on the "Rules → Proposals"
+tab ([admin.md](admin.md)) and decides: accept — the rule lands in
+`shadow` — or reject, with a reason or without one. The decision goes
+back up as a short line, but only while the second checkbox, "Send
+statistics", is also on: a `POST` to `<cloud.url with /ingest removed>/proposals/feedback`,
+with the same token.
+
+On disk: `proposals.json` and `proposal-decisions.json` live next to
+`rules.json`, in its own directory; `proposals-feedback.json` lives in
+`cloud.state_dir`, next to the aggregate's own outgoing batches.
+
 ## When the subscription ends
 
 The bases freeze, the defence stays. The rules go on working on the set

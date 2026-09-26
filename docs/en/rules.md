@@ -127,6 +127,17 @@ rule would have touched.
 safe exactly because the mode has to be set: a rule cannot end up
 `active` by an oversight.
 
+A rule whose `id` starts with `cloud-` is an accepted proposal from the
+paid subscription to analysis: the cloud analysed the owner's traffic,
+proposed a draft, and the owner pressed "Accept" on the "Proposals" tab
+([admin.md](admin.md)). The node appends it to `rules.json` through the
+same path and with the same mandatory `shadow` — an accepted proposal's
+mode is no different from a hand-written rule's — and the same owner
+moves it to `active`, with the same button. `antibot rules list` shows
+the prefix as it is, so it is visible where each one came from. The draft
+before acceptance, a refusal, and advice about a rule by its hash are a
+separate channel, [protocol/proposals.md](protocol/proposals.md).
+
 ## Actions
 
 ```json
