@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"log/slog"
+	"path/filepath"
 	"time"
 
 	"github.com/geron0025/antibot/internal/admin"
@@ -12,6 +13,7 @@ import (
 	"github.com/geron0025/antibot/internal/crawlers"
 	"github.com/geron0025/antibot/internal/domains"
 	"github.com/geron0025/antibot/internal/i18n"
+	"github.com/geron0025/antibot/internal/proposals"
 	"github.com/geron0025/antibot/internal/rules"
 )
 
@@ -50,11 +52,16 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 	// same code as the antibot rules and antibot domains commands. The
 	// admin UI's copy only shows and writes: deciding is the core's.
 	var ruleStore *rules.Store
+	// proposalsStore shares the core's own directory with ruleStore:
+	// proposals.json and proposal-decisions.json live next to rules.json,
+	// exactly where the core's fetcher and feedback loop expect them.
+	var proposalsStore *proposals.Store
 	if cfg.Core.RulesFile != "" {
 		if ruleStore, err = rules.Open(cfg.Core.RulesFile, nil, log); err != nil {
 			return err
 		}
 		go ruleStore.Watch(ctx, reloadInterval)
+		proposalsStore = proposals.Open(filepath.Dir(cfg.Core.RulesFile))
 	}
 	var domainStore *domains.Store
 	if cfg.Core.DomainsFile != "" {
@@ -93,6 +100,7 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 		Tokens:           tokens,
 		AlertCommand:     alertCommand,
 		Crawlers:         crawlerPass,
+		Proposals:        proposalsStore,
 		Addr:             cfg.Listen,
 		HTTPAddr:         cfg.RedirectFrom,
 		Cert:             cert,

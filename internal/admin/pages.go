@@ -14,6 +14,7 @@ import (
 	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/facts"
 	"github.com/geron0025/antibot/internal/i18n"
+	"github.com/geron0025/antibot/internal/proposals"
 	"github.com/geron0025/antibot/internal/rules"
 	"github.com/geron0025/antibot/internal/summary"
 )
@@ -68,6 +69,11 @@ var (
 		TokenRevoked: "token_state.revoked",
 		TokenExpired: "token_state.expired",
 	}
+	adviceSuggestions = map[string]string{
+		proposals.SuggestDisable: "advice.suggest_disable",
+		proposals.SuggestShadow:  "advice.suggest_shadow",
+		proposals.SuggestReview:  "advice.suggest_review",
+	}
 )
 
 // named is a word of the code as a human reads it; a word the table does
@@ -88,6 +94,10 @@ func templateFuncs(p *i18n.Printer) template.FuncMap {
 		"time":  p.Time,
 		"date":  p.Date,
 		"count": func(n int) string { return p.Number(int64(n)) },
+		// ratio prints a fraction of 1, as evidence.share arrives on the
+		// wire, the way share prints a fraction of a count: with the
+		// language's own decimal separator and percent spacing.
+		"ratio": func(f float64) string { return p.Percent(int(f*1_000_000+0.5), 1_000_000) },
 		// crawlerForm hands a form of the crawlers tab what it needs from
 		// inside a range, where the page's own data is out of reach.
 		"crawlerForm": func(csrf, owner string) map[string]string {
@@ -104,9 +114,10 @@ func templateFuncs(p *i18n.Printer) template.FuncMap {
 			}
 			return p.T("nav.overview")
 		},
-		"alertState":   func(state string) string { return named(p, alertStates, state) },
-		"tokenState":   func(state string) string { return named(p, tokenStates, state) },
-		"languageName": func(code string) string { return named(p, languageNames, code) },
+		"alertState":    func(state string) string { return named(p, alertStates, state) },
+		"tokenState":    func(state string) string { return named(p, tokenStates, state) },
+		"languageName":  func(code string) string { return named(p, languageNames, code) },
+		"adviceSuggest": func(suggest string) string { return named(p, adviceSuggestions, suggest) },
 		// breakdown assembles the data for one breakdown table: Go
 		// templates have no other way to pass several values. key is the
 		// events filter a row links to; extra is one more filter as a
@@ -442,6 +453,12 @@ type rulesData struct {
 	CSRF   string
 	Rules  []RuleRow
 	Events int
+
+	// Advice is the cloud's live advice about a rule that still exists,
+	// keyed by the owner's own rule id — not by the hash the wire names
+	// it by, which a template has no business computing. Nil without a
+	// proposals store connected.
+	Advice map[string]proposals.Advice
 }
 
 func (s *Server) rulesPage(w http.ResponseWriter, r *http.Request, user string) {
@@ -456,7 +473,34 @@ func (s *Server) rulesPage(w http.ResponseWriter, r *http.Request, user string) 
 	if err != nil {
 		data.Error = err.Error()
 	}
+	data.Advice = s.adviceByRuleID()
 	s.render(w, r, "rules.html", data)
+}
+
+// adviceByRuleID is the rules page's own small piece of the proposals
+// channel: a notice next to the rule an advice is about, naming it by the
+// owner's own id — never the hash the wire carries, which the page has no
+// business showing.
+func (s *Server) adviceByRuleID() map[string]proposals.Advice {
+	if s.o.Proposals == nil || s.o.Rules == nil {
+		return nil
+	}
+	set := s.o.Rules.Set()
+	_, advice, err := s.o.Proposals.List(time.Now(), set)
+	if err != nil || len(advice) == 0 {
+		return nil
+	}
+	byHash := map[string]proposals.Advice{}
+	for _, a := range advice {
+		byHash[a.Rule] = a
+	}
+	out := map[string]proposals.Advice{}
+	for _, rule := range set.All() {
+		if a, ok := byHash[rule.Hash()]; ok {
+			out[rule.ID] = a
+		}
+	}
+	return out
 }
 
 // ruleRows lists the rules in the order of application, the disabled

@@ -8,11 +8,13 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/geron0025/antibot/internal/alerts"
 	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/facts"
 	"github.com/geron0025/antibot/internal/i18n"
+	"github.com/geron0025/antibot/internal/proposals"
 	"github.com/geron0025/antibot/internal/replay"
 	"github.com/geron0025/antibot/internal/rules"
 	"github.com/geron0025/antibot/internal/summary"
@@ -506,19 +508,117 @@ func (s *Server) apiRemoveRule(w http.ResponseWriter, r *http.Request, tok *Toke
 	w.WriteHeader(http.StatusNoContent)
 }
 
-// TODO(T10): the API of docs/*/protocol/proposals.md's third channel. Not
-// implemented yet.
+// --- proposals ---
 
+type apiProposalsAnswer struct {
+	Proposals []proposals.Proposal `json:"proposals"`
+	Advice    []proposals.Advice   `json:"advice"`
+}
+
+// apiProposals is the tab for a program: the same live proposals and
+// advice, in the wire format's own shape — a monitoring system can read
+// them without knowing the admin UI's HTML at all.
 func (s *Server) apiProposals(w http.ResponseWriter, r *http.Request, _ *Token) {
-	apiFail(w, http.StatusNotImplemented, "not implemented")
+	if s.o.Proposals == nil {
+		apiFail(w, http.StatusNotFound, "the proposals are not connected")
+		return
+	}
+	var set *rules.Set
+	if s.o.Rules != nil {
+		set = s.o.Rules.Set()
+	}
+	list, advice, err := s.o.Proposals.List(time.Now(), set)
+	if err != nil {
+		s.apiInternal(w, "the API proposals were not read", err)
+		return
+	}
+	answer := apiProposalsAnswer{Proposals: list, Advice: advice}
+	if answer.Proposals == nil {
+		answer.Proposals = []proposals.Proposal{}
+	}
+	if answer.Advice == nil {
+		answer.Advice = []proposals.Advice{}
+	}
+	apiRespond(w, http.StatusOK, answer)
 }
 
+type apiProposalAnswer struct {
+	ID    string `json:"id"`
+	State string `json:"state"`
+}
+
+// apiAcceptProposal is the API's "Accept": no body, no password — the
+// same reasoning as the button's, since a token already stands in for
+// one. It lands the rule in shadow and nothing more.
 func (s *Server) apiAcceptProposal(w http.ResponseWriter, r *http.Request, tok *Token) {
-	apiFail(w, http.StatusNotImplemented, "not implemented")
+	if s.o.Proposals == nil {
+		apiFail(w, http.StatusNotFound, "the proposals are not connected")
+		return
+	}
+	if s.o.Rules == nil {
+		apiFail(w, http.StatusNotFound, "the rules are not connected")
+		return
+	}
+	id := r.PathValue("id")
+	if err := s.o.Proposals.Accept(id, s.o.Rules, tok.Name, time.Now()); err != nil {
+		s.apiProposalFail(w, "a proposal was not accepted through the API", id, tok, err)
+		return
+	}
+	s.reload(r.Context(), control.ReloadRules)
+	s.o.Log.Info("a proposal was accepted through the API", "id", id, "token", tok.Name, "address", clientAddr(r))
+	apiRespond(w, http.StatusOK, apiProposalAnswer{ID: id, State: proposals.StateAccepted})
 }
 
+type apiRejectRequest struct {
+	Reason string `json:"reason,omitempty"`
+}
+
+// apiRejectProposal is the API's "Reject", for a proposal or a piece of
+// advice alike — the reason is capped exactly as the tab caps it, before
+// either one is looked at.
 func (s *Server) apiRejectProposal(w http.ResponseWriter, r *http.Request, tok *Token) {
-	apiFail(w, http.StatusNotImplemented, "not implemented")
+	if s.o.Proposals == nil {
+		apiFail(w, http.StatusNotFound, "the proposals are not connected")
+		return
+	}
+	var body apiRejectRequest
+	if code, err := readBody(w, r, &body); err != nil {
+		apiFail(w, code, err.Error())
+		return
+	}
+	if n := utf8.RuneCountInString(body.Reason); n > maxReasonRunes {
+		apiFail(w, http.StatusBadRequest, fmt.Sprintf("reason is %d runes, the limit is %d", n, maxReasonRunes))
+		return
+	}
+	id := r.PathValue("id")
+	if err := s.o.Proposals.Reject(id, body.Reason, tok.Name, time.Now()); err != nil {
+		s.apiProposalFail(w, "a proposal was not rejected through the API", id, tok, err)
+		return
+	}
+	s.o.Log.Info("a proposal was rejected through the API", "id", id, "token", tok.Name, "address", clientAddr(r))
+	apiRespond(w, http.StatusOK, apiProposalAnswer{ID: id, State: proposals.StateRejected})
+}
+
+// apiProposalFail tells the caller's mistake from the node's trouble, the
+// same way apiRuleFail does for the rules API.
+func (s *Server) apiProposalFail(w http.ResponseWriter, what, id string, tok *Token, err error) {
+	var already *proposals.AlreadyDecidedError
+	var gone *proposals.NoProposalError
+	var isAdvice *proposals.AdviceCannotBeAcceptedError
+	var exists *rules.RuleExistsError
+	switch {
+	case errors.As(err, &already):
+		apiFail(w, http.StatusConflict, err.Error())
+	case errors.As(err, &gone):
+		apiFail(w, http.StatusNotFound, err.Error())
+	case errors.As(err, &isAdvice):
+		apiFail(w, http.StatusBadRequest, err.Error())
+	case errors.As(err, &exists):
+		apiFail(w, http.StatusConflict, err.Error())
+	default:
+		s.o.Log.Error(what, "id", id, "token", tok.Name, "err", err)
+		apiFail(w, http.StatusInternalServerError, err.Error())
+	}
 }
 
 // apiRule answers with the rule as it now is in force: a program that

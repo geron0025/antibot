@@ -1,0 +1,84 @@
+{{template "header" .}}
+
+{{template "rules-tabs" .}}
+
+<p class="dim">{{t "proposals.intro"}}</p>
+
+{{if not .Proposals}}{{if not .Advice}}
+<p class="dim">{{t "proposals.empty"}}</p>
+{{end}}{{end}}
+
+{{with .Proposals}}
+<h2>{{t "proposals.proposals_title"}}</h2>
+{{range .}}
+<section class="card" id="{{.ID}}">
+  <h3>{{if .Rule.Name}}{{.Rule.Name}}{{else}}{{.ID}}{{end}}</h3>
+  <p class="dim value">{{.ID}}</p>
+  <p>{{t "proposals.why_from_cloud"}} {{.Why}}</p>
+  <dl class="facts">
+    <dt>{{t "proposals.window"}}</dt><dd>{{.Evidence.Window}}</dd>
+    <dt>{{t "proposals.requests"}}</dt><dd>{{count .Evidence.Requests}}</dd>
+    <dt>{{t "proposals.share"}}</dt><dd>{{ratio .Evidence.Share}}</dd>
+    {{if .Evidence.Networks}}<dt>{{t "proposals.networks"}}</dt><dd>{{count .Evidence.Networks}}</dd>{{end}}
+    {{if .Evidence.Addresses}}<dt>{{t "proposals.addresses"}}</dt><dd>{{count .Evidence.Addresses}}</dd>{{end}}
+    <dt>{{t "proposals.would_block"}}</dt><dd>{{count .Evidence.WouldBlock}}</dd>
+    <dt>{{t "proposals.would_block_protected"}}</dt><dd>{{count .Evidence.WouldBlockProtected}}</dd>
+    <dt>{{t "proposals.scope"}}</dt><dd class="value">{{range .Rule.Scope}}{{.}} {{end}}</dd>
+    <dt>{{t "proposals.expires"}}</dt><dd>{{date .ExpiresAt}}</dd>
+  </dl>
+  <details>
+    <summary>{{t "rule.as_written"}}</summary>
+    <pre class="value">{{.RuleJSON}}</pre>
+  </details>
+  <div class="fields">
+    <form method="post" action="/rules/proposals">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <input type="hidden" name="id" value="{{.ID}}">
+      <input type="hidden" name="do" value="accept">
+      <button type="submit">{{t "proposals.accept"}}</button>
+      <span class="dim">{{t "proposals.accept_note"}}</span>
+    </form>
+    <form method="post" action="/rules/proposals" class="fields stack">
+      <input type="hidden" name="csrf" value="{{$.CSRF}}">
+      <input type="hidden" name="id" value="{{.ID}}">
+      <input type="hidden" name="do" value="reject">
+      <label>{{t "proposals.reason_label"}}
+        <textarea name="reason" maxlength="500" rows="2" cols="60"></textarea>
+      </label>
+      <button type="submit">{{t "proposals.reject"}}</button>
+    </form>
+  </div>
+</section>
+{{end}}
+{{end}}
+
+{{with .Advice}}
+<h2>{{t "proposals.advice_title"}}</h2>
+{{range .}}
+<section class="card" id="{{.ID}}">
+  <h3>{{if .RuleName}}{{.RuleName}}{{else}}{{.RuleID}}{{end}}</h3>
+  <p class="dim value">{{.RuleID}}</p>
+  <p>{{t "proposals.suggestion" (adviceSuggest .Suggest)}}</p>
+  <p>{{t "proposals.why_from_cloud"}} {{.Why}}</p>
+  <dl class="facts">
+    <dt>{{t "proposals.window"}}</dt><dd>{{.Evidence.Window}}</dd>
+    <dt>{{t "proposals.requests"}}</dt><dd>{{count .Evidence.Requests}}</dd>
+    <dt>{{t "proposals.share"}}</dt><dd>{{ratio .Evidence.Share}}</dd>
+    <dt>{{t "proposals.with_cookie"}}</dt><dd>{{count .Evidence.WithCookie}}</dd>
+    <dt>{{t "proposals.protected"}}</dt><dd>{{count .Evidence.Protected}}</dd>
+    <dt>{{t "proposals.expires"}}</dt><dd>{{date .ExpiresAt}}</dd>
+  </dl>
+  <form method="post" action="/rules/proposals" class="fields stack">
+    <input type="hidden" name="csrf" value="{{$.CSRF}}">
+    <input type="hidden" name="id" value="{{.ID}}">
+    <input type="hidden" name="do" value="reject">
+    <label>{{t "proposals.reason_label"}}
+      <textarea name="reason" maxlength="500" rows="2" cols="60"></textarea>
+    </label>
+    <button type="submit">{{t "proposals.reject"}}</button>
+  </form>
+</section>
+{{end}}
+{{end}}
+
+{{template "footer" .}}

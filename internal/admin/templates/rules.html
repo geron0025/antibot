@@ -21,6 +21,7 @@
       <td>
         <a href="/rule?id={{.Rule.ID}}">{{.Rule.ID}}</a>
         {{if .Rule.Name}}<div class="dim">{{.Rule.Name}}</div>{{end}}
+        {{with index $.Advice .Rule.ID}}<div class="dim">{{t "rules.advice_notice_html" (print "/rules/proposals#" (urlquery .ID))}}</div>{{end}}
       </td>
       <td>
         {{.Rule.Mode}}
