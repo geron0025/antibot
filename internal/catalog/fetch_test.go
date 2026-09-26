@@ -4,6 +4,7 @@ import (
 	"compress/gzip"
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -344,5 +345,45 @@ func TestWithoutATokenThereIsNoFetcher(t *testing.T) {
 	}
 	if f := NewFetcher(store, "", "the-token", "id", "0.1.0", nil); f != nil {
 		t.Error("a fetcher was assembled without an address")
+	}
+}
+
+// GetSigned exists for the proposals channel, which keeps an error
+// policy of its own: a tier without facts_and_analysis answers every
+// /proposals with 403, forever, and that must never slow down the fact
+// sets fetched by this very Fetcher. Proven here, at the source, since
+// the proposals package cannot see this Fetcher's unexported counters.
+func TestGetSignedLeavesTheFetchersStateAlone(t *testing.T) {
+	for _, status := range []int{http.StatusOK, http.StatusUnauthorized, http.StatusForbidden, http.StatusInternalServerError} {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Antibot-Signature", "2026-p1:sig")
+			w.Header().Set("ETag", `"v1"`)
+			w.WriteHeader(status)
+			w.Write([]byte(`{"format":1}`))
+		}))
+		t.Cleanup(server.Close)
+
+		f := NewFetcher(store(t, newSigner(t, "2026-a")), server.URL, "the-token", "id", "0.1.0",
+			slog.New(slog.NewTextHandler(io.Discard, nil)))
+		f.failures, f.hint = 7, 3*time.Hour // a value GetSigned must not touch
+
+		body, sig, etag, got, err := f.GetSigned(context.Background(), "/proposals?format=1", "")
+		if err != nil {
+			t.Fatalf("status %d: %v", status, err)
+		}
+		if got != status {
+			t.Errorf("status %d: GetSigned reported %d", status, got)
+		}
+		if sig != "2026-p1:sig" || etag != `"v1"` {
+			t.Errorf("status %d: signature %q etag %q", status, sig, etag)
+		}
+		if status == http.StatusOK && string(body) != `{"format":1}` {
+			t.Errorf("status %d: body %q", status, body)
+		}
+
+		if f.failures != 7 || f.hint != 3*time.Hour {
+			t.Errorf("status %d: GetSigned changed this Fetcher's own state: failures=%d hint=%v",
+				status, f.failures, f.hint)
+		}
 	}
 }

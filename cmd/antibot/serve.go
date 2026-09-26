@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/geron0025/antibot/internal/facts"
 	"github.com/geron0025/antibot/internal/h2fp"
 	"github.com/geron0025/antibot/internal/nodeid"
+	"github.com/geron0025/antibot/internal/proposals"
 	"github.com/geron0025/antibot/internal/proxy"
 	"github.com/geron0025/antibot/internal/rules"
 	"github.com/geron0025/antibot/internal/tlsfp"
@@ -127,6 +129,8 @@ func serveCommand(ctx context.Context, args []string, log *slog.Logger) error {
 	link := &cloudLink{
 		cfg: cfg, state: linkState, facts: factStore, sink: aggSink,
 		node: identity, serve: router.Named, log: log,
+		rules:          ruleStore,
+		proposalsStore: proposals.Open(filepath.Dir(cfg.Rules.File)),
 	}
 	linkState.OnChange(link.apply)
 

@@ -81,6 +81,20 @@ func NewKeyring() *Keyring {
 	return r
 }
 
+// NewKeyringWithKeys builds a keyring that trusts exactly the given
+// keys, as if they had shipped with the build.
+//
+// The only ring a running node ever has is NewKeyring's, seeded from
+// the two keys compiled in; every other key it trusts arrives later,
+// signed by one of those two. There is no legitimate way outside of a
+// build to mint that chain, and this function does not try to: it
+// exists for tests in other packages that need a keyring of their own —
+// a facts key here, a proposals key there — without holding the
+// production signing key.
+func NewKeyringWithKeys(keys ...Key) (*Keyring, error) {
+	return nil, fmt.Errorf("not implemented")
+}
+
 func (k *Key) parse() error {
 	if k.Algo != "ed25519" {
 		return fmt.Errorf("key %q: algorithm %q is not supported", k.KeyID, k.Algo)

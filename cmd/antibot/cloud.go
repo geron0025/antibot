@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -16,6 +17,8 @@ import (
 	"github.com/geron0025/antibot/internal/config"
 	"github.com/geron0025/antibot/internal/control"
 	"github.com/geron0025/antibot/internal/facts"
+	"github.com/geron0025/antibot/internal/proposals"
+	"github.com/geron0025/antibot/internal/rules"
 )
 
 // aggregateSink is the aggregator's place in the hot path, held whether
@@ -62,13 +65,37 @@ type cloudLink struct {
 	serve func(host string) bool
 	log   *slog.Logger
 
+	// rules is the node's own rule set, opened once at startup. The
+	// feedback loop reads it to see what became of an accepted
+	// proposal; nothing here ever writes to it — accepting one is the
+	// admin UI's call, made through internal/proposals.Store.Accept.
+	rules *rules.Store
+
+	// proposalsStore reads proposal-decisions.json — the admin UI's own
+	// state about what the owner did — for the feedback loop. Named
+	// apart from the proposals package it comes from, so the two are
+	// never confused for one another in this file.
+	proposalsStore *proposals.Store
+
 	mu      sync.Mutex
 	ctx     context.Context
 	fetch   context.CancelFunc
 	agg     *aggregate.Aggregator
 	aggStop context.CancelFunc
 	aggDone chan struct{}
+
+	// fbStop and fbDone are the proposals feedback loop's, started and
+	// stopped together with the aggregate: docs/*/protocol/proposals.md
+	// says the answer goes up only while the aggregate does.
+	fbStop context.CancelFunc
+	fbDone chan struct{}
 }
+
+// sharedDir is where rules.json lives, and where proposals.json and
+// proposal-decisions.json live next to it: one directory the core and
+// the admin UI, running as different users, both have a right to write
+// into.
+func (l *cloudLink) sharedDir() string { return filepath.Dir(l.cfg.Rules.File) }
 
 // settings is what the two sources add up to.
 type settings struct {
@@ -144,6 +171,21 @@ func (l *cloudLink) apply() {
 		ctx, cancel := context.WithCancel(l.ctx)
 		l.fetch = cancel
 		go fetcher.Run(ctx, l.cfg.Facts.Interval.Duration())
+
+		// The proposals channel shares fetcher's address, token and
+		// identity — the same facts.url and the same subscription cover
+		// both — but keeps an error policy of its own, so it is a
+		// fetcher of its own too, stopped together with this one rather
+		// than woven into its cycle.
+		propFetcher := &proposals.Fetcher{
+			Source:  fetcher,
+			Keyring: l.facts.Keyring(),
+			Dir:     l.sharedDir(),
+			Served:  l.serve,
+			Log:     l.log,
+		}
+		go propFetcher.Run(ctx, l.cfg.Facts.Interval.Duration())
+
 		l.log.Info("fetching the bases", "url", want.FactsURL)
 	case !want.Fetching && l.fetch != nil:
 		l.fetch()
@@ -182,6 +224,29 @@ func (l *cloudLink) apply() {
 			close(done)
 		}()
 		l.log.Info("sending the aggregate", "url", want.IngestURL)
+
+		// The proposals feedback answers upward only while the aggregate
+		// does — a node with no token to speak to the cloud says nothing
+		// about this either — so it starts and stops with it.
+		if l.rules != nil && l.proposalsStore != nil {
+			fb := &proposals.Sender{
+				URL:       proposals.FeedbackURL(want.IngestURL),
+				Token:     want.Token,
+				NodeID:    l.node(),
+				Version:   Version,
+				Decisions: l.proposalsStore,
+				Rules:     l.rules,
+				StateDir:  l.cfg.Cloud.StateDir,
+				Log:       l.log,
+			}
+			fbCtx, fbCancel := context.WithCancel(context.Background())
+			fbDone := make(chan struct{})
+			l.fbStop, l.fbDone = fbCancel, fbDone
+			go func() {
+				fb.Run(fbCtx, l.cfg.Cloud.Interval.Duration())
+				close(fbDone)
+			}()
+		}
 	case !want.Sending && l.agg != nil:
 		l.stopAggregate()
 		l.log.Info("the aggregate is no longer sent")
@@ -218,6 +283,12 @@ func (l *cloudLink) stopAggregate() {
 	l.aggStop()
 	<-l.aggDone
 	l.agg, l.aggStop, l.aggDone = nil, nil, nil
+
+	if l.fbStop != nil {
+		l.fbStop()
+		<-l.fbDone
+		l.fbStop, l.fbDone = nil, nil
+	}
 }
 
 func firstSet(values ...string) string {

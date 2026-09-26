@@ -235,6 +235,21 @@ func (f *Fetcher) fetchKeys(ctx context.Context) error {
 
 var errNotModified = errors.New("not modified")
 
+// GetSigned performs a request the same way get does — same address,
+// same token, same identity headers, same size cap and gzip handling —
+// for a channel that carries its own signature in the response headers
+// instead of leaning on this Fetcher's own state: the proposals channel.
+//
+// Unlike get, it never touches this Fetcher's failure count or backoff
+// hint, and it hands the status code back instead of turning it into an
+// error. Proposals keep an error policy of their own — a tier without
+// facts_and_analysis answers every /proposals with 403, forever, and
+// that must never slow down the fact sets this very Fetcher is also
+// downloading.
+func (f *Fetcher) GetSigned(ctx context.Context, path, etag string) (body []byte, signature, gotETag string, status int, err error) {
+	return nil, "", "", 0, fmt.Errorf("not implemented")
+}
+
 // get performs one request and turns the answer into what the protocol
 // says the node should do.
 func (f *Fetcher) get(ctx context.Context, path string, extra map[string]string) ([]byte, error) {

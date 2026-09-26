@@ -3,9 +3,12 @@
 //
 // Deliberately small, and deliberately loud about a keyword it does not
 // know: a checker that silently skipped one would pass everything and
-// prove nothing. It serves the tests that hold the schemas and the code to
-// each other; the node itself never validates against a schema at run
-// time.
+// prove nothing. It serves the tests that hold the schemas and the code
+// to each other, which is all it ever did until the proposals channel:
+// that one document is now checked against its schema at run time, not
+// only in a test, because it reaches the owner's screen. Load reads a
+// schema from a file, for the tests; LoadBytes reads one already in
+// memory, for the copy a package embeds into its own binary.
 package schemacheck
 
 import (
@@ -28,6 +31,17 @@ func Load(path string) (map[string]any, error) {
 	var s map[string]any
 	if err := json.Unmarshal(raw, &s); err != nil {
 		return nil, fmt.Errorf("schema %s: %w", path, err)
+	}
+	return s, nil
+}
+
+// LoadBytes parses a schema that is already in memory — an embedded
+// copy, most often, since a binary running on somebody else's machine
+// has no docs/ directory to read Load's path from.
+func LoadBytes(raw []byte) (map[string]any, error) {
+	var s map[string]any
+	if err := json.Unmarshal(raw, &s); err != nil {
+		return nil, fmt.Errorf("schema: %w", err)
 	}
 	return s, nil
 }
