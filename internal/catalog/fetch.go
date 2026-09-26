@@ -247,7 +247,61 @@ var errNotModified = errors.New("not modified")
 // that must never slow down the fact sets this very Fetcher is also
 // downloading.
 func (f *Fetcher) GetSigned(ctx context.Context, path, etag string) (body []byte, signature, gotETag string, status int, err error) {
-	return nil, "", "", 0, fmt.Errorf("not implemented")
+	if _, err := url.Parse(f.BaseURL + path); err != nil {
+		return nil, "", "", 0, fmt.Errorf("proposals address: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, f.BaseURL+path, nil)
+	if err != nil {
+		return nil, "", "", 0, err
+	}
+	req.Header.Set("Authorization", "Bearer "+f.Token)
+	req.Header.Set("Accept", "application/json")
+	if f.NodeID != "" {
+		req.Header.Set("X-Antibot-Node", f.NodeID)
+	}
+	if f.Version != "" {
+		req.Header.Set("X-Antibot-Version", f.Version)
+	}
+	if etag != "" {
+		req.Header.Set("If-None-Match", etag)
+	}
+
+	resp, err := f.Client.Do(req)
+	if err != nil {
+		return nil, "", "", 0, err
+	}
+	defer resp.Body.Close()
+
+	signature = resp.Header.Get("X-Antibot-Signature")
+	gotETag = resp.Header.Get("ETag")
+	status = resp.StatusCode
+	if status != http.StatusOK {
+		// Nothing to read for real; draining a little keeps the
+		// connection reusable without trusting a large body from a
+		// status that promises none.
+		io.Copy(io.Discard, io.LimitReader(resp.Body, 4<<10))
+		return nil, signature, gotETag, status, nil
+	}
+
+	r := io.Reader(io.LimitReader(resp.Body, maxSetSize+1))
+	if strings.EqualFold(resp.Header.Get("Content-Encoding"), "gzip") {
+		zr, err := gzip.NewReader(r)
+		if err != nil {
+			return nil, signature, gotETag, status, fmt.Errorf("gzip: %w", err)
+		}
+		defer zr.Close()
+		r = io.LimitReader(zr, maxSetSize+1)
+	}
+
+	raw, err := io.ReadAll(r)
+	if err != nil {
+		return nil, signature, gotETag, status, err
+	}
+	if len(raw) > maxSetSize {
+		return nil, signature, gotETag, status, fmt.Errorf("the answer is larger than the %d-byte limit", maxSetSize)
+	}
+	return raw, signature, gotETag, status, nil
 }
 
 // get performs one request and turns the answer into what the protocol

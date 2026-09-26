@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/geron0025/antibot/internal/rules"
@@ -41,7 +42,8 @@ const (
 // decision Д3 of the cloud's spec says the node finds it the same way
 // it finds the registration address.
 func FeedbackURL(cloudURL string) string {
-	return "" // not implemented
+	trimmed := strings.TrimSuffix(strings.TrimSuffix(cloudURL, "/"), "/ingest")
+	return trimmed + "/proposals/feedback"
 }
 
 // Sender posts what became of each decided proposal and each advice to
@@ -265,7 +267,56 @@ func (s *Sender) nextDelay(err error, interval time.Duration) time.Duration {
 // Once decides, by comparing this against what was last sent, which of
 // these are worth a post.
 func computeItems(now time.Time, decisions []Decision, current []rules.Rule, advice []Advice) []Item {
-	return nil // not implemented
+	byID := make(map[string]rules.Rule, len(current))
+	byHash := make(map[string]rules.Rule, len(current))
+	for _, r := range current {
+		byID[r.ID] = r
+		byHash[r.Hash()] = r
+	}
+
+	var items []Item
+	for _, d := range decisions {
+		if !d.Accepted {
+			items = append(items, Item{ID: d.ID, State: StateRejected, At: d.At, Reason: d.Reason})
+			continue
+		}
+
+		rule, ok := byID[d.ID]
+		if !ok {
+			items = append(items, Item{ID: d.ID, State: StateRemoved, At: now})
+			continue
+		}
+		hash := rule.Hash()
+		enabled := rule.Enabled == nil || *rule.Enabled
+		switch {
+		case !enabled:
+			items = append(items, Item{ID: d.ID, State: StateDisabled, At: now, Rule: hash})
+		case rule.Mode == rules.Active:
+			items = append(items, Item{ID: d.ID, State: StateActive, At: now, Rule: hash})
+		default:
+			// Present, enabled, shadow: exactly the state Accept left
+			// it in, so the moment it happened is the decision's own.
+			items = append(items, Item{ID: d.ID, State: StateAccepted, At: d.At, Rule: hash})
+		}
+	}
+
+	for _, a := range advice {
+		rule, ok := byHash[a.Rule]
+		done := !ok
+		if ok {
+			enabled := rule.Enabled == nil || *rule.Enabled
+			switch a.Suggest {
+			case SuggestDisable:
+				done = !enabled
+			case SuggestShadow:
+				done = rule.Mode == rules.Shadow
+			}
+		}
+		if done {
+			items = append(items, Item{ID: a.ID, State: StateDone, At: now})
+		}
+	}
+	return items
 }
 
 type feedbackState struct {

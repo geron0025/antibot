@@ -86,7 +86,46 @@ func Open(dir string) *Store { return &Store{dir: dir} }
 // caller is about to show on the rules page, so the two never disagree
 // about which rules there are.
 func (s *Store) List(now time.Time, current *rules.Set) (proposals []Proposal, advice []Advice, err error) {
-	return nil, nil, fmt.Errorf("not implemented")
+	doc, err := s.readDocument()
+	if err != nil {
+		return nil, nil, err
+	}
+	decisions, err := s.readDecisions()
+	if err != nil {
+		return nil, nil, err
+	}
+	decided := make(map[string]struct{}, len(decisions.Decisions))
+	for _, d := range decisions.Decisions {
+		decided[d.ID] = struct{}{}
+	}
+
+	hashes := make(map[string]struct{})
+	if current != nil {
+		for _, r := range current.All() {
+			hashes[r.Hash()] = struct{}{}
+		}
+	}
+
+	for _, p := range doc.Proposals {
+		if now.After(p.ExpiresAt) {
+			continue
+		}
+		if _, ok := decided[p.ID]; ok {
+			continue
+		}
+		proposals = append(proposals, p)
+	}
+
+	for _, a := range doc.Advice {
+		if now.After(a.ExpiresAt) {
+			continue
+		}
+		if _, ok := hashes[a.Rule]; !ok {
+			continue
+		}
+		advice = append(advice, a)
+	}
+	return proposals, advice, nil
 }
 
 // Accept writes the proposed rule into rules.json in shadow, exactly as
@@ -94,7 +133,40 @@ func (s *Store) List(now time.Time, current *rules.Set) (proposals []Proposal, a
 // shadow is the only one a proposal ever gets — and records that the
 // owner accepted it, so it is not offered again.
 func (s *Store) Accept(id string, rulesStore *rules.Store, who string, now time.Time) error {
-	return fmt.Errorf("not implemented")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	doc, err := s.readDocument()
+	if err != nil {
+		return err
+	}
+	var found *Proposal
+	for i := range doc.Proposals {
+		if doc.Proposals[i].ID == id {
+			found = &doc.Proposals[i]
+			break
+		}
+	}
+	if found == nil {
+		return &NoProposalError{ID: id}
+	}
+
+	decisions, err := s.readDecisions()
+	if err != nil {
+		return err
+	}
+	if d, ok := decisionByID(decisions, id); ok {
+		return &AlreadyDecidedError{ID: id, Accepted: d.Accepted}
+	}
+
+	if err := rulesStore.Add(found.asRule()); err != nil {
+		return err
+	}
+
+	decisions.Decisions = append(decisions.Decisions, Decision{
+		ID: id, Accepted: true, At: now, Who: who,
+	})
+	return s.writeDecisions(decisions)
 }
 
 // Reject records that the owner declined a proposal. reason is his own
@@ -106,7 +178,37 @@ func (s *Store) Reject(id, reason, who string, now time.Time) error {
 	if n := utf8.RuneCountInString(reason); n > maxReasonRunes {
 		return fmt.Errorf("reason is %d runes, the limit is %d", n, maxReasonRunes)
 	}
-	return fmt.Errorf("not implemented")
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	doc, err := s.readDocument()
+	if err != nil {
+		return err
+	}
+	known := false
+	for _, p := range doc.Proposals {
+		if p.ID == id {
+			known = true
+			break
+		}
+	}
+	if !known {
+		return &NoProposalError{ID: id}
+	}
+
+	decisions, err := s.readDecisions()
+	if err != nil {
+		return err
+	}
+	if d, ok := decisionByID(decisions, id); ok {
+		return &AlreadyDecidedError{ID: id, Accepted: d.Accepted}
+	}
+
+	decisions.Decisions = append(decisions.Decisions, Decision{
+		ID: id, Accepted: false, At: now, Who: who, Reason: reason,
+	})
+	return s.writeDecisions(decisions)
 }
 
 func decisionByID(f decisionsFile, id string) (Decision, bool) {

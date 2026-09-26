@@ -219,5 +219,19 @@ func (f *Fetcher) verify(body []byte, signature string) error {
 // minute so that a long outage does not turn into a request per minute
 // from every installation at once.
 func (f *Fetcher) nextDelay(err error, interval time.Duration) time.Duration {
-	return interval // not implemented
+	if err == nil {
+		f.failures = 0
+		return interval
+	}
+	if f.hint > 0 {
+		return f.hint
+	}
+	if f.failures < maxFailures {
+		f.failures++
+	}
+	delay := retryAfterFirstFailure << (f.failures - 1)
+	if delay > retryAfterMax || delay <= 0 {
+		delay = retryAfterMax
+	}
+	return delay
 }

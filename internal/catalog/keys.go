@@ -92,7 +92,16 @@ func NewKeyring() *Keyring {
 // a facts key here, a proposals key there — without holding the
 // production signing key.
 func NewKeyringWithKeys(keys ...Key) (*Keyring, error) {
-	return nil, fmt.Errorf("not implemented")
+	r := &Keyring{keys: map[string]*Key{}}
+	for i := range keys {
+		k := keys[i]
+		k.builtin = true
+		if err := k.parse(); err != nil {
+			return nil, err
+		}
+		r.keys[k.KeyID] = &k
+	}
+	return r, nil
 }
 
 func (k *Key) parse() error {
