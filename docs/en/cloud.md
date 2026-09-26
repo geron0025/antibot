@@ -90,12 +90,12 @@ to us.
 The `facts_and_analysis` subscription level opens a third channel on top
 of the two checkboxes: proposals. The cloud analyses the owner's own
 traffic and sends drafts of rules and advice about the ones already at
-work — [protocol/proposals.md](protocol/proposals.md). The node fetches
-them in the same cycle as the base's update, at the same address and
-with the same token: `GET <facts.url>/proposals?format=1` right after
-`/keys`. A lower level gets `403` for this, and it does not affect the
-base's own update at all — the proposals channel has its own, separate
-error policy.
+work — [protocol/proposals.md](protocol/proposals.md). The node fetches them with a cycle of its own, apart from the base's
+update but on the same schedule, at the same address and with the same
+token: `GET <facts.url>/proposals?format=1`. A lower level gets `403`
+for this, and it does not affect the base's own update at all — the
+proposals channel has its own, separate error policy and its own count
+of failures; only the address and the token are shared with the bases.
 
 The owner looks at the proposals and advice on the "Rules → Proposals"
 tab ([admin.md](admin.md)) and decides: accept — the rule lands in
