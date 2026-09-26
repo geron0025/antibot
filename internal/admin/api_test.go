@@ -35,6 +35,102 @@ func newAPIServer(t *testing.T) (s *Server, read, write string) {
 	return s, read, write
 }
 
+// newProposalsAPIServer is newAPIServer with a proposals fixture in the
+// same shared directory, its advice naming the "block-curl" rule's hash.
+func newProposalsAPIServer(t *testing.T) (s *Server, read, write string) {
+	t.Helper()
+	s, dir := newServer(t)
+	withProposals(t, s, dir)
+	tokens, err := OpenTokens(filepath.Join(dir, "api-tokens.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.o.Tokens = tokens
+	if read, _, err = tokens.Issue("monitoring", ScopeRead, 30, "test", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if write, _, err = tokens.Issue("ci", ScopeWrite, 30, "test", time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	return s, read, write
+}
+
+// The API lists the same proposals and advice the page shows, as the
+// schema describes them.
+func TestAPIProposalsListMatchesSchema(t *testing.T) {
+	s, read, _ := newProposalsAPIServer(t)
+	rec := call(t, s, "GET", "/api/v1/proposals", read, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("%d %s", rec.Code, rec.Body)
+	}
+	if errs := schemacheck.Validate(schema(t, "api-proposals"), decode(t, rec)); len(errs) > 0 {
+		t.Fatalf("%v\n%s", errs, rec.Body)
+	}
+	var answer struct {
+		Proposals []struct {
+			ID string `json:"id"`
+		} `json:"proposals"`
+		Advice []struct {
+			ID string `json:"id"`
+		} `json:"advice"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &answer); err != nil {
+		t.Fatal(err)
+	}
+	if len(answer.Proposals) != 1 || len(answer.Advice) != 1 {
+		t.Fatalf("%s", rec.Body)
+	}
+}
+
+// A read token only reads; a write token accepts and rejects, each once,
+// following the same rules the page's own buttons do.
+func TestAPIProposalsAcceptAndReject(t *testing.T) {
+	s, read, write := newProposalsAPIServer(t)
+	proposalsSchema := schema(t, "api-proposals")
+	change := proposalsSchema["$defs"].(map[string]any)["change"].(map[string]any)
+	errorSchema := schema(t, "api-error")
+
+	if rec := call(t, s, "POST", "/api/v1/proposals/cloud-hosting-no-browser-2026-09/accept", read, ""); rec.Code != http.StatusForbidden {
+		t.Fatalf("a read token accepted: %d", rec.Code)
+	}
+
+	rec := call(t, s, "POST", "/api/v1/proposals/cloud-hosting-no-browser-2026-09/accept", write, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("accept: %d %s", rec.Code, rec.Body)
+	}
+	if errs := schemacheck.ValidateAt(proposalsSchema, change, decode(t, rec), "$"); len(errs) > 0 {
+		t.Fatal(errs)
+	}
+
+	rec = call(t, s, "POST", "/api/v1/proposals/cloud-advice-cuts-people-2026-09/reject", write, `{"reason":"seen it, ignore"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("reject: %d %s", rec.Code, rec.Body)
+	}
+	if errs := schemacheck.ValidateAt(proposalsSchema, change, decode(t, rec), "$"); len(errs) > 0 {
+		t.Fatal(errs)
+	}
+
+	for name, c := range map[string]struct {
+		path, body string
+		code       int
+	}{
+		"a second accept":        {"/api/v1/proposals/cloud-hosting-no-browser-2026-09/accept", "", http.StatusConflict},
+		"an unknown id":          {"/api/v1/proposals/nothing/accept", "", http.StatusNotFound},
+		"advice, not a proposal": {"/api/v1/proposals/cloud-advice-cuts-people-2026-09/accept", "", http.StatusBadRequest},
+		"a reason too long": {"/api/v1/proposals/cloud-hosting-no-browser-2026-09/reject",
+			`{"reason":"` + strings.Repeat("a", 501) + `"}`, http.StatusBadRequest},
+	} {
+		rec := call(t, s, "POST", c.path, write, c.body)
+		if rec.Code != c.code {
+			t.Errorf("%s: %d, want %d: %s", name, rec.Code, c.code, rec.Body)
+			continue
+		}
+		if errs := schemacheck.Validate(errorSchema, decode(t, rec)); len(errs) > 0 {
+			t.Errorf("%s: %v", name, errs)
+		}
+	}
+}
+
 func call(t *testing.T, s *Server, method, path, token, body string, cookies ...*http.Cookie) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(method, path, strings.NewReader(body))

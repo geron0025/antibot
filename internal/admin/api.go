@@ -51,6 +51,7 @@ func (s *Server) apiRoutes(mux *http.ServeMux) {
 	mux.Handle("GET /api/v1/events", s.requireToken(ScopeRead, s.apiEvents))
 	mux.Handle("GET /api/v1/rules", s.requireToken(ScopeRead, s.apiRules))
 	mux.Handle("GET /api/v1/alerts", s.requireToken(ScopeRead, s.apiAlerts))
+	mux.Handle("GET /api/v1/proposals", s.requireToken(ScopeRead, s.apiProposals))
 
 	// A replay writes nothing, so reading is enough for it: a monitoring
 	// system may ask whom a draft would touch without being able to put
@@ -65,6 +66,8 @@ func (s *Server) apiRoutes(mux *http.ServeMux) {
 	mux.Handle("POST /api/v1/rules/{id}/disable", s.requireToken(ScopeWrite, s.apiToggleRule(false)))
 	mux.Handle("POST /api/v1/rules/{id}/mode", s.requireToken(ScopeWrite, s.apiSetRuleMode))
 	mux.Handle("DELETE /api/v1/rules/{id}", s.requireToken(ScopeWrite, s.apiRemoveRule))
+	mux.Handle("POST /api/v1/proposals/{id}/accept", s.requireToken(ScopeWrite, s.apiAcceptProposal))
+	mux.Handle("POST /api/v1/proposals/{id}/reject", s.requireToken(ScopeWrite, s.apiRejectProposal))
 
 	// Anything else under /api/ answers in JSON: a program that got the
 	// address wrong must not receive the login page a browser would.
@@ -501,6 +504,21 @@ func (s *Server) apiRemoveRule(w http.ResponseWriter, r *http.Request, tok *Toke
 	s.o.Log.Info("a rule was deleted through the API",
 		"rule", id, "token", tok.Name, "address", clientAddr(r))
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// TODO(T10): the API of docs/*/protocol/proposals.md's third channel. Not
+// implemented yet.
+
+func (s *Server) apiProposals(w http.ResponseWriter, r *http.Request, _ *Token) {
+	apiFail(w, http.StatusNotImplemented, "not implemented")
+}
+
+func (s *Server) apiAcceptProposal(w http.ResponseWriter, r *http.Request, tok *Token) {
+	apiFail(w, http.StatusNotImplemented, "not implemented")
+}
+
+func (s *Server) apiRejectProposal(w http.ResponseWriter, r *http.Request, tok *Token) {
+	apiFail(w, http.StatusNotImplemented, "not implemented")
 }
 
 // apiRule answers with the rule as it now is in force: a program that

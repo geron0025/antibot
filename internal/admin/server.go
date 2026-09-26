@@ -40,6 +40,7 @@ import (
 	"github.com/geron0025/antibot/internal/crawlers"
 	"github.com/geron0025/antibot/internal/domains"
 	"github.com/geron0025/antibot/internal/i18n"
+	"github.com/geron0025/antibot/internal/proposals"
 	"github.com/geron0025/antibot/internal/rules"
 )
 
@@ -96,6 +97,13 @@ type Options struct {
 	// decision in: whether they pass before the rules, and who is held
 	// back. Nil shows the tab without a switch.
 	Crawlers *crawlers.File
+
+	// Proposals is the cloud's draft rules and advice for this node, and
+	// the owner's decisions about them — the third channel of
+	// docs/*/protocol/proposals.md, next to Rules in the same shared
+	// directory. Nil exactly when Rules is: there is nowhere to keep
+	// proposals.json without a rules.json beside it.
+	Proposals *proposals.Store
 
 	// Core is the node's core: what exists only in its memory, asked over
 	// its control socket. The admin UI works while the core is down, and
@@ -337,6 +345,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("GET /rules", s.requireLogin(s.rulesPage))
 	mux.Handle("GET /rule", s.requireLogin(s.rulePage))
 	mux.Handle("GET /rules/crawlers", s.requireLogin(s.crawlersPage))
+	mux.Handle("GET /rules/proposals", s.requireLogin(s.proposalsPage))
 	mux.Handle("GET /domains", s.requireLogin(s.domainsPage))
 
 	// The writing actions, all of them. Composing a rule here is
@@ -348,6 +357,7 @@ func (s *Server) Handler() http.Handler {
 	mux.Handle("POST /rules/toggle", s.requireLogin(s.toggleRule))
 	mux.Handle("POST /rules/mode", s.requireLogin(s.setRuleMode))
 	mux.Handle("POST /rules/crawlers", s.requireLogin(s.setCrawlers))
+	mux.Handle("POST /rules/proposals", s.requireLogin(s.decideProposal))
 	mux.Handle("POST /domains/add", s.requireLogin(s.addDomain))
 	mux.Handle("POST /domains/remove", s.requireLogin(s.removeDomain))
 	mux.Handle("POST /domains/certificate", s.requireLogin(s.uploadCertificate))

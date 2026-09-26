@@ -188,7 +188,7 @@ func TestEveryPageSpeaksRussian(t *testing.T) {
 	s, _ := newAlertsServer(t, "")
 	check(t, s, []page{
 		{"/", "Обзор"}, {"/events", "События"}, {"/rules", "Правила"},
-		{"/rule?id=block-curl", "Правила"}, {"/alerts", "Оповещения"},
+		{"/rule?id=block-curl", "Правила"}, {"/rules/proposals", "Правила"}, {"/alerts", "Оповещения"},
 		{"/settings", "Настройки"}, {"/settings/core", "Настройки"},
 		{"/settings/alerts", "Настройки"},
 	})
