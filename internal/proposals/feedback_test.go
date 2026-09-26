@@ -113,6 +113,42 @@ func TestComputeItems(t *testing.T) {
 	}
 }
 
+// An advice can be rejected — docs/*/protocol/proposals.md «Ответ ноды»
+// shows exactly that, with a reason — and once it is, computeItems must
+// report only the rejection, never a later "done", even when the rule
+// the advice is about happens to satisfy the "done" condition on its
+// own: the owner declined the advice, not merely delayed acting on it.
+func TestComputeItemsRejectedAdviceNeverTurnsDone(t *testing.T) {
+	rejectedAt := time.Date(2026, 9, 10, 9, 5, 0, 0, time.UTC)
+	now := time.Date(2026, 9, 12, 0, 0, 0, 0, time.UTC)
+
+	// Disabled, which is exactly what SuggestDisable's "done" condition
+	// looks for — and must be ignored because the advice was rejected.
+	disabledRule := rules.Rule{ID: "owner-rule", Mode: rules.Active, Enabled: boolPtr(false),
+		Condition: rules.Condition{Field: "network.class", Op: "eq", Value: json.RawMessage(`"hosting"`)},
+		Action:    rules.Action{Type: rules.Block}}
+	current := []rules.Rule{disabledRule}
+
+	decisions := []Decision{
+		{ID: "cloud-advice-cuts-people-2026-09", Accepted: false, At: rejectedAt,
+			Reason: "это наши партнёры, так и задумано"},
+	}
+	advice := []Advice{
+		{ID: "cloud-advice-cuts-people-2026-09", Rule: disabledRule.Hash(), Suggest: SuggestDisable},
+	}
+
+	items := computeItems(now, decisions, current, advice)
+	if len(items) != 1 {
+		t.Fatalf("expected exactly one item (the rejection, not a later done too), got %d: %+v",
+			len(items), items)
+	}
+	it := items[0]
+	if it.ID != "cloud-advice-cuts-people-2026-09" || it.State != StateRejected ||
+		it.At != rejectedAt || it.Reason != "это наши партнёры, так и задумано" {
+		t.Fatalf("wrong item: %+v", it)
+	}
+}
+
 // feedbackServer captures posts and answers a fixed status.
 type feedbackServer struct {
 	status  int

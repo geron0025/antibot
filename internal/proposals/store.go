@@ -64,6 +64,16 @@ type NoProposalError struct{ ID string }
 
 func (e *NoProposalError) Error() string { return fmt.Sprintf("there is no proposal %q", e.ID) }
 
+// AdviceCannotBeAcceptedError names an id that is advice, not a
+// proposal: advice adds nothing and changes nothing on its own, so
+// there is nothing for Accept to write down. The owner acts on it with
+// the rule's own buttons — enable, disable, shadow — not this one.
+type AdviceCannotBeAcceptedError struct{ ID string }
+
+func (e *AdviceCannotBeAcceptedError) Error() string {
+	return fmt.Sprintf("%q is advice, not a proposal; accept does not apply to it", e.ID)
+}
+
 // Store is what the admin UI calls about the cloud's proposals: List
 // for what to show, Accept and Reject for the two buttons the owner
 // has.

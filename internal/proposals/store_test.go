@@ -183,3 +183,122 @@ func TestListShowsAdviceOnlyWhenTheRuleExists(t *testing.T) {
 		t.Fatalf("expected only the advice about a rule that still exists, got %d entries", len(advice))
 	}
 }
+
+// The node's answer shows advice rejected with a reason
+// ("cloud-advice-cuts-people-2026-09" … "это наши партнёры, так и
+// задумано" in docs/*/protocol/proposals.md «Ответ ноды»), so Reject
+// must work on an advice id exactly as it does on a proposal's: reason
+// capped at 500 runes, recorded in the decisions.
+func TestRejectWorksForAdvice(t *testing.T) {
+	r := rules.Rule{
+		ID: "owner-rule", Scope: []string{"*"}, Mode: rules.Shadow, Priority: 1,
+		Condition: rules.Condition{Field: "network.class", Op: "eq", Value: json.RawMessage(`"hosting"`)},
+		Action:    rules.Action{Type: rules.Block},
+	}
+	future := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+	adv := Advice{ID: "cloud-advice-cuts-people-2026-09", ExpiresAt: future, Rule: r.Hash(),
+		Suggest: SuggestDisable, Why: "x", Evidence: AdviceEvidence{Window: "w"}}
+
+	dir := t.TempDir()
+	writeProposalsDoc(t, dir, Document{Node: testNodeID, Advice: []Advice{adv}})
+
+	s := Open(dir)
+	now := time.Date(2026, 9, 10, 9, 5, 0, 0, time.UTC)
+	if err := s.Reject(adv.ID, "это наши партнёры, так и задумано", "owner", now); err != nil {
+		t.Fatalf("reject: %v", err)
+	}
+
+	decisions, err := s.Decisions()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(decisions) != 1 {
+		t.Fatalf("expected one decision, got %d", len(decisions))
+	}
+	d := decisions[0]
+	if d.ID != adv.ID || d.Accepted || d.At != now || d.Reason != "это наши партнёры, так и задумано" {
+		t.Fatalf("the decision was not recorded correctly: %+v", d)
+	}
+
+	// A reason over 500 runes is refused, the same as for a proposal.
+	if err := s.Reject(adv.ID, strings.Repeat("a", 501), "owner", now); err == nil {
+		t.Fatal("a 501-rune reason on advice was accepted")
+	}
+
+	// Already decided: cannot be decided again.
+	var already *AlreadyDecidedError
+	if err := s.Reject(adv.ID, "again", "owner", now); !errors.As(err, &already) {
+		t.Fatalf("a rejected advice was decided again: %v", err)
+	}
+}
+
+// Once rejected, an advice is hidden by List — and stays hidden even if
+// the cloud, not knowing better, sends the very same id again:
+// docs/*/protocol/proposals.md «Отказ» says the cloud stops sending it,
+// but also "если оно всё же приехало, нода его не показывает".
+func TestListHidesRejectedAdviceEvenWhenResent(t *testing.T) {
+	r := rules.Rule{
+		ID: "owner-rule", Scope: []string{"*"}, Mode: rules.Shadow, Priority: 1,
+		Condition: rules.Condition{Field: "network.class", Op: "eq", Value: json.RawMessage(`"hosting"`)},
+		Action:    rules.Action{Type: rules.Block},
+	}
+	set, err := rules.Build([]rules.Rule{r}, rules.NewWindows())
+	if err != nil {
+		t.Fatal(err)
+	}
+	future := time.Date(2099, 1, 1, 0, 0, 0, 0, time.UTC)
+	adv := Advice{ID: "cloud-advice-x", ExpiresAt: future, Rule: r.Hash(),
+		Suggest: SuggestDisable, Why: "x", Evidence: AdviceEvidence{Window: "w"}}
+
+	dir := t.TempDir()
+	writeProposalsDoc(t, dir, Document{Node: testNodeID, Advice: []Advice{adv}})
+	s := Open(dir)
+
+	_, advice, err := s.List(time.Now(), set)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(advice) != 1 {
+		t.Fatalf("expected the advice to show before any decision, got %d", len(advice))
+	}
+
+	if err := s.Reject(adv.ID, "not for us", "owner", time.Now()); err != nil {
+		t.Fatalf("reject: %v", err)
+	}
+
+	_, advice, err = s.List(time.Now(), set)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(advice) != 0 {
+		t.Fatalf("a rejected advice was shown: %d entries", len(advice))
+	}
+
+	// The cloud re-sends the same id, still believing it should show.
+	writeProposalsDoc(t, dir, Document{Node: testNodeID, Advice: []Advice{adv}})
+	_, advice, err = s.List(time.Now(), set)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(advice) != 0 {
+		t.Fatalf("a rejected advice reappeared after being resent: %d entries", len(advice))
+	}
+}
+
+// Advice is acted on with the rule's own buttons, not added by one:
+// Accept on an advice id is a clear error, not a confusing "no such
+// proposal".
+func TestAcceptRefusesAdvice(t *testing.T) {
+	dir := t.TempDir()
+	rulesStore := newRulesStore(t, dir)
+
+	adv := Advice{ID: "cloud-advice-x", ExpiresAt: time.Now().Add(time.Hour), Rule: "0123456789abcdef",
+		Suggest: SuggestReview, Why: "x", Evidence: AdviceEvidence{Window: "w"}}
+	writeProposalsDoc(t, dir, Document{Node: testNodeID, Advice: []Advice{adv}})
+
+	s := Open(dir)
+	var wrongKind *AdviceCannotBeAcceptedError
+	if err := s.Accept(adv.ID, rulesStore, "owner", time.Now()); !errors.As(err, &wrongKind) {
+		t.Fatalf("expected AdviceCannotBeAcceptedError, got %v", err)
+	}
+}
